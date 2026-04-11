@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="toolbar_start">#06402B</color>
+    <color name="toolbar_end">#0E7A57</color>
+
+    <color name="surface_bg">#E6F2EC</color>
+    <color name="surface_bg_bottom">#F3FAF6</color>
+    <color name="summary_card">#FFFFFF</color>
+    <color name="summary_stroke">#CCDFD6</color>
+
+    <color name="alert_card_bg">#FFFFFF</color>
+    <color name="alert_card_stroke">#CEE0D8</color>
+
+    <color name="key_value_bg">#F1F8F4</color>
+    <color name="key_value_stroke">#C8DDD3</color>
+
+    <color name="badge_start">#0B5B40</color>
+    <color name="badge_end">#148760</color>
+
+    <color name="connect_button_bg">#07563B</color>
+    <color name="delete_button">#C13D2A</color>
+    <color name="button_primary_bg">#0E7A57</color>
+    <color name="button_primary_text">#FFFFFF</color>
+
+    <color name="text_primary">#0F172A</color>
+    <color name="connection_panel_title">#07563B</color>
+    <color name="text_secondary">#546A62</color>
+    <color name="subtitle_grey">#6B7280</color>
+
+    <color name="chart_status_normal">#0E7A57</color>
+    <color name="chart_status_monitor">#0891B2</color>
+    <color name="chart_status_low">#D97706</color>
+    <color name="chart_status_expiring">#DC2626</color>
+    <color name="chart_missed">#94A3B8</color>
+    <color name="pin_lock_icon">#7A6122</color>
+
+    <color name="checkbox_tint">#0E7A57</color>
+    <color name="med_box_bg">#12875D</color>
+    <color name="med_box_stroke">#0D6B49</color>
+    <color name="med_box_label">#D4F5E7</color>
+    <color name="med_box_text">#FFFFFF</color>
+    <color name="inventory_row_selected_bg">#D0F0E0</color>
+    <color name="inventory_row_selected_stroke">#0E7A57</color></resources>

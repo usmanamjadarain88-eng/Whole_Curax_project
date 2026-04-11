@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Settings"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Same structure as desktop. Edit below and tap Save when ready."
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <!-- Alert settings section: mild boundary around all alert blocks + Save Alert Settings inside -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            app:cardBackgroundColor="@android:color/transparent"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+        <!-- Medicine Time Alerts -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="0dp"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Medicine Time Alerts"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <CheckBox android:id="@+id/cb_medicine_30_before" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="30 min before" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_medicine_15_before" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="15 min before" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_medicine_exact" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Exact time" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Snooze duration (minutes)" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                <EditText android:id="@+id/et_medicine_snooze" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:hint="5" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Missed Dose Escalation -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Missed Dose Escalation"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <CheckBox android:id="@+id/cb_missed_5_min" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="After 5 min: reminder" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_missed_15_urgent" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="After 15 min: urgent alert" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_missed_30_family" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="After 30 min: notify family" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_missed_1hr_log" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="After 1 hour: log as missed" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Family / Admin email" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                <EditText android:id="@+id/et_missed_family_email" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textEmailAddress" android:hint="admin@example.com" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Stock Alerts -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Stock Alerts"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <CheckBox android:id="@+id/cb_stock_enabled" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="Enable stock alerts" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Low stock threshold" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                <EditText android:id="@+id/et_stock_threshold" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="number" android:hint="5" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+                <CheckBox android:id="@+id/cb_stock_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Alert when empty" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_stock_critical" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Critical alert when low" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Expiry Alerts -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Expiry Alerts"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <CheckBox android:id="@+id/cb_expiry_30" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="30 days before" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_expiry_15" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="15 days before" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_expiry_7" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="7 days before" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+                <CheckBox android:id="@+id/cb_expiry_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="1 day before" android:textColor="@color/text_primary" android:buttonTint="@color/checkbox_tint" android:checked="true" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_save_alert_settings"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Save Alert Settings"
+                    app:backgroundTint="@color/button_primary_bg"
+                    app:cornerRadius="8dp" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Gmail Settings (editable like desktop) -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="24dp"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Gmail Settings"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Sender email" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                <EditText android:id="@+id/et_gmail_sender" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textEmailAddress" android:hint="you@gmail.com" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="App password (code)" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                <EditText android:id="@+id/et_gmail_code" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textPassword" android:hint="Gmail app password" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="Recipients (comma-separated)" android:textColor="@color/text_secondary" android:textSize="12sp" />
+                <EditText android:id="@+id/et_gmail_recipients" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Optional" android:textColor="@color/text_primary" android:textColorHint="@color/text_secondary" android:minLines="1" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="Uses smtp.gmail.com:465" android:textColor="@color/text_secondary" android:textSize="11sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_save_gmail"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="Save Gmail Settings"
+                    app:backgroundTint="@color/button_primary_bg"
+                    app:cornerRadius="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="24dp" />
+    </LinearLayout>
+</ScrollView>
+

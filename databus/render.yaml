@@ -1,0 +1,19 @@
+# Render.com blueprint: permanent deploy of Data Bus WebSocket server.
+# Set CENTRAL_API_URL in Render dashboard to your Central API (e.g. https://your-api.onrender.com).
+# After deploy, Data Bus URL will be https://<service-name>.onrender.com (use this in desktop + app).
+
+services:
+  - type: web
+    name: databus
+    runtime: python
+    plan: free
+
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+
+    envVars:
+      - key: CENTRAL_API_URL
+        sync: false
+        # Set in Render dashboard to your Central API base URL, e.g.:
+        # https://medicine-alerts-api.onrender.com
+        # (Render sets PORT automatically; no need to set it here.)

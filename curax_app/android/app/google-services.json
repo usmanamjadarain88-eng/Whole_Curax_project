@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "428598576836",
+    "project_id": "curax-bfacb",
+    "storage_bucket": "curax-bfacb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:428598576836:android:3a97c93a24c8f5ded1ab91",
+        "android_client_info": {
+          "package_name": "com.curax.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDI9eic4QuZqeQ4PJ6T0sp02ZE9QrQtxxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

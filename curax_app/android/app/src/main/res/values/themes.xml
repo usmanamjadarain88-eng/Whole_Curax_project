@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Curax" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/toolbar_start</item>
+        <item name="android:navigationBarColor">@color/toolbar_start</item>
+        <item name="colorPrimary">@color/toolbar_start</item>
+        <item name="colorPrimaryVariant">@color/toolbar_end</item>
+        <item name="colorSecondary">@color/badge_end</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

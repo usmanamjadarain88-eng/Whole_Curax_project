@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_surface_gradient"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@drawable/bg_toolbar_gradient"
+        app:navigationIcon="@android:drawable/ic_menu_revert"
+        app:titleTextColor="@android:color/white" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/sectionConnectToAdmin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/connect_to_admin"
+            android:textAppearance="?attr/textAppearanceSubtitle1"
+            android:textColor="@color/text_primary" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/connectionCodeInputLayout"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:hint="@string/connection_code_hint">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etConnectionCode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapCharacters"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnLinkToAdmin"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/link_to_admin"
+            android:textColor="@android:color/white"
+            app:backgroundTint="@color/connect_button_bg" />
+        <TextView
+            android:id="@+id/tvConnectedToAdmin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/connected_to_admin"
+            android:textAppearance="?attr/textAppearanceBody2"
+            android:textColor="@color/text_secondary"
+            android:visibility="gone" />
+
+        <!-- 1) Change PIN first, 2) Desktop linking code second -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSetPin"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/set_pin"
+            android:textColor="@android:color/white"
+            app:backgroundTint="@color/connect_button_bg" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnUserDesktopLinkCode"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/desktop_linking_code"
+            android:textColor="@color/text_primary"
+            android:visibility="gone"
+            app:strokeColor="@color/summary_stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAutoLock"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/auto_lock_selected_5m"
+            android:textColor="@color/text_primary"
+            app:strokeColor="@color/summary_stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAppInfo"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="My App Info"
+            android:textColor="@color/text_primary"
+            app:strokeColor="@color/summary_stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnMyConnectionCode"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/my_connection_code"
+            android:textColor="@color/text_primary"
+            android:visibility="gone"
+            app:strokeColor="@color/summary_stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDesktopLinkingCode"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/desktop_linking_code"
+            android:textColor="@color/text_primary"
+            android:visibility="gone"
+            app:strokeColor="@color/summary_stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExportHistory"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/export_chat_history"
+            android:textColor="@color/text_primary"
+            app:strokeColor="@color/summary_stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnHelp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/help"
+            android:textColor="@color/text_primary"
+            app:strokeColor="@color/summary_stroke" />
+    </LinearLayout>
+    </LinearLayout>
+</ScrollView>
+
+
+
+

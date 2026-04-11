@@ -1,0 +1,79 @@
+package com.curax.app
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.RecyclerView
+
+class AdminInventoryAdapter(
+    private val onItemClick: (AdminOverviewFragment.InventoryItem) -> Unit,
+    private val computedStatus: (AdminOverviewFragment.InventoryItem) -> String
+) : RecyclerView.Adapter<AdminInventoryAdapter.ViewHolder>() {
+
+    private val items = mutableListOf<AdminOverviewFragment.InventoryItem>()
+    private var selectedId: Long? = null
+
+    fun submitList(newItems: List<AdminOverviewFragment.InventoryItem>) {
+        items.clear()
+        items.addAll(newItems)
+        notifyDataSetChanged()
+    }
+
+    fun setSelectedId(id: Long?) {
+        selectedId = id
+        notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_admin_inventory, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun getItemCount(): Int = items.size
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.bind(items[position], items[position].id == selectedId)
+    }
+
+    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val tvMedicine: TextView = itemView.findViewById(R.id.tvRowMedicine)
+        private val tvBox: TextView = itemView.findViewById(R.id.tvRowBox)
+        private val tvStock: TextView = itemView.findViewById(R.id.tvRowStock)
+        private val tvDose: TextView = itemView.findViewById(R.id.tvRowDose)
+        private val tvTime: TextView = itemView.findViewById(R.id.tvRowTime)
+        private val tvExpiry: TextView = itemView.findViewById(R.id.tvRowExpiry)
+        private val tvStatus: TextView = itemView.findViewById(R.id.tvRowStatus)
+        private val root: View = itemView.findViewById(R.id.layoutRowRoot)
+
+        fun bind(item: AdminOverviewFragment.InventoryItem, selected: Boolean) {
+            val status = computedStatus(item)
+            tvMedicine.text = item.name
+            tvBox.text = item.box
+            tvStock.text = item.stock.toString()
+            tvDose.text = item.dosePerDay.toString()
+            tvTime.text = item.exactTime
+            tvExpiry.text = item.expiry
+            tvStatus.text = status
+
+            tvStatus.setTextColor(
+                when (status) {
+                    "Expiring" -> 0xFFDC2626.toInt()
+                    "Low" -> 0xFFD97706.toInt()
+                    "Normal" -> 0xFF0E7A57.toInt()
+                    else -> ContextCompat.getColor(itemView.context, R.color.text_secondary)
+                }
+            )
+
+            root.background = if (selected) {
+                ContextCompat.getDrawable(itemView.context, R.drawable.bg_inventory_selected)
+            } else {
+                null
+            }
+
+            itemView.setOnClickListener { onItemClick(item) }
+        }
+    }
+}

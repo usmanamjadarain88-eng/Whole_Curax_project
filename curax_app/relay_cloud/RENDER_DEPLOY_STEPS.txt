@@ -1,0 +1,70 @@
+================================================================================
+RENDER DEPLOY - STEP BY STEP (use this folder: relay_cloud)
+================================================================================
+
+FOLDER TO USE:  curax_app\relay_cloud
+FILES IN IT (all 3 are needed):
+  - server.py
+  - requirements.txt
+  - Procfile
+
+Render needs your code in a Git repo (GitHub). Two ways:
+
+--------------------------------------------------------------------------------
+OPTION A - New GitHub repo with only the relay (simplest)
+--------------------------------------------------------------------------------
+
+1. Create a new repo on GitHub (e.g. name: curax-relay).
+   - Do NOT add README/license (empty repo).
+
+2. On your PC, open PowerShell in the relay_cloud folder:
+   cd "C:\Users\PMYLS\OneDrive\Desktop\rightone\curax_app\relay_cloud"
+
+3. Run:
+   git init
+   git add server.py requirements.txt Procfile
+   git commit -m "Curax cloud relay"
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/curax-relay.git
+   git push -u origin main
+   (Replace YOUR_USERNAME with your GitHub username.)
+
+4. In Render.com:
+   - Click "New +" → "Web Service".
+   - "Connect a repository" → choose GitHub → select the repo "curax-relay".
+   - Render will show a form:
+     * Name: e.g. curax-relay
+     * Region: choose nearest
+     * Branch: main
+     * Root Directory: leave BLANK (files are at repo root)
+     * Runtime: Python 3
+     * Build Command:  pip install -r requirements.txt
+     * Start Command:  python server.py
+   - Click "Create Web Service".
+
+5. Wait for "Deploy live". Your URL will be:
+   https://curax-relay.onrender.com
+   (or whatever name you gave; it appears at the top of the service page.)
+
+6. Use that URL in:
+   - Android app: Server URL field
+   - Desktop app: Mobile Alert Bot → Server URL
+
+--------------------------------------------------------------------------------
+OPTION B - You already have the full project on GitHub
+--------------------------------------------------------------------------------
+
+1. Make sure "relay_cloud" is inside your repo (e.g. rightone/curax_app/relay_cloud).
+
+2. In Render.com:
+   - "New +" → "Web Service".
+   - Connect the repo that contains relay_cloud.
+   - In the form set:
+     * Root Directory:  curax_app/relay_cloud
+     * Build Command:   pip install -r requirements.txt
+     * Start Command:   python server.py
+   - Create Web Service.
+
+3. Use the URL Render gives you (e.g. https://something.onrender.com) in the app and desktop.
+
+================================================================================

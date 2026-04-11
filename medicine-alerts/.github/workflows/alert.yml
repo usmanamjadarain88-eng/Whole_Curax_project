@@ -1,0 +1,24 @@
+name: Medicine Alert
+
+on:
+  workflow_dispatch:
+
+jobs:
+  send-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run alert script
+        run: python .github/scripts/alerts.py
+        env:
+          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
+          MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          ALERT_TZ: ${{ secrets.ALERT_TZ }}

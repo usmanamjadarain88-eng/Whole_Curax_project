@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingVertical="0dp"
+    android:paddingStart="0dp"
+    android:paddingEnd="0dp"
+    android:gravity="center_vertical"
+    android:background="?attr/selectableItemBackground">
+
+    <TextView
+        android:id="@+id/tvLogDate"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:background="@drawable/bg_table_cell"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvLogTime"
+        android:layout_width="56dp"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:gravity="center"
+        android:background="@drawable/bg_table_cell"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvLogMedicine"
+        android:layout_width="140dp"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:background="@drawable/bg_table_cell"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvLogStatus"
+        android:layout_width="72dp"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:gravity="center"
+        android:background="@drawable/bg_table_cell"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvLogSource"
+        android:layout_width="64dp"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:gravity="center"
+        android:background="@drawable/bg_table_cell"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp" />
+
+    <TextView
+        android:id="@+id/tvLogUser"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:background="@drawable/bg_table_cell"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp" />
+</LinearLayout>

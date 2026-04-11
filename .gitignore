@@ -1,0 +1,86 @@
+# =============================================================================
+# Work/ monorepo — private, machine-local, and generated files (all 3 projects)
+# =============================================================================
+
+# Old per-folder Git folders renamed aside when using this monorepo (local only)
+**/.git.bak/
+
+# --- Secrets & environment (never commit) ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- medicine-alerts: backend URLs / DB connection on disk ---
+medicine-alerts/backend/.env
+medicine-alerts/backend/database_url.txt
+medicine-alerts/backend/backend_url.txt
+medicine-alerts/backend/api_base_url.txt
+medicine-alerts/backend/data_bus_url.txt
+
+# --- medicine-alerts: desktop local DB (codes, hashes, user data) ---
+medicine-alerts/frontend/curax_desktop.json
+
+# --- databus: local secrets (template .env.example stays tracked) ---
+databus/.env
+
+# --- Python (all folders) ---
+**/__pycache__/
+**/*.py[cod]
+**/$py.class
+**/.Python
+**/.venv/
+**/venv/
+**/env/
+**/.eggs/
+**/*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/dist/
+**/*.egg
+
+# --- Node / Expo / RN (medicine-alerts/mobile etc.) ---
+**/node_modules/
+**/.expo/
+**/.turbo/
+**/npm-debug.log*
+**/yarn-error.log*
+
+# --- Android / Gradle (curax_app/android) ---
+**/local.properties
+**/.gradle/
+**/build/
+**/captures/
+**/*.apk
+**/*.aab
+**/*.ap_
+**/*.dex
+**/*.class
+**/*.keystore
+**/*.jks
+**/keystore.properties
+**/signing.properties
+hs_err_pid*.log
+replay_pid*.log
+
+# --- OS & editors ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Logs & temp ---
+*.log
+*.tmp
+*.temp
+.cache/
+
+# --- Deploy tooling local state ---
+.vercel/
+.netlify/

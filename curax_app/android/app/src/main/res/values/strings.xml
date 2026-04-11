@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Curax</string>
+    <string name="settings">Connection Panel</string>
+    <string name="settings_screen_title">Settings</string>
+    <string name="server_url">Server URL (cloud relay)</string>
+    <string name="server_url_hint">https://curax-relay.onrender.com</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="connecting">Connecting...</string>
+    <string name="alerts">Alerts</string>
+    <string name="bot_id">ID (for desktop)</string>
+    <string name="api_key">API Key (for desktop)</string>
+    <string name="copy">Copy</string>
+    <string name="no_alerts">No alerts yet. Connect desktop software to receive alerts.</string>
+    <string name="no_alerts_onboarding">Curax keeps your medicine alerts organized and secure.&#10;Connect with desktop relay to start real-time reminders.</string>
+    <string name="connected">Connected</string>
+    <string name="disconnected">Disconnected</string>
+    <string name="drawer_open">Open menu</string>
+    <string name="drawer_close">Close menu</string>
+    <string name="fcm_token_label">FCM Token</string>
+    <string name="dark_mode">Dark mode</string>
+    <string name="light_mode">Light mode</string>
+    <string name="clear_all">Clear all messages</string>
+    <string name="clear_all_confirm">Delete all previous alerts?</string>
+    <string name="clear">Clear</string>
+    <string name="cleared">All messages deleted</string>
+    <string name="deleted">Message deleted</string>
+    <string name="deleted_count">%1$d messages deleted</string>
+    <string name="no_alerts_to_clear">No alerts to clear</string>
+    <string name="alert_detail">Alert Details</string>
+    <string name="delete_message">Delete this message</string>
+    <string name="undo">Undo</string>
+    <string name="delete_selected">Delete selected</string>
+    <string name="delete_selected_confirm">Delete %1$d selected messages?</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="select_all">Select all</string>
+    <string name="unselect_all">Unselect all</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="export_chat_history">Export chat history</string>
+    <string name="export_subject">Curax chat history</string>
+    <string name="no_alerts_to_export">No alerts to export</string>
+    <string name="help">Help</string>
+    <string name="auto_lock_title">Auto-lock</string>
+    <string name="auto_lock_30s_label">30 seconds</string>
+    <string name="auto_lock_1m_label">1 minute</string>
+    <string name="auto_lock_5m_label">5 minutes</string>
+    <string name="auto_lock_10m_label">10 minutes</string>
+    <string name="auto_lock_30m_label">30 minutes</string>
+    <string name="auto_lock_selected_30s">Auto-lock: 30 sec</string>
+    <string name="auto_lock_selected_1m">Auto-lock: 1 min</string>
+    <string name="auto_lock_selected_5m">Auto-lock: 5 min</string>
+    <string name="auto_lock_selected_10m">Auto-lock: 10 min</string>
+    <string name="auto_lock_selected_30m">Auto-lock: 30 min</string>
+    <string name="set_pin">Set PIN</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="remove_pin">Remove PIN</string>
+    <string name="save">Save</string>
+    <string name="pin_hint">Enter 4-8 digit PIN</string>
+    <string name="pin_confirm_hint">Confirm PIN</string>
+    <string name="enter_pin">Enter PIN</string>
+    <string name="unlock">Unlock</string>
+    <string name="unlock_title">App Locked</string>
+    <string name="unlock_subtitle">Enter PIN or use fingerprint to continue</string>
+    <string name="use_fingerprint">Use fingerprint</string>
+    <string name="biometric_title">Fingerprint Unlock</string>
+    <string name="biometric_subtitle">Touch sensor to unlock Curax</string>
+    <string name="biometric_not_available">Fingerprint is not available on this device.</string>
+    <string name="pin_incorrect">Incorrect PIN. Try again.</string>
+    <string name="pin_validation">PIN must be 4 to 8 digits.</string>
+    <string name="pin_mismatch">PIN and confirm PIN do not match.</string>
+    <string name="pin_saved">PIN saved.</string>
+    <string name="pin_removed">PIN removed.</string>
+    <string name="help_guide">1) Open Connection Panel in Android app and copy ID and API Key.&#10;&#10;2) In desktop software Server URL, use https://curax-relay.onrender.com then paste ID and API Key.&#10;&#10;3) Save in desktop software and tap Connect in app.&#10;&#10;4) Alerts from desktop will come to this phone.&#10;&#10;5) Open Settings from 3 dots to set/change PIN, Auto-lock, and export chat history.&#10;&#10;6) Keep notifications enabled to receive FCM alerts when app is closed.</string>
+        <string name="help_section_fcm_title">FCM Token Setup</string>
+    <string name="help_section_fcm_body">- FCM token is your phone registration ID for push alerts.&#10;- Open app and tap Connect once to register or update token on relay.&#10;- Copy ID and API Key from app and paste into desktop software.&#10;- Save in desktop software to start receiving alerts on this phone.</string>
+    <string name="help_section_connect_title">Connect Phone With Relay</string>
+    <string name="help_section_connect_body">- Open Connection Panel in Android app.&#10;- Copy ID and API Key from app and paste into desktop software.&#10;- Save in desktop software, then alerts will start coming to this phone.</string>
+    <string name="help_section_relay_title">Desktop Relay URL</string>
+    <string name="help_section_relay_body">Use this fixed URL in desktop software Server URL field:&#10;https://curax-relay.onrender.com&#10;&#10;If relay URL changes in future, update it in desktop software settings.</string>
+    <string name="help_section_alerts_title">Alert Delivery (FCM First)</string>
+    <string name="help_section_alerts_body">- Curax sends alerts primarily using FCM push, even when app is closed.&#10;- Keep internet enabled on phone for delivery.&#10;- If phone screen is off, alert can still arrive as notification.&#10;- Tap any alert to open full details.&#10;- Swipe or multi-select checkboxes to delete, and use Undo if needed.</string>
+    <string name="help_section_security_title">PIN And Fingerprint</string>
+    <string name="help_section_security_body">- Open Settings -&gt; Set PIN to secure app.&#10;- Unlock screen supports PIN and fingerprint.&#10;- If fingerprint is not enrolled, phone security settings will open.</string>
+    <string name="help_section_tips_title">Reliability Checklist</string>
+    <string name="help_section_tips_body">- Open phone Settings and disable Battery Optimization for Curax.&#10;- Enable Auto-start/Background activity permission for Curax (on supported phones).&#10;- Keep lock-screen notifications allowed for Curax.&#10;- Allow mobile data and background data for Curax.&#10;- Turn off Data Saver for Curax (or allow unrestricted data).&#10;- Do not Force Stop the app from phone settings.&#10;- After reinstall or app data clear, open app and tap Connect again to register a new FCM token.&#10;- Keep Google Play Services enabled and updated.&#10;- Use Export chat history from Settings when needed.</string>
+    <string name="security_priority">Your security, Our priority</string>
+    <string name="my_connection_code">My connection code</string>
+    <string name="connect_to_admin">Connect to admin</string>
+    <string name="connection_code_hint">Enter admin\'s connection code</string>
+    <string name="link_to_admin">Link to admin</string>
+    <string name="connected_to_admin">Connected to admin</string>
+    <string name="central_api_url">API base URL</string>
+    <string name="central_api_url_hint">https://your-api.example.com</string>
+    <string name="invalid_connection_code">Invalid connection code</string>
+    <string name="connection_code_not_available">Not available. Sign up as admin to get a connection code.</string>
+    <string name="linked_to_admin_success">Linked to admin successfully</string>
+    <string name="set_api_url_for_codes">Set API base URL above to use connection codes</string>
+    <string name="refreshing">Refreshing…</string>
+    <string name="refresh">Refresh</string>
+    <string name="account_removed_title">Account removed</string>
+    <string name="account_removed_by_admin">The admin has removed you from their account.</string>
+    <string name="account_removed_sign_up_again">You can sign up again with a new connection code from your admin.</string>
+    <string name="desktop_linking_code">Desktop linking code</string>
+    <string name="desktop_linking_code_instructions">You can create a one-time code for a user to link their desktop to you.\n\nThey enter the code in the desktop app under:\nSettings → Admin Panel → Use existing admin\n\nCode expires in 5 minutes. One-time use.\n\nTap Create code to generate a new code.</string>
+    <string name="desktop_link_code_user_instructions">Create a one-time code to link the desktop app to your account. Enter the code in the desktop app under Settings → System → Link this desktop to you. Code expires in 5 minutes.</string>
+    <string name="create_code">Create code</string>
+    <string name="user_link_desktop_first_title">User has not linked desktop</string>
+    <string name="user_link_desktop_first_message">Ask this user to link their desktop first.\n\nThey must:\n1. Open the desktop app\n2. Go to Settings → System → Link this desktop to you\n3. Choose \"Use existing admin\" and enter the desktop code you gave them\n\nSetup is complete only after they do this. Then you can manage their desktop here.</string>
+    <string name="return_to_admin">Return to Admin</string>
+</resources>
+
+
+
+
+
+
+
+
+
+
+
+
