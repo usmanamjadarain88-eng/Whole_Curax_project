@@ -2,7 +2,7 @@
 # Work/ monorepo — private, machine-local, and generated files (all 3 projects)
 # =============================================================================
 
-# Old per-folder Git folders renamed aside when using this monorepo (local only)
+# --- Local backup of old per-folder .git (never push — huge + wrong history) ---
 **/.git.bak/
 
 # --- Secrets & environment (never commit) ---

@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import requests
 from datetime import datetime
@@ -15,8 +15,10 @@ def send_email(subject, text):
               "subject": subject,
               "text": text})
 
-_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_path = os.path.join(_repo_root, 'frontend', 'medicine_times.json')
+# Repo root = Work/ (this file lives at Work/.github/scripts/alerts.py)
+_here = os.path.abspath(__file__)
+_repo_root = os.path.dirname(os.path.dirname(os.path.dirname(_here)))
+_path = os.path.join(_repo_root, 'medicine-alerts', 'frontend', 'medicine_times.json')
 with open(_path) as f:
     times = json.load(f)
 
