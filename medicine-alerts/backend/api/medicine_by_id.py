@@ -16,4 +16,5 @@ def _delete(body, query, headers):
     return delete_medicine(mid, body, query, headers)
 
 
-handler = make_handler(patch_fn=_patch, delete_fn=_delete)
+class handler(make_handler(patch_fn=_patch, delete_fn=_delete)):
+    pass

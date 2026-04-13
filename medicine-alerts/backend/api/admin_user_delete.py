@@ -9,4 +9,5 @@ def _delete(body, query, headers):
     return delete_admin_user(uid, body, query, headers)
 
 
-handler = make_handler(delete_fn=_delete)
+class handler(make_handler(delete_fn=_delete)):
+    pass
