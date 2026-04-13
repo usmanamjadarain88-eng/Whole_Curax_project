@@ -140,12 +140,16 @@ def signup_start(body, query, headers):
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 503 if err == "signup_not_configured" else 400
+        if err == "email_already_registered":
+            code = 409
         payload = {"message": err, "detail": r.get("detail")}
         if err == "signup_not_configured":
             payload["hint"] = (
                 "Run migration_signup_sessions.sql on Postgres. "
                 "Until then, /signup/start cannot store pending signups."
             )
+        if err == "email_already_registered" and r.get("detail"):
+            payload["hint"] = r["detail"]
         return (code, payload)
     out = {
         "message": r.get("message", "ok"),

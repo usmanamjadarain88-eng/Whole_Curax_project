@@ -2029,11 +2029,41 @@ class CentralDB:
         raw = f"{email_norm}:{(otp or '').strip()}:{self._signup_otp_pepper()}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
+    def _signup_email_already_registered(self, email_n: str) -> bool:
+        """True if this email is already an admin or already stored on any user row (completed signup)."""
+        if not email_n:
+            return False
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT 1 FROM admins WHERE LOWER(TRIM(COALESCE(email, ''))) = %s LIMIT 1",
+                (email_n,),
+            )
+            if cur.fetchone():
+                return True
+            try:
+                cur.execute(
+                    "SELECT 1 FROM users WHERE LOWER(TRIM(COALESCE(email, ''))) = %s LIMIT 1",
+                    (email_n,),
+                )
+                return cur.fetchone() is not None
+            except Exception:
+                return False
+        except Exception:
+            return False
+        finally:
+            cur.close()
+
     def signup_flow_start(self, email, password):
         """Create/update signup_sessions row (NOT users — users row is created at /signup/link-admin).
 
         Until email + admin link complete, pending signups live only in signup_sessions
         (account_status PENDING_EMAIL, then PENDING_ADMIN). The users table stays empty for that email.
+
+        Same email may call /signup/start again while still only in signup_sessions (pending): row is
+        updated and a new OTP is issued — no error. If the email already exists on admins or users
+        (finished registration), returns email_already_registered.
         """
         email_n = self._normalize_signup_email(email)
         if not email_n or "@" not in email_n or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_n):
@@ -2041,6 +2071,12 @@ class CentralDB:
         pw = (password or "").strip()
         if len(pw) < 6:
             return {"ok": False, "error": "password_too_short"}
+        if self._signup_email_already_registered(email_n):
+            return {
+                "ok": False,
+                "error": "email_already_registered",
+                "detail": "This email is already in use. Sign in with your existing account.",
+            }
         otp = str(secrets.randbelow(900_000) + 100_000)
         otp_h = self._hash_signup_otp(email_n, otp)
         pw_h = self._hash_signup_password(pw)
