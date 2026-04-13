@@ -10,7 +10,8 @@ API.mkdir(exist_ok=True)
 
 # (file_stem, {METHOD: function_name_in_route_handlers})  — upper METHOD
 SIMPLE = [
-    ("index", {"GET": "root"}),
+    # Not named "index": on Vercel api/index maps to /api and can swallow /api/* sibling routes.
+    ("welcome", {"GET": "root"}),
     ("health", {"GET": "health"}),
     ("save_credentials", {"POST": "save_credentials"}),
     ("connect_to_admin", {"POST": "connect_to_admin"}),
@@ -128,7 +129,7 @@ def main() -> None:
         "_STATIC: List[Tuple[str, str, str]] = [",
     ]
     public_paths: dict[str, str] = {
-        "index": "/",
+        "welcome": "/",
         "health": "/health",
         "save_credentials": "/save-credentials",
         "connect_to_admin": "/connect-to-admin",
@@ -229,10 +230,16 @@ def main() -> None:
         return f"/api/{stem}"
 
     for stem, path in public_paths.items():
-        if stem == "index":
-            rewrites.append({"source": "/", "destination": "/api"})
+        if stem == "welcome":
+            rewrites.append({"source": "/", "destination": "/api/welcome"})
             continue
         rewrites.append({"source": path, "destination": dest_url(stem)})
+
+    # Exact /api (no extra segment) → same handler as / (not api/index, which would own /api/*).
+    rewrites.insert(
+        2,
+        {"source": "/api", "destination": "/api/welcome"},
+    )
 
     rewrites.append(
         {"source": "/admin/inventory", "destination": "/api/admin_medicines"}

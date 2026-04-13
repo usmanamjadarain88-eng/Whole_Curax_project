@@ -11,8 +11,12 @@
       "destination": "/api/admin_user_delete?user_id=:user_id"
     },
     {
+      "source": "/api",
+      "destination": "/api/welcome"
+    },
+    {
       "source": "/",
-      "destination": "/api"
+      "destination": "/api/welcome"
     },
     {
       "source": "/health",
