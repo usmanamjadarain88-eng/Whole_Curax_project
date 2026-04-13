@@ -1,0 +1,6 @@
+from utils.vercel_adapter import make_handler
+from utils.route_handlers import admin_sync
+
+handler = make_handler(
+    post_fn=admin_sync,
+)

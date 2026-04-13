@@ -5,52 +5,72 @@
     android:background="@color/summary_card">
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:gravity="center"
+        android:contentDescription="@string/opening_curax"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="24dp">
 
-        <FrameLayout
-            android:layout_width="92dp"
-            android:layout_height="92dp">
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/bg_splash_orb" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:importantForAccessibility="no"
+            android:orientation="horizontal">
 
             <ImageView
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_gravity="center"
-                android:contentDescription="Curax"
-                android:src="@drawable/ic_lock"
-                android:tint="#FFFFFF" />
-        </FrameLayout>
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="10dp"
+                android:importantForAccessibility="no"
+                android:scaleType="fitCenter"
+                android:src="@drawable/curax_logo" />
 
-        <TextView
+            <TextView
+                android:id="@+id/tvOpeningLine"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/inter"
+                android:importantForAccessibility="no"
+                android:includeFontPadding="false"
+                android:text="@string/opening_curax"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:textStyle="normal" />
+        </LinearLayout>
+
+        <!-- Staggered pulse animation on these dots (LaunchActivity) -->
+        <LinearLayout
+            android:id="@+id/splashLoadingDots"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="Curax"
-            android:textColor="@color/connection_panel_title"
-            android:textSize="32sp"
-            android:textStyle="bold" />
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:importantForAccessibility="no"
+            android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="Medicine Alerts"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
+            <View
+                android:id="@+id/dot1"
+                android:layout_width="5dp"
+                android:layout_height="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/splash_loading_dot" />
 
-        <ProgressBar
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp" />
+            <View
+                android:id="@+id/dot2"
+                android:layout_width="5dp"
+                android:layout_height="5dp"
+                android:layout_marginEnd="5dp"
+                android:background="@drawable/splash_loading_dot" />
+
+            <View
+                android:id="@+id/dot3"
+                android:layout_width="5dp"
+                android:layout_height="5dp"
+                android:background="@drawable/splash_loading_dot" />
+        </LinearLayout>
     </LinearLayout>
 
 </FrameLayout>

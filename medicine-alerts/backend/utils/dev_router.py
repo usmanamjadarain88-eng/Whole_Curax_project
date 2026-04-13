@@ -1,0 +1,126 @@
+"""Dispatch (method, path) -> route_handlers call for local stdlib server."""
+from __future__ import annotations
+
+import re
+from typing import Any, Callable, List, Tuple
+
+from utils import route_handlers as rh
+
+Handler = Callable[..., Tuple[int, Any]]
+
+_STATIC: List[Tuple[str, str, str]] = [
+    ("GET", "/", "root"),
+    ("GET", "/health", "health"),
+    ("POST", "/save-credentials", "save_credentials"),
+    ("POST", "/connect-to-admin", "connect_to_admin"),
+    ("POST", "/signup/start", "signup_start"),
+    ("POST", "/signup/verify-email", "signup_verify_email"),
+    ("POST", "/signup/link-admin", "signup_link_admin"),
+    ("GET", "/user/account-status", "user_account_status"),
+    ("POST", "/maintenance/cleanup-pending", "maintenance_cleanup_pending"),
+    ("POST", "/maintenance/run-alert-checks", "maintenance_run_alert_checks"),
+    ("POST", "/notify-event", "notify_event"),
+    ("POST", "/notify-event-by-user", "notify_event_by_user"),
+    ("POST", "/notify-event-to-user", "notify_event_to_user"),
+    ("GET", "/admin/linked-users", "get_linked_users"),
+    ("PUT", "/admin/fcm-token", "put_admin_fcm_token"),
+    ("GET", "/admin/connection", "get_admin_connection"),
+    ("POST", "/verify-credentials", "verify_credentials"),
+    ("GET", "/get-role", "get_role"),
+    ("GET", "/admin/data", "admin_data"),
+    ("GET", "/user/data", "user_data"),
+    ("GET", "/user/databus-room", "user_databus_room"),
+    ("POST", "/admin/sync", "admin_sync"),
+    ("POST", "/admin/notify", "admin_notify"),
+    ("DELETE", "/admin", "delete_admin"),
+    ("POST", "/admin/create-desktop-link-code", "create_desktop_link_code"),
+    ("POST", "/desktop/link-to-admin", "desktop_link_to_admin"),
+    ("POST", "/user/create-desktop-link-code", "user_create_desktop_link_code"),
+    ("POST", "/user/desktop-by-code", "user_desktop_by_code"),
+    ("PUT", "/admin/medical_reminders", "put_admin_medical_reminders"),
+    ("PUT", "/admin/medicines", "put_admin_medicines"),
+    ("PUT", "/admin/alert_settings", "put_admin_alert_settings"),
+    ("GET", "/medicines", "list_medicines"),
+    ("POST", "/medicines", "create_medicine"),
+    ("GET", "/dose_logs", "list_dose_logs"),
+    ("POST", "/dose_logs", "create_dose_log"),
+    ("GET", "/alerts", "list_alerts"),
+    ("POST", "/alerts", "create_alert"),
+    ("GET", "/alert_settings", "get_alert_settings"),
+    ("PUT", "/alert_settings", "put_alert_settings"),
+    ("GET", "/sync", "sync_get"),
+    ("POST", "/sync", "sync_post"),
+    ("PUT", "/admin/inventory", "put_admin_medicines"),
+    ("PUT", "/admin/settings", "put_admin_alert_settings"),
+]
+
+_DYN = [
+    (re.compile(r"^/admin/users/([^/]+)$"), "DELETE", "delete_admin_user"),
+    (re.compile(r"^/medicines/([^/]+)$"), "PATCH", "update_medicine"),
+    (re.compile(r"^/medicines/([^/]+)$"), "DELETE", "delete_medicine"),
+]
+
+_NAME_TO_FN = {
+    "admin_data": rh.admin_data,
+    "admin_notify": rh.admin_notify,
+    "admin_sync": rh.admin_sync,
+    "connect_to_admin": rh.connect_to_admin,
+    "create_alert": rh.create_alert,
+    "create_desktop_link_code": rh.create_desktop_link_code,
+    "create_dose_log": rh.create_dose_log,
+    "create_medicine": rh.create_medicine,
+    "delete_admin": rh.delete_admin,
+    "delete_admin_user": rh.delete_admin_user,
+    "delete_medicine": rh.delete_medicine,
+    "desktop_link_to_admin": rh.desktop_link_to_admin,
+    "get_admin_connection": rh.get_admin_connection,
+    "get_alert_settings": rh.get_alert_settings,
+    "get_linked_users": rh.get_linked_users,
+    "get_role": rh.get_role,
+    "health": rh.health,
+    "list_alerts": rh.list_alerts,
+    "list_dose_logs": rh.list_dose_logs,
+    "list_medicines": rh.list_medicines,
+    "maintenance_cleanup_pending": rh.maintenance_cleanup_pending,
+    "maintenance_run_alert_checks": rh.maintenance_run_alert_checks,
+    "notify_event": rh.notify_event,
+    "notify_event_by_user": rh.notify_event_by_user,
+    "notify_event_to_user": rh.notify_event_to_user,
+    "put_admin_alert_settings": rh.put_admin_alert_settings,
+    "put_admin_fcm_token": rh.put_admin_fcm_token,
+    "put_admin_medical_reminders": rh.put_admin_medical_reminders,
+    "put_admin_medicines": rh.put_admin_medicines,
+    "put_alert_settings": rh.put_alert_settings,
+    "root": rh.root,
+    "save_credentials": rh.save_credentials,
+    "signup_link_admin": rh.signup_link_admin,
+    "signup_start": rh.signup_start,
+    "signup_verify_email": rh.signup_verify_email,
+    "sync_get": rh.sync_get,
+    "sync_post": rh.sync_post,
+    "update_medicine": rh.update_medicine,
+    "user_account_status": rh.user_account_status,
+    "user_create_desktop_link_code": rh.user_create_desktop_link_code,
+    "user_data": rh.user_data,
+    "user_databus_room": rh.user_databus_room,
+    "user_desktop_by_code": rh.user_desktop_by_code,
+    "verify_credentials": rh.verify_credentials,
+}
+
+def dispatch(method: str, path: str, body: dict, query: dict, headers: dict) -> Tuple[int, Any]:
+    path_only = path.split("?")[0]
+    if not path_only:
+        path_only = "/"
+    for m, pfx, name in _STATIC:
+        if m == method and path_only == pfx:
+            fn = _NAME_TO_FN[name]
+            return fn(body, query, headers)
+    for rx, m, name in _DYN:
+        if m != method:
+            continue
+        mo = rx.match(path_only)
+        if not mo:
+            continue
+        fn = _NAME_TO_FN[name]
+        return fn(mo.group(1), body, query, headers)
+    return 404, {"message": "Not found", "path": path_only, "method": method}

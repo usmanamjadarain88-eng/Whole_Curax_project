@@ -1,0 +1,172 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/medicines/:medicine_id",
+      "destination": "/api/medicine_by_id?medicine_id=:medicine_id"
+    },
+    {
+      "source": "/admin/users/:user_id",
+      "destination": "/api/admin_user_delete?user_id=:user_id"
+    },
+    {
+      "source": "/",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/save-credentials",
+      "destination": "/api/save_credentials"
+    },
+    {
+      "source": "/connect-to-admin",
+      "destination": "/api/connect_to_admin"
+    },
+    {
+      "source": "/signup/start",
+      "destination": "/api/signup_start"
+    },
+    {
+      "source": "/signup/verify-email",
+      "destination": "/api/signup_verify_email"
+    },
+    {
+      "source": "/signup/link-admin",
+      "destination": "/api/signup_link_admin"
+    },
+    {
+      "source": "/user/account-status",
+      "destination": "/api/user_account_status"
+    },
+    {
+      "source": "/maintenance/cleanup-pending",
+      "destination": "/api/maintenance_cleanup_pending"
+    },
+    {
+      "source": "/maintenance/run-alert-checks",
+      "destination": "/api/maintenance_run_alert_checks"
+    },
+    {
+      "source": "/notify-event",
+      "destination": "/api/notify_event"
+    },
+    {
+      "source": "/notify-event-by-user",
+      "destination": "/api/notify_event_by_user"
+    },
+    {
+      "source": "/notify-event-to-user",
+      "destination": "/api/notify_event_to_user"
+    },
+    {
+      "source": "/admin/linked-users",
+      "destination": "/api/admin_linked_users"
+    },
+    {
+      "source": "/admin/fcm-token",
+      "destination": "/api/admin_fcm_token"
+    },
+    {
+      "source": "/admin/connection",
+      "destination": "/api/admin_connection"
+    },
+    {
+      "source": "/verify-credentials",
+      "destination": "/api/verify_credentials"
+    },
+    {
+      "source": "/get-role",
+      "destination": "/api/get_role"
+    },
+    {
+      "source": "/admin/data",
+      "destination": "/api/admin_data"
+    },
+    {
+      "source": "/user/data",
+      "destination": "/api/user_data"
+    },
+    {
+      "source": "/user/databus-room",
+      "destination": "/api/user_databus_room"
+    },
+    {
+      "source": "/admin/sync",
+      "destination": "/api/admin_sync"
+    },
+    {
+      "source": "/admin/notify",
+      "destination": "/api/admin_notify"
+    },
+    {
+      "source": "/admin",
+      "destination": "/api/admin_delete"
+    },
+    {
+      "source": "/admin/create-desktop-link-code",
+      "destination": "/api/admin_create_desktop_link_code"
+    },
+    {
+      "source": "/desktop/link-to-admin",
+      "destination": "/api/desktop_link_to_admin"
+    },
+    {
+      "source": "/user/create-desktop-link-code",
+      "destination": "/api/user_create_desktop_link_code"
+    },
+    {
+      "source": "/user/desktop-by-code",
+      "destination": "/api/user_desktop_by_code"
+    },
+    {
+      "source": "/admin/medical_reminders",
+      "destination": "/api/admin_medical_reminders"
+    },
+    {
+      "source": "/admin/medicines",
+      "destination": "/api/admin_medicines"
+    },
+    {
+      "source": "/admin/alert_settings",
+      "destination": "/api/admin_alert_settings"
+    },
+    {
+      "source": "/medicines",
+      "destination": "/api/medicines"
+    },
+    {
+      "source": "/dose_logs",
+      "destination": "/api/dose_logs"
+    },
+    {
+      "source": "/alerts",
+      "destination": "/api/alerts"
+    },
+    {
+      "source": "/alert_settings",
+      "destination": "/api/alert_settings"
+    },
+    {
+      "source": "/sync",
+      "destination": "/api/sync"
+    },
+    {
+      "source": "/admin/inventory",
+      "destination": "/api/admin_medicines"
+    },
+    {
+      "source": "/admin/settings",
+      "destination": "/api/admin_alert_settings"
+    }
+  ],
+  "functions": {
+    "api/**/*.py": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "excludeFiles": "{**/test_api.py,**/__pycache__/**,**/*.pyc,**/All backend files,**/tools/_flask_api_server_snapshot.py}"
+    }
+  }
+}

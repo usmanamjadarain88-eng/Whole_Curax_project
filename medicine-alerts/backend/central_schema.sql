@@ -1,5 +1,6 @@
 -- Central DB schema (PostgreSQL). One admin ↔ their users; multiple admins supported.
 -- Run this on your PostgreSQL server once (e.g. psql -f central_schema.sql).
+-- Existing DB already provisioned? Run migration_user_signup_status.sql for user lifecycle columns.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -35,13 +36,40 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(20) NOT NULL DEFAULT 'user',
     fcm_token VARCHAR(255),
     desktop_linked_at TIMESTAMPTZ DEFAULT NULL,
+    -- Signup lifecycle: see migration_user_signup_status.sql for existing DBs.
+    account_status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+    email_verified_at TIMESTAMPTZ DEFAULT NULL,
+    status_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(bot_id, api_key)
+    password_hash TEXT DEFAULT NULL,
+    UNIQUE(bot_id, api_key),
+    CONSTRAINT users_account_status_check CHECK (account_status IN (
+        'PENDING_EMAIL', 'PENDING_ADMIN', 'PENDING', 'ACTIVE'
+    ))
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_admin_id ON users(admin_id);
 CREATE INDEX IF NOT EXISTS idx_users_admin_email ON users(admin_id, email);
+CREATE INDEX IF NOT EXISTS idx_users_account_status_created ON users(account_status, created_at);
+CREATE INDEX IF NOT EXISTS idx_users_pending_cleanup ON users(created_at)
+    WHERE account_status IN ('PENDING_EMAIL', 'PENDING_ADMIN', 'PENDING');
+
+-- Email-first signup (staging). Existing DBs: run migration_signup_sessions.sql
+CREATE TABLE IF NOT EXISTS signup_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email_normalized VARCHAR(255) NOT NULL,
+    password_hash TEXT NOT NULL,
+    account_status VARCHAR(32) NOT NULL DEFAULT 'PENDING_EMAIL',
+    email_otp_hash VARCHAR(128),
+    email_otp_expires_at TIMESTAMPTZ,
+    email_verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT signup_sessions_status_check CHECK (account_status IN ('PENDING_EMAIL', 'PENDING_ADMIN')),
+    CONSTRAINT signup_sessions_email_unique UNIQUE (email_normalized)
+);
+CREATE INDEX IF NOT EXISTS idx_signup_sessions_cleanup ON signup_sessions (created_at, account_status);
 
 -- Migration for existing DBs (run once): ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
 -- Then (optional): CREATE INDEX IF NOT EXISTS idx_users_admin_email ON users(admin_id, email);

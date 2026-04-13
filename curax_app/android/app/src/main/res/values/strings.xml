@@ -96,6 +96,24 @@
     <string name="invalid_connection_code">Invalid connection code</string>
     <string name="connection_code_not_available">Not available. Sign up as admin to get a connection code.</string>
     <string name="linked_to_admin_success">Linked to admin successfully</string>
+    <string name="opening_curax">Opening Curax plz wait</string>
+    <string name="sign_in_title">Sign in</string>
+    <!-- Large heading above auth panel (SignUpActivity entry). -->
+    <string name="auth_heading_sign_up">Sign up</string>
+    <string name="sign_in_subtitle">Use your email and password to continue.</string>
+    <string name="sign_in_button">Sign in</string>
+    <string name="sign_in_as_admin">Sign in as Admin</string>
+    <string name="sign_up_button">Sign up</string>
+    <string name="sign_up_as_admin">Sign up as Admin</string>
+    <string name="sign_in_success">Signed in successfully</string>
+    <string name="sign_in_all_fields_required">Email and password are required</string>
+    <string name="label_email_field">Email</string>
+    <string name="label_password_field">Password</string>
+    <string name="placeholder_email">you@example.com</string>
+    <string name="placeholder_password">Enter your password</string>
+    <string name="hint_email">Email</string>
+    <string name="hint_password">Password</string>
+    <string name="hint_confirm_password">Confirm password</string>
     <string name="set_api_url_for_codes">Set API base URL above to use connection codes</string>
     <string name="refreshing">Refreshing…</string>
     <string name="refresh">Refresh</string>

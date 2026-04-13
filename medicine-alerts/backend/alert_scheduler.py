@@ -624,6 +624,11 @@ class BackendAlertScheduler:
         except Exception as e:
             print(f"[AlertScheduler] daily summary error: {e}")
 
+    def run_all_checks_once(self):
+        """One-shot sweep for every active admin (medicine / expiry / stock / reminders).
+        Use from Vercel Cron or maintenance HTTP — no background thread required."""
+        self._tick()
+
     # ---- Main tick: run all checks for all admins ----
 
     def _tick(self):

@@ -3,9 +3,12 @@ Central DB client (PostgreSQL). All admin/user and app data live here.
 Local SQLite is for cache only. Multiple admins, each with their own users.
 """
 import os
+import re
 import uuid
 import json
 import secrets
+import hashlib
+import base64
 from datetime import datetime, timezone
 
 # Safe alphabet for admin access code (no 0/O, 1/I)
@@ -1901,3 +1904,300 @@ class CentralDB:
             return []
         finally:
             cur.close()
+
+    # ---- Signup flow (email → OTP → admin connection code) — new tables/routes only ----
+
+    def _signup_otp_pepper(self):
+        return (os.environ.get("SIGNUP_OTP_PEPPER") or "curax-signup-otp-pepper-change-me").strip()
+
+    def _normalize_signup_email(self, email):
+        return (email or "").strip().lower()
+
+    def _hash_signup_password(self, password):
+        salt = secrets.token_hex(16)
+        iters = 120_000
+        dk = hashlib.pbkdf2_hmac("sha256", (password or "").encode("utf-8"), salt.encode("ascii"), iters)
+        return f"pbkdf2_sha256${iters}${salt}${base64.b64encode(dk).decode('ascii')}"
+
+    def _verify_signup_password(self, password, stored):
+        try:
+            parts = (stored or "").split("$")
+            if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
+                return False
+            iters = int(parts[1])
+            salt = parts[2]
+            expected = base64.b64decode(parts[3])
+            dk = hashlib.pbkdf2_hmac("sha256", (password or "").encode("utf-8"), salt.encode("ascii"), iters)
+            return secrets.compare_digest(dk, expected)
+        except Exception:
+            return False
+
+    def _hash_signup_otp(self, email_norm, otp):
+        raw = f"{email_norm}:{(otp or '').strip()}:{self._signup_otp_pepper()}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def signup_flow_start(self, email, password):
+        """Create/update signup_sessions row; issue 6-digit email OTP (logged to server). Returns dict ok/error."""
+        email_n = self._normalize_signup_email(email)
+        if not email_n or "@" not in email_n or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_n):
+            return {"ok": False, "error": "invalid_email"}
+        pw = (password or "").strip()
+        if len(pw) < 6:
+            return {"ok": False, "error": "password_too_short"}
+        otp = str(secrets.randbelow(900_000) + 100_000)
+        otp_h = self._hash_signup_otp(email_n, otp)
+        pw_h = self._hash_signup_password(pw)
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                INSERT INTO signup_sessions (
+                    email_normalized, password_hash, account_status,
+                    email_otp_hash, email_otp_expires_at, email_verified_at, updated_at
+                ) VALUES (%s, %s, 'PENDING_EMAIL', %s, NOW() + INTERVAL '15 minutes', NULL, NOW())
+                ON CONFLICT (email_normalized) DO UPDATE SET
+                    password_hash = EXCLUDED.password_hash,
+                    account_status = 'PENDING_EMAIL',
+                    email_otp_hash = EXCLUDED.email_otp_hash,
+                    email_otp_expires_at = EXCLUDED.email_otp_expires_at,
+                    email_verified_at = NULL,
+                    updated_at = NOW()
+                """,
+                (email_n, pw_h, otp_h),
+            )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            err = str(e).lower()
+            if "signup_sessions" in err or "does not exist" in err or "relation" in err:
+                return {"ok": False, "error": "signup_not_configured", "detail": "Run migration_signup_sessions.sql"}
+            print(f"CentralDB signup_flow_start: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+        print(f"  [signup OTP] {email_n} -> {otp} (expires in 15m; set SIGNUP_DEV_RETURN_OTP=1 to return in JSON)")
+        out = {"ok": True, "message": "otp_sent"}
+        if (os.environ.get("SIGNUP_DEV_RETURN_OTP") or "").strip() in ("1", "true", "yes"):
+            out["dev_otp"] = otp
+        return out
+
+    def signup_flow_verify_email(self, email, otp):
+        """PENDING_EMAIL → PENDING_ADMIN after valid OTP."""
+        email_n = self._normalize_signup_email(email)
+        otp = (otp or "").strip()
+        if not email_n or len(otp) < 6:
+            return {"ok": False, "error": "invalid_input"}
+        want = self._hash_signup_otp(email_n, otp)
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT email_normalized, account_status, email_otp_hash, email_otp_expires_at
+                FROM signup_sessions WHERE email_normalized = %s LIMIT 1
+                """,
+                (email_n,),
+            )
+            row = cur.fetchone()
+            if not row:
+                conn.rollback()
+                return {"ok": False, "error": "session_not_found"}
+            st = row["account_status"] if hasattr(row, "keys") else None
+            if st != "PENDING_EMAIL":
+                conn.rollback()
+                return {"ok": False, "error": "wrong_state", "account_status": st}
+            got = row["email_otp_hash"] if hasattr(row, "keys") else None
+            if not got or got != want:
+                conn.rollback()
+                return {"ok": False, "error": "invalid_otp"}
+            cur.execute(
+                """
+                UPDATE signup_sessions SET
+                    account_status = 'PENDING_ADMIN',
+                    email_verified_at = NOW(),
+                    email_otp_hash = NULL,
+                    email_otp_expires_at = NULL,
+                    updated_at = NOW()
+                WHERE email_normalized = %s
+                  AND account_status = 'PENDING_EMAIL'
+                  AND email_otp_hash = %s
+                  AND email_otp_expires_at > NOW()
+                RETURNING id
+                """,
+                (email_n, want),
+            )
+            updated = cur.fetchone()
+            if not updated:
+                conn.rollback()
+                return {"ok": False, "error": "invalid_or_expired_otp"}
+            conn.commit()
+            return {"ok": True, "message": "email_verified", "account_status": "PENDING_ADMIN"}
+        except Exception as e:
+            conn.rollback()
+            err = str(e).lower()
+            if "signup_sessions" in err or "does not exist" in err:
+                return {"ok": False, "error": "signup_not_configured"}
+            print(f"CentralDB signup_flow_verify_email: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+
+    def signup_flow_link_admin(self, email, connection_code, bot_id, api_key, name=None, fcm_token=None):
+        """After PENDING_ADMIN: same as connect-to-admin + delete signup_sessions + set users ACTIVE/password if columns exist."""
+        email_n = self._normalize_signup_email(email)
+        bot_id = (bot_id or "").strip()
+        api_key = (api_key or "").strip()
+        connection_code = (connection_code or "").strip()
+        if not email_n or not connection_code or not bot_id or not api_key:
+            return {"ok": False, "error": "missing_fields"}
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT password_hash, account_status FROM signup_sessions WHERE email_normalized = %s LIMIT 1",
+                (email_n,),
+            )
+            srow = cur.fetchone()
+            if not srow:
+                conn.rollback()
+                return {"ok": False, "error": "session_not_found"}
+            st = srow["account_status"] if hasattr(srow, "keys") else None
+            if st != "PENDING_ADMIN":
+                conn.rollback()
+                return {"ok": False, "error": "wrong_state", "account_status": st}
+            pw_row = srow["password_hash"] if hasattr(srow, "keys") else None
+            conn.rollback()
+        finally:
+            cur.close()
+
+        admin = self.get_admin_by_connection_code(connection_code)
+        if not admin:
+            return {"ok": False, "error": "invalid_connection_code"}
+        admin_id = admin.get("id")
+        admin_name = admin.get("name") or ""
+
+        user_id = self.upsert_user_from_bot(bot_id, api_key, admin_id, name=name or email_n, email=email_n, fcm_token=fcm_token)
+        if not user_id:
+            return {"ok": False, "error": "link_failed"}
+
+        self._touch_user_password_and_active(user_id, password_hash_session=pw_row)
+
+        cur = conn.cursor()
+        try:
+            cur.execute("DELETE FROM signup_sessions WHERE email_normalized = %s", (email_n,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB signup_flow_link_admin cleanup session: {e}")
+        finally:
+            cur.close()
+
+        databus_access_code = (admin.get("admin_access_code") or "").strip()
+        return {
+            "ok": True,
+            "message": "ok",
+            "admin_id": admin_id,
+            "user_id": user_id,
+            "admin_name": admin_name,
+            "databus_access_code": databus_access_code,
+            "account_status": "ACTIVE",
+        }
+
+    def _touch_user_password_and_active(self, user_id, password_hash_session=None):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            if password_hash_session:
+                try:
+                    cur.execute(
+                        """
+                        UPDATE users SET account_status = 'ACTIVE',
+                            email_verified_at = COALESCE(email_verified_at, NOW()),
+                            status_changed_at = NOW(),
+                            password_hash = %s
+                        WHERE id = %s::uuid
+                        """,
+                        (password_hash_session, user_id),
+                    )
+                except Exception:
+                    cur.execute(
+                        "UPDATE users SET updated_at = NOW() WHERE id = %s::uuid",
+                        (user_id,),
+                    )
+            else:
+                try:
+                    cur.execute(
+                        """
+                        UPDATE users SET account_status = 'ACTIVE',
+                            email_verified_at = COALESCE(email_verified_at, NOW()),
+                            status_changed_at = NOW()
+                        WHERE id = %s::uuid
+                        """,
+                        (user_id,),
+                    )
+                except Exception:
+                    pass
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB _touch_user_password_and_active: {e}")
+        finally:
+            cur.close()
+
+    def get_user_account_status_by_bot(self, bot_id, api_key):
+        """Return account_status for this device user, or ACTIVE if column/table legacy."""
+        bot_id = (bot_id or "").strip()
+        api_key = (api_key or "").strip()
+        if not bot_id or not api_key:
+            return None
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT account_status FROM users WHERE bot_id = %s AND api_key = %s LIMIT 1",
+                (bot_id, api_key),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            return (row["account_status"] if hasattr(row, "keys") else row[0]) or "ACTIVE"
+        except Exception:
+            return "ACTIVE"
+        finally:
+            cur.close()
+
+    def maintenance_cleanup_pending(self, hours_sessions=24, hours_users=24):
+        """Delete stale signup_sessions and stale pending users (not dashboard). Returns counts."""
+        out = {"signup_sessions_deleted": 0, "users_deleted": 0}
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            try:
+                cur.execute(
+                    "DELETE FROM signup_sessions WHERE created_at < NOW() - (%s::int * INTERVAL '1 hour')",
+                    (int(hours_sessions),),
+                )
+                out["signup_sessions_deleted"] = cur.rowcount
+            except Exception as e:
+                out["signup_sessions_error"] = str(e)
+            try:
+                cur.execute(
+                    """
+                    DELETE FROM users
+                    WHERE bot_id IS DISTINCT FROM 'dashboard'
+                      AND account_status IN ('PENDING_EMAIL', 'PENDING_ADMIN', 'PENDING')
+                      AND created_at < NOW() - (%s::int * INTERVAL '1 hour')
+                    """,
+                    (int(hours_users),),
+                )
+                out["users_deleted"] = cur.rowcount
+            except Exception as e:
+                out["users_error"] = str(e)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            out["error"] = str(e)
+        finally:
+            cur.close()
+        return out
