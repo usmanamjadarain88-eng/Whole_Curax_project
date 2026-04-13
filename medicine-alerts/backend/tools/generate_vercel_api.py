@@ -59,7 +59,8 @@ def _delete(body, query, headers):
     return delete_admin_user(uid, body, query, headers)
 
 
-handler = make_handler(delete_fn=_delete)
+class handler(make_handler(delete_fn=_delete)):
+    pass
 '''
 
 SPECIAL_MEDICINE = '''from utils.vercel_adapter import make_handler
@@ -80,7 +81,8 @@ def _delete(body, query, headers):
     return delete_medicine(mid, body, query, headers)
 
 
-handler = make_handler(patch_fn=_patch, delete_fn=_delete)
+class handler(make_handler(patch_fn=_patch, delete_fn=_delete)):
+    pass
 '''
 
 
@@ -90,12 +92,17 @@ def make_simple_file(stem: str, methods: dict) -> str:
         "from utils.vercel_adapter import make_handler",
         f"from utils.route_handlers import {imps}",
         "",
-        "handler = make_handler(",
+        "class handler(",
+        "    make_handler(",
     ]
     for m, fn in sorted(methods.items(), key=lambda x: x[0]):
         key = f"{m.lower()}_fn"
-        lines.append(f"    {key}={fn},")
-    lines.append(")")
+        lines.append(f"        {key}={fn},")
+    lines += [
+        "    )",
+        "):",
+        "    pass",
+    ]
     return "\n".join(lines)
 
 
@@ -237,11 +244,6 @@ def main() -> None:
     vj = {
         "$schema": "https://openapi.vercel.sh/vercel.json",
         "framework": "python",
-        "functions": {
-            "api/*.py": {
-                "excludeFiles": "{**/tools/**,**/test_*.py,**/*.md,**/All backend files}"
-            }
-        },
         "rewrites": rewrites,
     }
     (ROOT / "vercel.json").write_text(json.dumps(vj, indent=2) + "\n", encoding="utf-8")
