@@ -4,6 +4,8 @@ ASGI entrypoint required by Vercel's Python preset (``framework: python``).
 With that preset, this ``app`` receives **all** HTTP traffic; individual
 ``api/*.py`` files are not used on Vercel. Routing is delegated to
 ``utils.dev_router`` (same logic as the local stdlib server).
+
+Vercel may pass ASGI ``scope`` fields as ``str`` or ``bytes``; normalize both.
 """
 from __future__ import annotations
 
@@ -11,7 +13,7 @@ import json
 import os
 import sys
 import traceback
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 from urllib.parse import parse_qs, urlparse
 
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,20 +22,40 @@ if _BACKEND_DIR not in sys.path:
 
 from utils import dev_router
 
+StrOrBytes = Union[str, bytes]
+
+
+def _as_str(v: StrOrBytes | None, default: str = "") -> str:
+    if v is None:
+        return default
+    if isinstance(v, bytes):
+        return v.decode("utf-8", "replace")
+    return str(v)
+
+
+def _as_bytes(v: StrOrBytes | None) -> bytes:
+    if v is None:
+        return b""
+    if isinstance(v, bytes):
+        return v
+    return str(v).encode("utf-8")
+
 
 def _scope_http_path(scope: dict) -> str:
-    root = scope.get("root_path") or ""
-    path = scope.get("path") or "/"
-    if isinstance(root, bytes):
-        root = root.decode("utf-8", "replace")
-    if isinstance(path, bytes):
-        path = path.decode("utf-8", "replace")
+    root = _as_str(scope.get("root_path"), "")
+    path = _as_str(scope.get("path"), "/")
     return (root or "") + (path or "/")
 
 
 def _headers_from_scope(scope: dict) -> Dict[str, str]:
-    raw: List[Tuple[bytes, bytes]] = scope.get("headers") or []
-    return {k.decode("latin-1").lower(): v.decode("latin-1", "replace") for k, v in raw}
+    raw = scope.get("headers") or []
+    out: Dict[str, str] = {}
+    for item in raw:
+        if not item or len(item) != 2:
+            continue
+        k, v = item[0], item[1]
+        out[_as_str(k, "").lower()] = _as_str(v, "")
+    return out
 
 
 def _merge_query(parsed_query: str, scope: dict) -> Dict[str, str]:
@@ -42,9 +64,10 @@ def _merge_query(parsed_query: str, scope: dict) -> Dict[str, str]:
         for k, v in parse_qs(parsed_query, keep_blank_values=True).items():
             if v:
                 out[k] = v[0]
-    qsb = scope.get("query_string") or b""
+    qsb = scope.get("query_string")
     if qsb:
-        for k, v in parse_qs(qsb.decode("utf-8", "replace"), keep_blank_values=True).items():
+        qs = _as_str(qsb)
+        for k, v in parse_qs(qs, keep_blank_values=True).items():
             if v and k not in out:
                 out[k] = v[0]
     return out
@@ -57,7 +80,7 @@ async def _read_body(receive) -> bytes:
         if msg["type"] == "http.disconnect":
             break
         if msg["type"] == "http.request":
-            chunks.append(msg.get("body") or b"")
+            chunks.append(_as_bytes(msg.get("body")))
             if not msg.get("more_body"):
                 break
             continue
@@ -76,6 +99,10 @@ async def _send_json(send, status: int, payload: dict) -> None:
     await send({"type": "http.response.body", "body": body, "more_body": False})
 
 
+def _http_method(scope: dict) -> str:
+    return _as_str(scope.get("method"), "GET").upper()
+
+
 async def app(scope, receive, send):
     if scope["type"] == "lifespan":
         while True:
@@ -90,7 +117,7 @@ async def app(scope, receive, send):
         return
 
     try:
-        method = scope.get("method", b"GET").decode("ascii", "replace").upper()
+        method = _http_method(scope)
         raw_path = _scope_http_path(scope)
         parsed = urlparse(raw_path)
         path_only = parsed.path or "/"
