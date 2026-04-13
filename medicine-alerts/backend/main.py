@@ -124,6 +124,26 @@ async def app(scope, receive, send):
         query = _merge_query(parsed.query, scope)
         hdr = _headers_from_scope(scope)
 
+        if method == "OPTIONS":
+            opt_headers = [
+                (b"access-control-allow-origin", b"*"),
+                (
+                    b"access-control-allow-methods",
+                    b"GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                ),
+                (
+                    b"access-control-allow-headers",
+                    b"content-type, authorization, x-maintenance-key, x-requested-with",
+                ),
+                (b"access-control-max-age", b"86400"),
+                (b"content-length", b"0"),
+            ]
+            await send(
+                {"type": "http.response.start", "status": 204, "headers": opt_headers}
+            )
+            await send({"type": "http.response.body", "body": b"", "more_body": False})
+            return
+
         body: dict = {}
         raw = await _read_body(receive)
         if raw and method in ("POST", "PUT", "PATCH", "DELETE"):

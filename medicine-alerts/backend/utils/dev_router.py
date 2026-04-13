@@ -166,8 +166,7 @@ def normalize_vercel_api_path(method: str, path_only: str, query: dict) -> str:
 
 def dispatch(method: str, path: str, body: dict, query: dict, headers: dict) -> Tuple[int, Any]:
     path_only = path.split("?")[0]
-    if not path_only:
-        path_only = "/"
+    path_only = (path_only or "/").rstrip("/") or "/"
     for m, pfx, name in _STATIC:
         if m == method and path_only == pfx:
             fn = _NAME_TO_FN[name]
@@ -181,3 +180,11 @@ def dispatch(method: str, path: str, body: dict, query: dict, headers: dict) -> 
         fn = _NAME_TO_FN[name]
         return fn(mo.group(1), body, query, headers)
     return 404, {"message": "Not found", "path": path_only, "method": method}
+
+def public_route_index() -> list[dict[str, str]]:
+    """All static and dynamic URL shapes handled by dispatch (canonical paths)."""
+    rows: list[dict[str, str]] = [{"method": m, "path": p} for m, p, _ in _STATIC]
+    rows.append({"method": "DELETE", "path": "/admin/users/{user_id}"})
+    rows.append({"method": "PATCH", "path": "/medicines/{medicine_id}"})
+    rows.append({"method": "DELETE", "path": "/medicines/{medicine_id}"})
+    return rows

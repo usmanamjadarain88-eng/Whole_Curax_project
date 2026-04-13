@@ -18,7 +18,17 @@ from utils.scheduler_shim import trigger_alert_checks_for_admin
 
 def root(body, query, headers):
     """So visiting the backend URL in a browser shows something instead of 404."""
-    return (200, {"status": "ok", "message": "Medicine Alerts API", "docs": "Use POST/GET /save-credentials, /admin/data, /medicines, etc."})
+    from utils import dev_router
+
+    return (
+        200,
+        {
+            "status": "ok",
+            "message": "Medicine Alerts API",
+            "routes": dev_router.public_route_index(),
+            "docs": "Each route uses the listed HTTP method on that path. On Vercel, pretty URLs and /api/<function_stem> are both routed through main.py → dev_router.",
+        },
+    )
 def health(body, query, headers):
     """Health check for Railway/monitoring."""
     db = get_db()
