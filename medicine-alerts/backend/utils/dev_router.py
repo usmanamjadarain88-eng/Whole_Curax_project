@@ -107,6 +107,63 @@ _NAME_TO_FN = {
     "verify_credentials": rh.verify_credentials,
 }
 
+_STEM_TO_PUBLIC_PATH: dict[str, str] = {
+    "welcome": "/",
+    "health": "/health",
+    "save_credentials": "/save-credentials",
+    "connect_to_admin": "/connect-to-admin",
+    "signup_start": "/signup/start",
+    "signup_verify_email": "/signup/verify-email",
+    "signup_link_admin": "/signup/link-admin",
+    "user_account_status": "/user/account-status",
+    "maintenance_cleanup_pending": "/maintenance/cleanup-pending",
+    "maintenance_run_alert_checks": "/maintenance/run-alert-checks",
+    "notify_event": "/notify-event",
+    "notify_event_by_user": "/notify-event-by-user",
+    "notify_event_to_user": "/notify-event-to-user",
+    "admin_linked_users": "/admin/linked-users",
+    "admin_fcm_token": "/admin/fcm-token",
+    "admin_connection": "/admin/connection",
+    "verify_credentials": "/verify-credentials",
+    "get_role": "/get-role",
+    "admin_data": "/admin/data",
+    "user_data": "/user/data",
+    "user_databus_room": "/user/databus-room",
+    "admin_sync": "/admin/sync",
+    "admin_notify": "/admin/notify",
+    "admin_delete": "/admin",
+    "admin_create_desktop_link_code": "/admin/create-desktop-link-code",
+    "desktop_link_to_admin": "/desktop/link-to-admin",
+    "user_create_desktop_link_code": "/user/create-desktop-link-code",
+    "user_desktop_by_code": "/user/desktop-by-code",
+    "admin_medical_reminders": "/admin/medical_reminders",
+    "admin_medicines": "/admin/medicines",
+    "admin_alert_settings": "/admin/alert_settings",
+    "medicines": "/medicines",
+    "dose_logs": "/dose_logs",
+    "alerts": "/alerts",
+    "alert_settings": "/alert_settings",
+    "sync": "/sync",
+}
+
+def normalize_vercel_api_path(method: str, path_only: str, query: dict) -> str:
+    """Map Vercel URL (/api/stem or pretty paths) to the path shape used by dispatch()."""
+    p = (path_only or '/').rstrip('/') or '/'
+    if p in ("/", "/api", "/api/welcome"):
+        return "/"
+    if not p.startswith("/api/"):
+        return p
+    stem = (p[len("/api/"):]).split("/")[0]
+    if stem == "medicine_by_id":
+        mid = (query.get("medicine_id") or "").strip()
+        if mid:
+            return f"/medicines/{mid}"
+    if stem == "admin_user_delete":
+        uid = (query.get("user_id") or "").strip()
+        if uid:
+            return f"/admin/users/{uid}"
+    return _STEM_TO_PUBLIC_PATH.get(stem, p)
+
 def dispatch(method: str, path: str, body: dict, query: dict, headers: dict) -> Tuple[int, Any]:
     path_only = path.split("?")[0]
     if not path_only:

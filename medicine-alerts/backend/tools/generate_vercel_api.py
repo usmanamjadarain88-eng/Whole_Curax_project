@@ -194,6 +194,31 @@ def main() -> None:
     lines += [
         "}",
         "",
+        "_STEM_TO_PUBLIC_PATH: dict[str, str] = {",
+    ]
+    for stem in public_paths:
+        lines.append(f'    "{stem}": "{public_paths[stem]}",')
+    lines += [
+        "}",
+        "",
+        "def normalize_vercel_api_path(method: str, path_only: str, query: dict) -> str:",
+        '    """Map Vercel URL (/api/stem or pretty paths) to the path shape used by dispatch()."""',
+        "    p = (path_only or '/').rstrip('/') or '/'",
+        '    if p in ("/", "/api", "/api/welcome"):',
+        '        return "/"',
+        '    if not p.startswith("/api/"):',
+        "        return p",
+        '    stem = (p[len("/api/"):]).split("/")[0]',
+        '    if stem == "medicine_by_id":',
+        '        mid = (query.get("medicine_id") or "").strip()',
+        '        if mid:',
+        '            return f"/medicines/{mid}"',
+        '    if stem == "admin_user_delete":',
+        '        uid = (query.get("user_id") or "").strip()',
+        '        if uid:',
+        '            return f"/admin/users/{uid}"',
+        "    return _STEM_TO_PUBLIC_PATH.get(stem, p)",
+        "",
         "def dispatch(method: str, path: str, body: dict, query: dict, headers: dict) -> Tuple[int, Any]:",
         '    path_only = path.split("?")[0]',
         '    if not path_only:',
