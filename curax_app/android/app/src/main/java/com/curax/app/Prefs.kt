@@ -135,7 +135,7 @@ class Prefs(context: Context) {
 
     companion object {
         private const val DEFAULT_SERVER_URL = "https://curax-relay.onrender.com"
-        private const val DEFAULT_CENTRAL_API_URL = "https://web-production-050d.up.railway.app"
+        private const val DEFAULT_CENTRAL_API_URL = "https://whole-curax-project.vercel.app"
         private const val DEFAULT_DATA_BUS_URL = "https://databus-production-6eef.up.railway.app"
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_BOT_ID = "bot_id"

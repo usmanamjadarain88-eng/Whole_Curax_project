@@ -244,8 +244,8 @@ class AppController(QObject):
                                 return _line.rstrip("/")
                 except Exception:
                     pass
-        # Default: production backend on Railway (no UI; override with BACKEND_URL env or backend/backend_url.txt)
-        return "https://web-production-050d.up.railway.app"
+        # Default: production backend on Vercel (override with BACKEND_URL env or backend/backend_url.txt)
+        return "https://whole-curax-project.vercel.app"
 
     def get_central_api_base_url(self):
         """Same as get_backend_url(): backend serves API (data) and we derive WebSocket from it."""

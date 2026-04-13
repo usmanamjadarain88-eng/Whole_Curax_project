@@ -107,6 +107,17 @@
     <string name="sign_up_as_admin">Sign up as Admin</string>
     <string name="sign_in_success">Signed in successfully</string>
     <string name="sign_in_all_fields_required">Email and password are required</string>
+    <string name="verify_pin_title">Verify PIN</string>
+    <string name="verify_pin_subtitle">We sent a 6-digit code to %1$s</string>
+    <string name="otp_enter_all_digits">Enter all 6 digits</string>
+    <string name="resend_code_wait">Resend code in %1$d s</string>
+    <string name="resend_code">Resend code</string>
+    <string name="please_wait">Please wait</string>
+    <string name="verify">Verify</string>
+    <string name="signup_admin_step_subtitle">Enter the connection code your admin shared with you.</string>
+    <string name="signup_email_verified_continue">Your email is verified. Tap continue to enter your admin connection code.</string>
+    <string name="continue_action">Continue</string>
+    <string name="request_failed">Something went wrong. Try again.</string>
     <string name="label_email_field">Email</string>
     <string name="label_password_field">Password</string>
     <string name="placeholder_email">you@example.com</string>

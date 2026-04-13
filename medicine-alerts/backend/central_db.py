@@ -23,6 +23,81 @@ except ImportError:
     RealDictCursor = None
 
 
+def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
+    """
+    Deliver signup OTP by email when SMTP is configured (e.g. on Vercel set env vars).
+
+    Use *your* mailbox to send (Gmail + app password is typical):
+      SIGNUP_SMTP_USER, SIGNUP_SMTP_PASSWORD — login for SMTP (your email + app password).
+
+    Recipients see the friendly sender name (default **Curax system**), not your personal
+    address as the headline — From display name is SIGNUP_EMAIL_FROM_NAME; the technical
+    From address still defaults to SIGNUP_SMTP_USER (required by Gmail SMTP).
+
+    Optional: SIGNUP_SMTP_HOST (default smtp.gmail.com), SIGNUP_SMTP_PORT (default 465),
+    SIGNUP_EMAIL_FROM (defaults to SIGNUP_SMTP_USER), SIGNUP_EMAIL_FROM_NAME,
+    SIGNUP_OTP_EMAIL_SUBJECT, SIGNUP_EMAIL_REPLY_TO.
+    """
+    import smtplib
+    import html as html_mod
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+    from email.utils import formataddr
+
+    smtp_user = (os.environ.get("SIGNUP_SMTP_USER") or "").strip()
+    smtp_password = (os.environ.get("SIGNUP_SMTP_PASSWORD") or "").strip()
+    if not smtp_user or not smtp_password:
+        return False
+    host = (os.environ.get("SIGNUP_SMTP_HOST") or "smtp.gmail.com").strip()
+    try:
+        port = int((os.environ.get("SIGNUP_SMTP_PORT") or "465").strip())
+    except ValueError:
+        port = 465
+    from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
+    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
+    subject = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT") or "Curax — your verification code").strip()
+    reply_to = (os.environ.get("SIGNUP_EMAIL_REPLY_TO") or "").strip()
+    to_addr = (to_addr or "").strip()
+    if "@" not in to_addr:
+        return False
+
+    otp_esc = html_mod.escape((otp_plain or "").strip())
+    name_esc = html_mod.escape(from_name)
+    sign_off_plain = f"\n— {from_name}\n"
+    sign_off_html = (
+        "<p style=\"margin-top:20px;color:#555;font-size:13px;\">"
+        f"This message was sent by <strong>{name_esc}</strong> for account sign-up.</p>"
+    )
+    text_body = (
+        f"{from_name}\n\n"
+        f"Your verification code is: {otp_plain}\n\n"
+        "This code expires in 15 minutes. If you did not request this, you can ignore this email."
+        f"{sign_off_plain}"
+    )
+    html_body = (
+        f"<p style=\"color:#333;font-size:14px;\"><strong>{name_esc}</strong></p>"
+        "<p>Your verification code is:</p>"
+        f"<p style=\"font-size:24px;font-weight:bold;letter-spacing:4px;\">{otp_esc}</p>"
+        "<p>This code expires in 15 minutes.</p>"
+        "<p>If you did not request this, you can ignore this email.</p>"
+        f"{sign_off_html}"
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = formataddr((from_name, from_addr))
+    msg["To"] = to_addr
+    if reply_to and "@" in reply_to:
+        msg["Reply-To"] = reply_to
+    msg.attach(MIMEText(text_body, "plain", "utf-8"))
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    with smtplib.SMTP_SSL(host, port) as server:
+        server.login(smtp_user, smtp_password)
+        server.sendmail(from_addr, [to_addr], msg.as_string())
+    return True
+
+
 def _get_connection_string(url=None, **kwargs):
     if url and str(url).strip():
         return url.strip()
@@ -71,6 +146,24 @@ class CentralDB:
         try:
             self._ensure_conn()
             return True
+        except Exception:
+            return False
+
+    def has_signup_sessions_table(self) -> bool:
+        """True if public.signup_sessions exists (migration_signup_sessions.sql was applied)."""
+        try:
+            cur = self._ensure_conn().cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'signup_sessions'
+                    LIMIT 1
+                    """
+                )
+                return cur.fetchone() is not None
+            finally:
+                cur.close()
         except Exception:
             return False
 
@@ -1937,7 +2030,11 @@ class CentralDB:
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def signup_flow_start(self, email, password):
-        """Create/update signup_sessions row; issue 6-digit email OTP (logged to server). Returns dict ok/error."""
+        """Create/update signup_sessions row (NOT users — users row is created at /signup/link-admin).
+
+        Until email + admin link complete, pending signups live only in signup_sessions
+        (account_status PENDING_EMAIL, then PENDING_ADMIN). The users table stays empty for that email.
+        """
         email_n = self._normalize_signup_email(email)
         if not email_n or "@" not in email_n or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_n):
             return {"ok": False, "error": "invalid_email"}
@@ -1976,7 +2073,17 @@ class CentralDB:
             return {"ok": False, "error": "database_error"}
         finally:
             cur.close()
-        print(f"  [signup OTP] {email_n} -> {otp} (expires in 15m; set SIGNUP_DEV_RETURN_OTP=1 to return in JSON)")
+        try:
+            if _send_signup_otp_email(email_n, otp):
+                print(f"  [signup OTP] email sent to {email_n} (expires in 15m)")
+            else:
+                print(
+                    f"  [signup OTP] {email_n} -> {otp} (expires in 15m; no SMTP: set "
+                    "SIGNUP_SMTP_USER + SIGNUP_SMTP_PASSWORD e.g. Gmail app password; "
+                    "SIGNUP_DEV_RETURN_OTP=1 returns code in JSON for dev)"
+                )
+        except Exception as e:
+            print(f"  [signup OTP] SMTP error for {email_n}: {e}; OTP logged for ops: {otp}")
         out = {"ok": True, "message": "otp_sent"}
         if (os.environ.get("SIGNUP_DEV_RETURN_OTP") or "").strip() in ("1", "true", "yes"):
             out["dev_otp"] = otp

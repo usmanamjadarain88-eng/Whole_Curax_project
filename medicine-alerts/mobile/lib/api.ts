@@ -1,5 +1,5 @@
 /**
- * Backend API client. Same base URL as desktop (Railway).
+ * Backend API client. Same base URL as desktop (Vercel).
  * When mobile writes here, backend notifies data bus so desktop sees changes.
  */
 import { API_BASE_URL } from './constants';

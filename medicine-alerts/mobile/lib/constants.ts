@@ -1,5 +1,5 @@
 // Backend API (same as desktop) – changes from mobile are written here so desktop can detect them
-export const API_BASE_URL = 'https://web-production-050d.up.railway.app';
+export const API_BASE_URL = 'https://whole-curax-project.vercel.app';
 
 // Dummy admin access code for local validation (no backend)
 export const ADMIN_ACCESS_CODE = 'ADMIN2024';

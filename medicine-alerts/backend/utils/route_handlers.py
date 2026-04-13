@@ -32,7 +32,21 @@ def root(body, query, headers):
 def health(body, query, headers):
     """Health check for Railway/monitoring."""
     db = get_db()
-    return (200, {"status": "ok", "database": "connected" if (db and db.is_available()) else "disconnected"})
+    db_ok = bool(db and db.is_available())
+    signup_tbl = False
+    if db_ok:
+        try:
+            signup_tbl = db.has_signup_sessions_table()
+        except Exception:
+            signup_tbl = False
+    return (
+        200,
+        {
+            "status": "ok",
+            "database": "connected" if db_ok else "disconnected",
+            "signup_sessions_table": signup_tbl,
+        },
+    )
 
 
 # ---- Auth / credentials ----
@@ -126,8 +140,17 @@ def signup_start(body, query, headers):
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 503 if err == "signup_not_configured" else 400
-        return (code, {"message": err, "detail": r.get("detail")})
-    out = {"message": r.get("message", "ok")}
+        payload = {"message": err, "detail": r.get("detail")}
+        if err == "signup_not_configured":
+            payload["hint"] = (
+                "Run migration_signup_sessions.sql on Postgres. "
+                "Until then, /signup/start cannot store pending signups."
+            )
+        return (code, payload)
+    out = {
+        "message": r.get("message", "ok"),
+        "pending_registration": True,
+    }
     if r.get("dev_otp"):
         out["dev_otp"] = r["dev_otp"]
     return (200, out)

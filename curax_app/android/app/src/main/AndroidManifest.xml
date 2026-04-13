@@ -75,6 +75,12 @@
             android:theme="@style/Theme.Curax" />
 
         <activity
+            android:name=".SignUpLinkAdminActivity"
+            android:exported="false"
+            android:parentActivityName=".SignUpActivity"
+            android:theme="@style/Theme.Curax" />
+
+        <activity
             android:name=".AdminRegistrationActivity"
             android:exported="false"
             android:theme="@style/Theme.Curax" />
