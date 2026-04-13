@@ -223,7 +223,7 @@ def main() -> None:
 
     for stem, path in public_paths.items():
         if stem == "index":
-            rewrites.append({"source": "/", "destination": "/api/index"})
+            rewrites.append({"source": "/", "destination": "/api"})
             continue
         rewrites.append({"source": path, "destination": dest_url(stem)})
 
@@ -236,14 +236,13 @@ def main() -> None:
 
     vj = {
         "$schema": "https://openapi.vercel.sh/vercel.json",
-        "rewrites": rewrites,
+        "framework": "python",
         "functions": {
-            "api/**/*.py": {
-                "maxDuration": 60,
-                "memory": 1024,
-                "excludeFiles": "{**/test_api.py,**/__pycache__/**,**/*.pyc,**/All backend files,**/tools/_flask_api_server_snapshot.py}",
+            "api/*.py": {
+                "excludeFiles": "{**/tools/**,**/test_*.py,**/*.md,**/All backend files}"
             }
         },
+        "rewrites": rewrites,
     }
     (ROOT / "vercel.json").write_text(json.dumps(vj, indent=2) + "\n", encoding="utf-8")
     print("Generated api/*.py, utils/dev_router.py, vercel.json")

@@ -13,9 +13,10 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+import os
 import schedule
 
-RELAY_URL = "wss://curax-relay.onrender.com"
+RELAY_URL = (os.environ.get("RELAY_URL") or "wss://curax-relay.onrender.com").strip()
 
 
 class BackendAlertScheduler:

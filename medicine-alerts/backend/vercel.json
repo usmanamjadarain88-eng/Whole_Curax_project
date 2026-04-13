@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "python",
+  "functions": {
+    "api/*.py": {
+      "excludeFiles": "{**/tools/**,**/test_*.py,**/*.md,**/All backend files}"
+    }
+  },
   "rewrites": [
     {
       "source": "/medicines/:medicine_id",
@@ -11,7 +17,7 @@
     },
     {
       "source": "/",
-      "destination": "/api/index"
+      "destination": "/api"
     },
     {
       "source": "/health",
@@ -161,12 +167,5 @@
       "source": "/admin/settings",
       "destination": "/api/admin_alert_settings"
     }
-  ],
-  "functions": {
-    "api/**/*.py": {
-      "maxDuration": 60,
-      "memory": 1024,
-      "excludeFiles": "{**/test_api.py,**/__pycache__/**,**/*.pyc,**/All backend files,**/tools/_flask_api_server_snapshot.py}"
-    }
-  }
+  ]
 }

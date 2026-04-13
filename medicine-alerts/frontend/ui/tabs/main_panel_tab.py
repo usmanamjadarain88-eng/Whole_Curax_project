@@ -549,7 +549,7 @@ class BoxDetailDialog(QDialog):
             )
             root.addWidget(empty)
         else:
-            exact = med.get("exact_time", med.get("time", "—"))
+        exact = med.get("exact_time", med.get("time", "—"))
             for lbl, val in [
                 ("Medicine",     med.get("name", "—")),
                 ("Quantity",     f"{med.get('quantity', '—')} tablets"),

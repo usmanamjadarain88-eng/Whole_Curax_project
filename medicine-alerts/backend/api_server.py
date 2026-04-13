@@ -25,8 +25,8 @@ class AppHandler(BaseHTTPRequestHandler):
         try:
             code = args[1] if len(args) > 1 else ""
             print("  %s %s -> %s" % (self.command, self.path, code))
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     def _handle(self) -> None:
         u = urlparse(self.path)
@@ -52,7 +52,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if code == 204 or payload is None:
             self.send_response(204)
             self.end_headers()
-            return
+        return
         data = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
