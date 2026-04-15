@@ -182,7 +182,12 @@ def signup_sign_in(body, query, headers):
             code = 403
         if err == "account_incomplete":
             code = 409
-        payload = {"message": err, "detail": r.get("detail"), "account_status": r.get("account_status")}
+        msg = err
+        if err == "unknown_email":
+            msg = "No account found for this email and password."
+        if err == "invalid_password":
+            msg = "Incorrect password for this email."
+        payload = {"message": msg, "detail": r.get("detail"), "account_status": r.get("account_status")}
         return (code, payload)
     phase = r.get("account_phase") or ""
     out = {"message": "ok", "account_phase": phase}
@@ -268,6 +273,34 @@ def user_account_status(body, query, headers):
     if st is None:
         return (404, {"message": "User not found"})
     return (200, {"account_status": st})
+def maintenance_cleanup_pending_cron(body, query, headers):
+    """GET — Vercel Cron only. Authorization: Bearer <CRON_SECRET> (or MAINTENANCE_API_KEY if CRON_SECRET unset).
+
+    Deletes signup_sessions with created_at older than hours_sessions (default 24) and stale pending users.
+    Query: hours_sessions, hours_users (optional ints).
+    """
+    auth = (headers.get("authorization") or "").strip()
+    expected = (os.environ.get("CRON_SECRET") or os.environ.get("MAINTENANCE_API_KEY") or "").strip()
+    if not expected:
+        return (404, {"message": "Not found"})
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if token != expected:
+        return (401, {"message": "Unauthorized"})
+    try:
+        hs = int((query.get("hours_sessions") or "").strip() or "24")
+    except ValueError:
+        hs = 24
+    try:
+        hu = int((query.get("hours_users") or "").strip() or "24")
+    except ValueError:
+        hu = 24
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    out = db.maintenance_cleanup_pending(hours_sessions=hs, hours_users=hu)
+    return (200, {"message": "ok", "trigger": "cron", **out})
+
+
 def maintenance_cleanup_pending(body, query, headers):
     """POST optional JSON { hours_sessions, hours_users } - requires X-Maintenance-Key matching MAINTENANCE_API_KEY."""
     key = (headers.get("x-maintenance-key") or "").strip()

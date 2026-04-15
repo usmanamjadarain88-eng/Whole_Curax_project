@@ -20,7 +20,7 @@ SIMPLE = [
     ("signup_link_admin", {"POST": "signup_link_admin"}),
     ("signup_sign_in", {"POST": "signup_sign_in"}),
     ("user_account_status", {"GET": "user_account_status"}),
-    ("maintenance_cleanup_pending", {"POST": "maintenance_cleanup_pending"}),
+    ("maintenance_cleanup_pending", {"GET": "maintenance_cleanup_pending_cron", "POST": "maintenance_cleanup_pending"}),
     ("maintenance_run_alert_checks", {"POST": "maintenance_run_alert_checks"}),
     ("notify_event", {"POST": "notify_event"}),
     ("notify_event_by_user", {"POST": "notify_event_by_user"}),

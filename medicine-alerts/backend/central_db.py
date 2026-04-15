@@ -2184,10 +2184,18 @@ class CentralDB:
             srow = cur.fetchone()
         except Exception as e:
             err = str(e).lower()
-            if "signup_sessions" not in err and "does not exist" not in err and "relation" not in err:
+            # Only skip session lookup when the table/relation is missing — not permission errors etc.
+            missing_signup_sessions = (
+                "does not exist" in err
+                and ("signup_sessions" in err or "relation" in err)
+            )
+            if not missing_signup_sessions:
                 print(f"CentralDB signup_sign_in session: {e}")
+                try:
+                    cur.close()
+                except Exception:
+                    pass
                 return {"ok": False, "error": "database_error"}
-            # Missing signup_sessions table: continue to users lookup.
         finally:
             try:
                 cur.close()
@@ -2232,7 +2240,15 @@ class CentralDB:
             cur2.close()
 
         if not urow:
-            return {"ok": False, "error": "unknown_email"}
+            return {
+                "ok": False,
+                "error": "unknown_email",
+                "detail": (
+                    "No matching account for this email and password. "
+                    "If you still need to verify your email, start sign up again with the same email—"
+                    "pending verification sessions are removed after 24 hours when scheduled cleanup runs."
+                ),
+            }
 
         pw_hash = urow.get("password_hash") if hasattr(urow, "get") else None
         if not pw_hash or not str(pw_hash).strip():
@@ -2445,7 +2461,11 @@ class CentralDB:
             cur.close()
 
     def maintenance_cleanup_pending(self, hours_sessions=24, hours_users=24):
-        """Delete stale signup_sessions and stale pending users (not dashboard). Returns counts."""
+        """Delete stale signup_sessions and stale pending users (not dashboard). Returns counts.
+
+        Default hours_sessions=24: incomplete signup_sessions older than 24h are deleted when
+        cleanup runs (e.g. Vercel Cron GET /api/maintenance_cleanup_pending with CRON_SECRET).
+        """
         out = {"signup_sessions_deleted": 0, "users_deleted": 0}
         conn = self._ensure_conn()
         cur = conn.cursor()

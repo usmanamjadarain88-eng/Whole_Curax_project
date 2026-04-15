@@ -162,7 +162,7 @@
                             app:rippleColor="@color/sign_up_button_ripple" />
                     </LinearLayout>
 
-                    <!-- Step 2: email OTP -->
+                    <!-- Step 2: email OTP (panel typography matches Sign in screen) -->
                     <LinearLayout
                         android:id="@+id/groupSignUpStep2"
                         android:layout_width="match_parent"
@@ -172,11 +172,20 @@
                         tools:visibility="gone">
 
                         <TextView
-                            android:id="@+id/tvVerifySubtitle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:fontFamily="@font/inter"
-                            android:gravity="center"
+                            android:text="@string/verify_pin_panel_intro"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:id="@+id/tvVerifySubtitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:fontFamily="@font/inter"
+                            android:gravity="start"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp"
                             tools:text="We sent a 6-digit code to you@x.com" />
@@ -187,7 +196,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
                             android:fontFamily="@font/inter"
-                            android:gravity="center"
+                            android:gravity="start"
                             android:text="@string/signup_email_verified_continue"
                             android:textColor="@color/connection_panel_title"
                             android:textSize="14sp"
@@ -235,10 +244,10 @@
                                     android:gravity="center"
                                     android:inputType="number"
                                     android:maxLength="6"
-                                    android:minHeight="48dp"
+                                    android:minHeight="40dp"
                                     android:letterSpacing="0.35"
-                                    android:paddingTop="10dp"
-                                    android:paddingBottom="10dp"
+                                    android:paddingTop="8dp"
+                                    android:paddingBottom="8dp"
                                     android:textColor="@color/text_primary"
                                     android:textColorHint="@color/text_secondary"
                                     android:textSize="20sp" />
@@ -276,7 +285,7 @@
                             style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                             android:layout_width="match_parent"
                             android:layout_height="52dp"
-                            android:layout_marginTop="18dp"
+                            android:layout_marginTop="22dp"
                             android:enabled="false"
                             android:text="@string/verify"
                             android:textColor="@color/sign_up_button_text"

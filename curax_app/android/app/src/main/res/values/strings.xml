@@ -122,6 +122,7 @@
     <string name="sign_in_success">Signed in successfully</string>
     <string name="sign_in_all_fields_required">Email and password are required</string>
     <string name="verify_pin_title">Verify PIN</string>
+    <string name="verify_pin_panel_intro">Enter the 6-digit code we sent to your email.</string>
     <string name="verify_pin_subtitle">We sent a 6-digit code to %1$s</string>
     <string name="otp_enter_all_digits">Enter all 6 digits</string>
     <string name="resend_code_wait">Resend code in %1$d s</string>

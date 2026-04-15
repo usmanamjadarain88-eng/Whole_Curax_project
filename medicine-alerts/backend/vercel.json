@@ -170,5 +170,11 @@
       "source": "/admin/settings",
       "destination": "/api/admin_alert_settings"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/maintenance_cleanup_pending",
+      "schedule": "0 * * * *"
+    }
   ]
 }

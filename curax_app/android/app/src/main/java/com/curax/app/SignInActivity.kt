@@ -143,7 +143,7 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun handleSignInSuccess(email: String, password: String, base: String, jo: JSONObject) {
-        val phase = jo.optString("account_phase", "").trim()
+        val phase = jo.optString("account_phase", "").trim().lowercase()
         when (phase) {
             "pending_email" -> {
                 startActivity(
