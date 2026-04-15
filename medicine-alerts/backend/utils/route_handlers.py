@@ -276,7 +276,7 @@ def user_account_status(body, query, headers):
 def maintenance_cleanup_pending_cron(body, query, headers):
     """GET — Vercel Cron only. Authorization: Bearer <CRON_SECRET> (or MAINTENANCE_API_KEY if CRON_SECRET unset).
 
-    Deletes signup_sessions with created_at older than hours_sessions (default 24) and stale pending users.
+    Deletes signup_sessions with created_at older than hours_sessions (default 168 = 7 days) and stale pending users.
     Query: hours_sessions, hours_users (optional ints).
     """
     auth = (headers.get("authorization") or "").strip()
@@ -287,9 +287,9 @@ def maintenance_cleanup_pending_cron(body, query, headers):
     if token != expected:
         return (401, {"message": "Unauthorized"})
     try:
-        hs = int((query.get("hours_sessions") or "").strip() or "24")
+        hs = int((query.get("hours_sessions") or "").strip() or "168")
     except ValueError:
-        hs = 24
+        hs = 168
     try:
         hu = int((query.get("hours_users") or "").strip() or "24")
     except ValueError:
@@ -308,7 +308,7 @@ def maintenance_cleanup_pending(body, query, headers):
     if not expected or key != expected:
         return (404, {"message": "Not found"})
     data = body
-    hs = int(data.get("hours_sessions") or 24)
+    hs = int(data.get("hours_sessions") or 168)
     hu = int(data.get("hours_users") or 24)
     db = get_db()
     if not db:

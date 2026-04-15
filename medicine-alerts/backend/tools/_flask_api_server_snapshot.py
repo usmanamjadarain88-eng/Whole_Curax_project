@@ -336,7 +336,7 @@ def maintenance_cleanup_pending():
     if not expected or key != expected:
         return jsonify({"message": "Not found"}), 404
     data = request.get_json(silent=True) or {}
-    hs = int(data.get("hours_sessions") or 24)
+    hs = int(data.get("hours_sessions") or 168)
     hu = int(data.get("hours_users") or 24)
     db = get_db()
     if not db:

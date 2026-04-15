@@ -2246,7 +2246,7 @@ class CentralDB:
                 "detail": (
                     "No matching account for this email and password. "
                     "If you still need to verify your email, start sign up again with the same email—"
-                    "pending verification sessions are removed after 24 hours when scheduled cleanup runs."
+                    "pending verification sessions are removed after 7 days when scheduled cleanup runs."
                 ),
             }
 
@@ -2460,11 +2460,11 @@ class CentralDB:
         finally:
             cur.close()
 
-    def maintenance_cleanup_pending(self, hours_sessions=24, hours_users=24):
+    def maintenance_cleanup_pending(self, hours_sessions=168, hours_users=24):
         """Delete stale signup_sessions and stale pending users (not dashboard). Returns counts.
 
-        Default hours_sessions=24: incomplete signup_sessions older than 24h are deleted when
-        cleanup runs (e.g. Vercel Cron GET /api/maintenance_cleanup_pending with CRON_SECRET).
+        Default hours_sessions=168 (7×24h): signup_sessions rows older than 7 days are deleted when
+        cleanup runs (e.g. daily Vercel Cron GET /api/maintenance_cleanup_pending with CRON_SECRET).
         """
         out = {"signup_sessions_deleted": 0, "users_deleted": 0}
         conn = self._ensure_conn()
