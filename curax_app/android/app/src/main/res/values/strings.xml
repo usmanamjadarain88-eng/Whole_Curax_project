@@ -127,9 +127,11 @@
     <string name="otp_enter_all_digits">Enter all 6 digits</string>
     <string name="resend_code_wait">Resend code in %1$d s</string>
     <string name="resend_code">Resend code</string>
+    <string name="signup_verification_sent">Check your email for a new 6-digit code.</string>
     <string name="please_wait">Please wait</string>
     <string name="verify">Verify</string>
     <string name="signup_admin_step_subtitle">Enter the connection code your admin shared with you.</string>
+    <string name="signup_link_admin_email_line">Using account: %1$s</string>
     <string name="signup_email_verified_continue">Your email is verified. Tap continue to enter your admin connection code.</string>
     <string name="continue_action">Continue</string>
     <string name="request_failed">Something went wrong. Try again.</string>

@@ -243,8 +243,18 @@ def signup_start():
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 503 if err == "signup_not_configured" else 400
-        return jsonify({"message": err, "detail": r.get("detail")}), code
-    out = {"message": r.get("message", "ok")}
+        if err in ("email_already_registered", "email_signup_in_progress"):
+            code = 409
+        payload = {"message": err, "detail": r.get("detail")}
+        if err == "email_already_registered" and r.get("detail"):
+            payload["hint"] = r["detail"]
+        if err == "email_signup_in_progress" and r.get("detail"):
+            payload["hint"] = r["detail"]
+        return jsonify(payload), code
+    out = {
+        "message": r.get("message", "ok"),
+        "email_sent": bool(r.get("email_sent")),
+    }
     if r.get("dev_otp"):
         out["dev_otp"] = r["dev_otp"]
     return jsonify(out)

@@ -208,50 +208,226 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical">
 
-                            <TextView
-                                android:id="@+id/tvOtpHint"
+                            <!-- Digits above each dash; dashes stay; etOtp is invisible overlay for tap + keyboard -->
+                            <FrameLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="14dp"
-                                android:fontFamily="monospace"
-                                android:gravity="center"
-                                android:letterSpacing="0.08"
-                                android:text="— — — — — —"
-                                android:textColor="@color/connection_panel_title"
-                                android:textSize="22sp"
-                                android:textStyle="bold" />
+                                android:minHeight="76dp">
 
-                            <com.google.android.material.textfield.TextInputLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                app:boxBackgroundMode="filled"
-                                app:boxBackgroundColor="@color/key_value_bg"
-                                app:boxCornerRadiusBottomEnd="0dp"
-                                app:boxCornerRadiusBottomStart="0dp"
-                                app:boxCornerRadiusTopEnd="0dp"
-                                app:boxCornerRadiusTopStart="0dp"
-                                app:boxStrokeColor="@android:color/transparent"
-                                app:boxStrokeWidth="0dp"
-                                app:boxStrokeWidthFocused="0dp"
-                                app:hintEnabled="false">
-
-                                <com.google.android.material.textfield.TextInputEditText
-                                    android:id="@+id/etOtp"
+                                <LinearLayout
+                                    android:id="@+id/otpSlotsContainer"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
+                                    android:layout_gravity="center_vertical"
+                                    android:gravity="center_vertical"
+                                    android:minHeight="76dp"
+                                    android:orientation="horizontal"
+                                    android:paddingStart="2dp"
+                                    android:paddingEnd="2dp">
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:gravity="center_horizontal"
+                                        android:orientation="vertical">
+
+                                        <TextView
+                                            android:id="@+id/tvOtpDigit0"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:minHeight="30dp"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="20sp"
+                                            android:textStyle="bold" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:text="—"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="22sp"
+                                            android:textStyle="bold" />
+                                    </LinearLayout>
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:gravity="center_horizontal"
+                                        android:orientation="vertical">
+
+                                        <TextView
+                                            android:id="@+id/tvOtpDigit1"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:minHeight="30dp"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="20sp"
+                                            android:textStyle="bold" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:text="—"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="22sp"
+                                            android:textStyle="bold" />
+                                    </LinearLayout>
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:gravity="center_horizontal"
+                                        android:orientation="vertical">
+
+                                        <TextView
+                                            android:id="@+id/tvOtpDigit2"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:minHeight="30dp"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="20sp"
+                                            android:textStyle="bold" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:text="—"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="22sp"
+                                            android:textStyle="bold" />
+                                    </LinearLayout>
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:gravity="center_horizontal"
+                                        android:orientation="vertical">
+
+                                        <TextView
+                                            android:id="@+id/tvOtpDigit3"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:minHeight="30dp"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="20sp"
+                                            android:textStyle="bold" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:text="—"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="22sp"
+                                            android:textStyle="bold" />
+                                    </LinearLayout>
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:gravity="center_horizontal"
+                                        android:orientation="vertical">
+
+                                        <TextView
+                                            android:id="@+id/tvOtpDigit4"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:minHeight="30dp"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="20sp"
+                                            android:textStyle="bold" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:text="—"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="22sp"
+                                            android:textStyle="bold" />
+                                    </LinearLayout>
+
+                                    <LinearLayout
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:gravity="center_horizontal"
+                                        android:orientation="vertical">
+
+                                        <TextView
+                                            android:id="@+id/tvOtpDigit5"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:minHeight="30dp"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="20sp"
+                                            android:textStyle="bold" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:fontFamily="monospace"
+                                            android:gravity="center"
+                                            android:includeFontPadding="false"
+                                            android:text="—"
+                                            android:textColor="@color/connection_panel_title"
+                                            android:textSize="22sp"
+                                            android:textStyle="bold" />
+                                    </LinearLayout>
+                                </LinearLayout>
+
+                                <EditText
+                                    android:id="@+id/etOtp"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:background="@android:color/transparent"
+                                    android:cursorVisible="false"
                                     android:digits="0123456789"
                                     android:gravity="center"
+                                    android:importantForAutofill="no"
                                     android:inputType="number"
                                     android:maxLength="6"
-                                    android:minHeight="40dp"
-                                    android:letterSpacing="0.35"
-                                    android:paddingTop="8dp"
-                                    android:paddingBottom="8dp"
-                                    android:textColor="@color/text_primary"
-                                    android:textColorHint="@color/text_secondary"
-                                    android:textSize="20sp" />
-                            </com.google.android.material.textfield.TextInputLayout>
+                                    android:textColor="@android:color/transparent"
+                                    android:textColorHint="@android:color/transparent"
+                                    android:textSize="22sp" />
+                            </FrameLayout>
 
                             <TextView
                                 android:id="@+id/tvResendCountdown"

@@ -2081,15 +2081,71 @@ class CentralDB:
         finally:
             cur.close()
 
+    def _signup_start_session_conflict(self, email_n: str, password_plain: str):
+        """Block /signup/start from hijacking another in-progress signup on the same email.
+
+        - PENDING_ADMIN: email already verified; only sign-in + link-admin may continue — never
+          reset to a fresh OTP from a \"new sign up\" with a different password.
+        - PENDING_EMAIL: allow only if the password matches the existing session (same user
+          resending OTP). Otherwise reject so a stranger cannot overwrite someone else's pending row.
+        """
+        if not email_n:
+            return None
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT account_status, password_hash
+                FROM signup_sessions
+                WHERE email_normalized = %s
+                LIMIT 1
+                """,
+                (email_n,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            st = str(row[0] or "").strip().upper()
+            ph_row = row[1]
+            if st == "PENDING_ADMIN":
+                return {
+                    "ok": False,
+                    "error": "email_signup_in_progress",
+                    "detail": (
+                        "This email is already verified and waiting to connect to an admin. "
+                        "Sign in to continue — you cannot start a new sign-up on this address."
+                    ),
+                }
+            if st == "PENDING_EMAIL" and ph_row and not self._verify_signup_password(password_plain, ph_row):
+                return {
+                    "ok": False,
+                    "error": "email_signup_in_progress",
+                    "detail": (
+                        "A sign-up is already in progress for this email with a different password. "
+                        "Sign in with that password or use a different email."
+                    ),
+                }
+            return None
+        except Exception as e:
+            err = str(e).lower()
+            if "signup_sessions" in err or "does not exist" in err or "relation" in err:
+                return None
+            print(f"CentralDB _signup_start_session_conflict: {e}")
+            return None
+        finally:
+            cur.close()
+
     def signup_flow_start(self, email, password, first_name="", last_name=""):
         """Create/update signup_sessions row (NOT users — users row is created at /signup/link-admin).
 
         Until email + admin link complete, pending signups live only in signup_sessions
         (account_status PENDING_EMAIL, then PENDING_ADMIN). The users table stays empty for that email.
 
-        Same email may call /signup/start again while still only in signup_sessions (pending): row is
-        updated and a new OTP is issued — no error. If the email already exists on admins or users
-        (finished registration), returns email_already_registered.
+        Same email may call /signup/start again while PENDING_EMAIL with the *same* password (OTP
+        refresh / resend). PENDING_ADMIN or PENDING_EMAIL with a different password returns
+        email_signup_in_progress. If the email already exists on admins or users (finished
+        registration), returns email_already_registered and no mail.
 
         Optional first_name / last_name are stored when signup_sessions has those columns
         (see migration_signup_sessions_names.sql).
@@ -2106,6 +2162,9 @@ class CentralDB:
                 "error": "email_already_registered",
                 "detail": "This email is already in use. Sign in with your existing account.",
             }
+        conflict = self._signup_start_session_conflict(email_n, pw)
+        if conflict:
+            return conflict
         fn = (first_name or "").strip()[:120]
         ln = (last_name or "").strip()[:120]
         otp = str(secrets.randbelow(900_000) + 100_000)
@@ -2165,8 +2224,10 @@ class CentralDB:
             return {"ok": False, "error": "database_error"}
         finally:
             cur.close()
+        email_sent = False
         try:
-            if _send_signup_otp_email(email_n, otp):
+            email_sent = bool(_send_signup_otp_email(email_n, otp))
+            if email_sent:
                 print(f"  [signup OTP] email sent to {email_n} (expires in 15m)")
             else:
                 print(
@@ -2176,7 +2237,8 @@ class CentralDB:
                 )
         except Exception as e:
             print(f"  [signup OTP] SMTP error for {email_n}: {e}; OTP logged for ops: {otp}")
-        out = {"ok": True, "message": "otp_sent"}
+            email_sent = False
+        out = {"ok": True, "message": "otp_sent", "email_sent": email_sent}
         if (os.environ.get("SIGNUP_DEV_RETURN_OTP") or "").strip() in ("1", "true", "yes"):
             out["dev_otp"] = otp
         return out

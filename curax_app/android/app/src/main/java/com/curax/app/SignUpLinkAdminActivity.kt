@@ -3,8 +3,10 @@ package com.curax.app
 import android.content.Intent
 import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doOnTextChanged
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.messaging.FirebaseMessaging
@@ -25,6 +27,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     private lateinit var prefs: Prefs
     private lateinit var store: LocalUserStore
     private lateinit var etAdminConnectionCode: TextInputEditText
+    private lateinit var tvLinkSubtitle: TextView
     private lateinit var btnLinkAdmin: MaterialButton
 
     private val http = OkHttpClient.Builder()
@@ -46,9 +49,21 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         prefs = Prefs(this)
         store = LocalUserStore(this)
         etAdminConnectionCode = findViewById(R.id.etAdminConnectionCode)
+        tvLinkSubtitle = findViewById(R.id.tvLinkSubtitle)
         btnLinkAdmin = findViewById(R.id.btnLinkAdmin)
 
+        tvLinkSubtitle.text = getString(R.string.signup_link_admin_email_line, SignUpFlowState.email)
+        etAdminConnectionCode.doOnTextChanged { _, _, _, _ -> syncConnectButtonState() }
+        syncConnectButtonState()
+
         btnLinkAdmin.setOnClickListener { onLinkAdminClicked() }
+    }
+
+    /** Same pattern as verify screen: primary action disabled until input present (alpha 0.45 when off). */
+    private fun syncConnectButtonState() {
+        val hasCode = etAdminConnectionCode.text?.toString()?.trim().orEmpty().isNotEmpty()
+        btnLinkAdmin.isEnabled = hasCode
+        btnLinkAdmin.alpha = if (hasCode) 1f else 0.45f
     }
 
     private fun apiBase(): String = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -104,8 +119,9 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         val apiKey = SignUpFlowState.apiKey
 
         hideKeyboard()
-        val linkLabel = getString(R.string.link_to_admin)
+        val connectLabel = getString(R.string.connect)
         btnLinkAdmin.isEnabled = false
+        btnLinkAdmin.alpha = 1f
         btnLinkAdmin.text = getString(R.string.please_wait)
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
@@ -122,18 +138,18 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                     }
                     val (code, jo) = postJson("/signup/link-admin", json)
                     runOnUiThread {
-                        btnLinkAdmin.isEnabled = true
-                        btnLinkAdmin.text = linkLabel
+                        btnLinkAdmin.text = connectLabel
                         if (code == 200 && jo != null) {
                             applyPrefsAfterLink(jo, connectionCode, fcmToken, base, email, password, botId, apiKey)
                         } else {
                             Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                            syncConnectButtonState()
                         }
                     }
                 } catch (_: Exception) {
                     runOnUiThread {
-                        btnLinkAdmin.isEnabled = true
-                        btnLinkAdmin.text = linkLabel
+                        btnLinkAdmin.text = connectLabel
+                        syncConnectButtonState()
                         Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
                     }
                 }

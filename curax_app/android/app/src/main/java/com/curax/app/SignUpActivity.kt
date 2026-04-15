@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -38,8 +39,8 @@ class SignUpActivity : AppCompatActivity() {
     private lateinit var tvVerifySubtitle: TextView
     private lateinit var tvEmailVerifiedBanner: TextView
     private lateinit var otpInputBlock: LinearLayout
-    private lateinit var tvOtpHint: TextView
-    private lateinit var etOtp: TextInputEditText
+    private lateinit var etOtp: EditText
+    private lateinit var otpDigitViews: List<TextView>
     private lateinit var tvResendCountdown: TextView
     private lateinit var tvResend: TextView
     private lateinit var btnVerifyOtp: MaterialButton
@@ -121,8 +122,15 @@ class SignUpActivity : AppCompatActivity() {
         tvVerifySubtitle = findViewById(R.id.tvVerifySubtitle)
         tvEmailVerifiedBanner = findViewById(R.id.tvEmailVerifiedBanner)
         otpInputBlock = findViewById(R.id.otpInputBlock)
-        tvOtpHint = findViewById(R.id.tvOtpHint)
         etOtp = findViewById(R.id.etOtp)
+        otpDigitViews = listOf(
+            findViewById(R.id.tvOtpDigit0),
+            findViewById(R.id.tvOtpDigit1),
+            findViewById(R.id.tvOtpDigit2),
+            findViewById(R.id.tvOtpDigit3),
+            findViewById(R.id.tvOtpDigit4),
+            findViewById(R.id.tvOtpDigit5),
+        )
         tvResendCountdown = findViewById(R.id.tvResendCountdown)
         tvResend = findViewById(R.id.tvResend)
         btnVerifyOtp = findViewById(R.id.btnVerifyOtp)
@@ -140,7 +148,6 @@ class SignUpActivity : AppCompatActivity() {
             updateOtpDashDisplay(text?.toString().orEmpty())
             btnVerifyOtp.isEnabled = step2ContinueOnly || text?.length == 6
         }
-
         btnSignUp.setOnClickListener { onSignUpClicked() }
         btnVerifyOtp.setOnClickListener(verifyClickListener)
         tvResend.setOnClickListener { onResendClicked() }
@@ -159,7 +166,14 @@ class SignUpActivity : AppCompatActivity() {
             resetStep2UiForOtpEntry()
             tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, pendingEmail)
             showStep(Step.TWO)
-            startResendCooldown()
+            // Sign-in + pending_email: /signup/sign-in does not send OTP; must call /signup/start here.
+            // Registration path already called /signup/start before this screen.
+            if (intent.getBooleanExtra(EXTRA_FROM_SIGNIN_PENDING_EMAIL, false)) {
+                requestOtpEmailAfterSignInPending()
+            } else {
+                startResendCooldown()
+                etOtp.post { focusOtpField() }
+            }
         } else {
             showStep(Step.ONE)
         }
@@ -176,6 +190,50 @@ class SignUpActivity : AppCompatActivity() {
         val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
         val token = currentFocus?.windowToken ?: window.decorView.windowToken
         imm.hideSoftInputFromWindow(token, 0)
+    }
+
+    /** Dash row looks like the input; forward taps to the real OTP field and open the keypad. */
+    private fun focusOtpField() {
+        if (!etOtp.isEnabled || otpInputBlock.visibility != View.VISIBLE) return
+        etOtp.requestFocus()
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
+        etOtp.post {
+            imm.showSoftInput(etOtp, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
+    /** After sign-in with pending_email: issue OTP + trigger signup email (same as resend). */
+    private fun requestOtpEmailAfterSignInPending() {
+        val base = apiBase()
+        if (base.isEmpty()) {
+            Toast.makeText(this, getString(R.string.set_api_url_for_codes), Toast.LENGTH_LONG).show()
+            startResendCooldown()
+            etOtp.post { focusOtpField() }
+            return
+        }
+        Thread {
+            try {
+                val json = JSONObject().apply {
+                    put("email", pendingEmail)
+                    put("password", pendingPassword)
+                }
+                val (code, jo) = postJson("/signup/start", json)
+                runOnUiThread {
+                    if (code == 200) {
+                        startResendCooldown()
+                        Toast.makeText(this, getString(R.string.signup_verification_sent), Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                    }
+                    etOtp.post { focusOtpField() }
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                    etOtp.post { focusOtpField() }
+                }
+            }
+        }.start()
     }
 
     private fun messageFromResponse(jo: JSONObject?): String {
@@ -218,13 +276,12 @@ class SignUpActivity : AppCompatActivity() {
         backCallback.isEnabled = true
     }
 
+    /** Digits in upper row only; em dashes below stay fixed in XML. */
     private fun updateOtpDashDisplay(code: String) {
-        val sb = StringBuilder()
-        for (i in 0 until 6) {
-            if (i > 0) sb.append(' ')
-            sb.append(if (i < code.length) code[i] else '—')
+        for (i in otpDigitViews.indices) {
+            otpDigitViews[i].text =
+                if (i < code.length) code[i].toString() else ""
         }
-        tvOtpHint.text = sb.toString()
     }
 
     private fun cancelResendTimer() {
@@ -312,6 +369,7 @@ class SignUpActivity : AppCompatActivity() {
                                 tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, email)
                                 showStep(Step.TWO)
                                 startResendCooldown()
+                                etOtp.post { focusOtpField() }
                             } else {
                                 Toast.makeText(this@SignUpActivity, messageFromResponse(jo), Toast.LENGTH_LONG).show()
                             }
@@ -417,6 +475,8 @@ class SignUpActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_START_AT_OTP = "start_at_otp"
+        /** True when opening verify after /signup/sign-in returned pending_email (needs /signup/start for mail). */
+        const val EXTRA_FROM_SIGNIN_PENDING_EMAIL = "from_signin_pending_email"
         const val EXTRA_EMAIL = "pending_email"
         const val EXTRA_PASSWORD = "pending_password"
         const val EXTRA_DISPLAY_NAME = "display_name"

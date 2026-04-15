@@ -142,7 +142,7 @@ def signup_start(body, query, headers):
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 503 if err == "signup_not_configured" else 400
-        if err == "email_already_registered":
+        if err in ("email_already_registered", "email_signup_in_progress"):
             code = 409
         payload = {"message": err, "detail": r.get("detail")}
         if err == "signup_not_configured":
@@ -152,10 +152,13 @@ def signup_start(body, query, headers):
             )
         if err == "email_already_registered" and r.get("detail"):
             payload["hint"] = r["detail"]
+        if err == "email_signup_in_progress" and r.get("detail"):
+            payload["hint"] = r["detail"]
         return (code, payload)
     out = {
         "message": r.get("message", "ok"),
         "pending_registration": True,
+        "email_sent": bool(r.get("email_sent")),
     }
     if r.get("dev_otp"):
         out["dev_otp"] = r["dev_otp"]

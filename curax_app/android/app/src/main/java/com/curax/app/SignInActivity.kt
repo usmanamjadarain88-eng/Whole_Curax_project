@@ -149,6 +149,7 @@ class SignInActivity : AppCompatActivity() {
                 startActivity(
                     Intent(this, SignUpActivity::class.java)
                         .putExtra(SignUpActivity.EXTRA_START_AT_OTP, true)
+                        .putExtra(SignUpActivity.EXTRA_FROM_SIGNIN_PENDING_EMAIL, true)
                         .putExtra(SignUpActivity.EXTRA_EMAIL, email)
                         .putExtra(SignUpActivity.EXTRA_PASSWORD, password)
                         .putExtra(SignUpActivity.EXTRA_DISPLAY_NAME, email)
