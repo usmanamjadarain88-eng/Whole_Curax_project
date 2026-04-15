@@ -2056,7 +2056,11 @@ class CentralDB:
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def _signup_email_already_registered(self, email_n: str) -> bool:
-        """True if this email is already an admin or already stored on any user row (completed signup)."""
+        """True if this email is already an admin or on any user row (completed signup).
+
+        Any non-empty users.email match blocks a new /signup/start — same person must sign in,
+        not start another signup row (even if they only change first/last name on the form).
+        """
         if not email_n:
             return False
         conn = self._ensure_conn()
@@ -2070,7 +2074,12 @@ class CentralDB:
                 return True
             try:
                 cur.execute(
-                    "SELECT 1 FROM users WHERE LOWER(TRIM(COALESCE(email, ''))) = %s LIMIT 1",
+                    """
+                    SELECT 1 FROM users
+                    WHERE NULLIF(TRIM(COALESCE(email, '')), '') IS NOT NULL
+                      AND LOWER(TRIM(COALESCE(email, ''))) = %s
+                    LIMIT 1
+                    """,
                     (email_n,),
                 )
                 return cur.fetchone() is not None

@@ -213,7 +213,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="14dp"
-                                android:minHeight="76dp">
+                                android:minHeight="92dp">
 
                                 <LinearLayout
                                     android:id="@+id/otpSlotsContainer"
@@ -221,7 +221,7 @@
                                     android:layout_height="wrap_content"
                                     android:layout_gravity="center_vertical"
                                     android:gravity="center_vertical"
-                                    android:minHeight="76dp"
+                                    android:minHeight="92dp"
                                     android:orientation="horizontal"
                                     android:paddingStart="2dp"
                                     android:paddingEnd="2dp">
@@ -240,9 +240,9 @@
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
-                                            android:minHeight="30dp"
+                                            android:minHeight="40dp"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="20sp"
+                                            android:textSize="28sp"
                                             android:textStyle="bold" />
 
                                         <TextView
@@ -253,7 +253,7 @@
                                             android:includeFontPadding="false"
                                             android:text="—"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="22sp"
+                                            android:textSize="24sp"
                                             android:textStyle="bold" />
                                     </LinearLayout>
 
@@ -271,9 +271,9 @@
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
-                                            android:minHeight="30dp"
+                                            android:minHeight="40dp"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="20sp"
+                                            android:textSize="28sp"
                                             android:textStyle="bold" />
 
                                         <TextView
@@ -284,7 +284,7 @@
                                             android:includeFontPadding="false"
                                             android:text="—"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="22sp"
+                                            android:textSize="24sp"
                                             android:textStyle="bold" />
                                     </LinearLayout>
 
@@ -302,9 +302,9 @@
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
-                                            android:minHeight="30dp"
+                                            android:minHeight="40dp"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="20sp"
+                                            android:textSize="28sp"
                                             android:textStyle="bold" />
 
                                         <TextView
@@ -315,7 +315,7 @@
                                             android:includeFontPadding="false"
                                             android:text="—"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="22sp"
+                                            android:textSize="24sp"
                                             android:textStyle="bold" />
                                     </LinearLayout>
 
@@ -333,9 +333,9 @@
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
-                                            android:minHeight="30dp"
+                                            android:minHeight="40dp"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="20sp"
+                                            android:textSize="28sp"
                                             android:textStyle="bold" />
 
                                         <TextView
@@ -346,7 +346,7 @@
                                             android:includeFontPadding="false"
                                             android:text="—"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="22sp"
+                                            android:textSize="24sp"
                                             android:textStyle="bold" />
                                     </LinearLayout>
 
@@ -364,9 +364,9 @@
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
-                                            android:minHeight="30dp"
+                                            android:minHeight="40dp"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="20sp"
+                                            android:textSize="28sp"
                                             android:textStyle="bold" />
 
                                         <TextView
@@ -377,7 +377,7 @@
                                             android:includeFontPadding="false"
                                             android:text="—"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="22sp"
+                                            android:textSize="24sp"
                                             android:textStyle="bold" />
                                     </LinearLayout>
 
@@ -395,9 +395,9 @@
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
-                                            android:minHeight="30dp"
+                                            android:minHeight="40dp"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="20sp"
+                                            android:textSize="28sp"
                                             android:textStyle="bold" />
 
                                         <TextView
@@ -408,7 +408,7 @@
                                             android:includeFontPadding="false"
                                             android:text="—"
                                             android:textColor="@color/connection_panel_title"
-                                            android:textSize="22sp"
+                                            android:textSize="24sp"
                                             android:textStyle="bold" />
                                     </LinearLayout>
                                 </LinearLayout>

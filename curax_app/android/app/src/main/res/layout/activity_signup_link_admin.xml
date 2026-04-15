@@ -114,23 +114,22 @@
                         android:layout_width="match_parent"
                         android:layout_height="12dp" />
 
-                    <!-- Same disabled look as verify Resend row (tvResend) -->
+                    <!-- Decorative row (not an action label) -->
                     <TextView
                         android:id="@+id/tvLinkToAdminMuted"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="center_horizontal"
                         android:layout_marginTop="4dp"
-                        android:alpha="0.45"
+                        android:alpha="0.55"
                         android:clickable="false"
                         android:enabled="false"
                         android:focusable="false"
                         android:fontFamily="@font/inter"
                         android:paddingVertical="8dp"
-                        android:text="@string/link_to_admin"
-                        android:textColor="@color/connection_panel_title"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:text="@string/signup_link_admin_decor"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="18sp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnLinkAdmin"

@@ -59,11 +59,12 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         btnLinkAdmin.setOnClickListener { onLinkAdminClicked() }
     }
 
-    /** Same pattern as verify screen: primary action disabled until input present (alpha 0.45 when off). */
+    /** Connect only when code length matches server admin connection codes (8 chars). */
     private fun syncConnectButtonState() {
-        val hasCode = etAdminConnectionCode.text?.toString()?.trim().orEmpty().isNotEmpty()
-        btnLinkAdmin.isEnabled = hasCode
-        btnLinkAdmin.alpha = if (hasCode) 1f else 0.45f
+        val len = etAdminConnectionCode.text?.toString()?.trim().orEmpty().length
+        val ok = len >= MIN_ADMIN_CONNECTION_CODE_LEN
+        btnLinkAdmin.isEnabled = ok
+        btnLinkAdmin.alpha = if (ok) 1f else 0.45f
     }
 
     private fun apiBase(): String = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -220,6 +221,9 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Matches backend `central_db._ADMIN_CODE_LENGTH` (connection_code format). */
+        private const val MIN_ADMIN_CONNECTION_CODE_LEN = 8
+
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }
 }

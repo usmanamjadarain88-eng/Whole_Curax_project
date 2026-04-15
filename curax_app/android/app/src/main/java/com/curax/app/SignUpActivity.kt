@@ -221,7 +221,13 @@ class SignUpActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (code == 200) {
                         startResendCooldown()
-                        Toast.makeText(this, getString(R.string.signup_verification_sent), Toast.LENGTH_LONG).show()
+                        val emailOk = jo?.optBoolean("email_sent", true) != false
+                        val msg = if (emailOk) {
+                            getString(R.string.otp_resend_email_success)
+                        } else {
+                            getString(R.string.otp_resend_email_saved_smtp_failed)
+                        }
+                        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                     } else {
                         Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
                     }
@@ -403,7 +409,13 @@ class SignUpActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (code == 200) {
                         startResendCooldown()
-                        Toast.makeText(this, getString(R.string.resend_code), Toast.LENGTH_SHORT).show()
+                        val emailOk = jo?.optBoolean("email_sent", true) != false
+                        val msg = if (emailOk) {
+                            getString(R.string.otp_resend_email_success)
+                        } else {
+                            getString(R.string.otp_resend_email_saved_smtp_failed)
+                        }
+                        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                     } else {
                         Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
                         tvResend.isEnabled = true
