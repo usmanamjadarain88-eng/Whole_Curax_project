@@ -111,12 +111,13 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
             Thread {
                 try {
+                    val displayName = SignUpFlowState.nameForLink.trim().ifBlank { email }
                     val json = JSONObject().apply {
                         put("email", email)
                         put("connection_code", connectionCode)
                         put("bot_id", botId)
                         put("api_key", apiKey)
-                        put("name", email)
+                        put("name", displayName)
                         if (fcmToken.isNotEmpty()) put("fcm_token", fcmToken)
                     }
                     val (code, jo) = postJson("/signup/link-admin", json)

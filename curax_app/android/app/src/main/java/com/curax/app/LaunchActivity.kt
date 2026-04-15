@@ -28,7 +28,7 @@ class LaunchActivity : AppCompatActivity() {
             (store.pinEnabled && store.pinCode.isNotEmpty())
 
         val target = when {
-            !store.hasUser() -> Intent(this, SignUpActivity::class.java)
+            !store.hasUser() -> Intent(this, SignInActivity::class.java)
             hasPin && fromLauncher -> Intent(this, PinEntryActivity::class.java)
             AppLockPolicy.shouldRequireLockOnEntry(this) -> Intent(this, PinEntryActivity::class.java)
             store.role == LocalUserStore.ROLE_USER && prefs.userStandaloneMode -> Intent(this, UserStandaloneActivity::class.java)

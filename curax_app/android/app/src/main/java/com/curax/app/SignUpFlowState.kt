@@ -17,11 +17,16 @@ internal object SignUpFlowState {
     @Volatile
     var apiKey: String = ""
 
-    fun set(email: String, password: String, botId: String, apiKey: String) {
+    /** Display name for POST /signup/link-admin (first + last from registration, else email). */
+    @Volatile
+    var nameForLink: String = ""
+
+    fun set(email: String, password: String, botId: String, apiKey: String, nameForLink: String = "") {
         this.email = email.trim()
         this.password = password
         this.botId = botId.trim()
         this.apiKey = apiKey.trim()
+        this.nameForLink = nameForLink.trim()
     }
 
     fun clear() {
@@ -29,6 +34,7 @@ internal object SignUpFlowState {
         password = ""
         botId = ""
         apiKey = ""
+        nameForLink = ""
     }
 
     fun isReady(): Boolean =

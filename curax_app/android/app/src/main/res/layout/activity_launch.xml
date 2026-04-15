@@ -21,9 +21,9 @@
             android:orientation="horizontal">
 
             <ImageView
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_marginEnd="10dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="12dp"
                 android:importantForAccessibility="no"
                 android:scaleType="fitCenter"
                 android:src="@drawable/curax_logo" />
@@ -37,7 +37,7 @@
                 android:includeFontPadding="false"
                 android:text="@string/opening_curax"
                 android:textColor="@color/text_secondary"
-                android:textSize="13sp"
+                android:textSize="15sp"
                 android:textStyle="normal" />
         </LinearLayout>
 
@@ -46,29 +46,29 @@
             android:id="@+id/splashLoadingDots"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="14dp"
             android:gravity="center"
             android:importantForAccessibility="no"
             android:orientation="horizontal">
 
             <View
                 android:id="@+id/dot1"
-                android:layout_width="5dp"
-                android:layout_height="5dp"
-                android:layout_marginEnd="5dp"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:layout_marginEnd="6dp"
                 android:background="@drawable/splash_loading_dot" />
 
             <View
                 android:id="@+id/dot2"
-                android:layout_width="5dp"
-                android:layout_height="5dp"
-                android:layout_marginEnd="5dp"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:layout_marginEnd="6dp"
                 android:background="@drawable/splash_loading_dot" />
 
             <View
                 android:id="@+id/dot3"
-                android:layout_width="5dp"
-                android:layout_height="5dp"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
                 android:background="@drawable/splash_loading_dot" />
         </LinearLayout>
     </LinearLayout>

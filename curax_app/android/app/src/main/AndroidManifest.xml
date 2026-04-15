@@ -70,19 +70,32 @@
         </activity>
 
         <activity
+            android:name=".SignInActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Curax" />
+
+        <activity
+            android:name=".SignUpRegistrationActivity"
+            android:exported="false"
+            android:parentActivityName=".SignInActivity"
+            android:theme="@style/Theme.Curax" />
+
+        <activity
             android:name=".SignUpActivity"
             android:exported="false"
+            android:parentActivityName=".SignInActivity"
             android:theme="@style/Theme.Curax" />
 
         <activity
             android:name=".SignUpLinkAdminActivity"
             android:exported="false"
-            android:parentActivityName=".SignUpActivity"
+            android:parentActivityName=".SignInActivity"
             android:theme="@style/Theme.Curax" />
 
         <activity
             android:name=".AdminRegistrationActivity"
             android:exported="false"
+            android:parentActivityName=".SignInActivity"
             android:theme="@style/Theme.Curax" />
 
         <activity

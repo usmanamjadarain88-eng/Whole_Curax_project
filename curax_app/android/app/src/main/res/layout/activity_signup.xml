@@ -294,6 +294,8 @@
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
                     android:layout_marginTop="6dp"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:paddingHorizontal="12dp"
                     android:paddingVertical="6dp"
                     android:text="@string/sign_up_as_admin"

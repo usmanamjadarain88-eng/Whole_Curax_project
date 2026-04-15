@@ -69,6 +69,8 @@ class SignUpActivity : AppCompatActivity() {
     private var apiKeyForLink = ""
     private var resendTimer: CountDownTimer? = null
     private var step2ContinueOnly = false
+    private var otpEntryMode = false
+    private var pendingDisplayName = ""
 
     private val verifyClickListener = View.OnClickListener { onVerifyOtpClicked() }
     private val continueClickListener = View.OnClickListener {
@@ -87,9 +89,15 @@ class SignUpActivity : AppCompatActivity() {
                 }
                 Step.TWO -> {
                     cancelResendTimer()
-                    resetStep2UiForOtpEntry()
-                    SignUpFlowState.clear()
-                    showStep(Step.ONE)
+                    if (otpEntryMode) {
+                        SignUpFlowState.clear()
+                        resetStep2UiForOtpEntry()
+                        finish()
+                    } else {
+                        resetStep2UiForOtpEntry()
+                        SignUpFlowState.clear()
+                        showStep(Step.ONE)
+                    }
                 }
             }
         }
@@ -136,9 +144,25 @@ class SignUpActivity : AppCompatActivity() {
         btnSignUp.setOnClickListener { onSignUpClicked() }
         btnVerifyOtp.setOnClickListener(verifyClickListener)
         tvResend.setOnClickListener { onResendClicked() }
+        tvSignUpAdmin.setOnClickListener {
+            startActivity(Intent(this, AdminRegistrationActivity::class.java))
+        }
+
+        otpEntryMode = intent.getBooleanExtra(EXTRA_START_AT_OTP, false)
+        pendingDisplayName = intent.getStringExtra(EXTRA_DISPLAY_NAME).orEmpty()
 
         updateOtpDashDisplay("")
-        showStep(Step.ONE)
+        if (otpEntryMode) {
+            pendingEmail = intent.getStringExtra(EXTRA_EMAIL).orEmpty()
+            pendingPassword = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
+            tvSignUpAdmin.visibility = View.GONE
+            resetStep2UiForOtpEntry()
+            tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, pendingEmail)
+            showStep(Step.TWO)
+            startResendCooldown()
+        } else {
+            showStep(Step.ONE)
+        }
     }
 
     override fun onDestroy() {
@@ -262,7 +286,7 @@ class SignUpActivity : AppCompatActivity() {
                 Toast.makeText(this, getString(R.string.sign_in_all_fields_required), Toast.LENGTH_SHORT).show()
             }
             password.length < 6 -> {
-                Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.password_min_length), Toast.LENGTH_SHORT).show()
             }
             else -> {
                 val base = apiBase()
@@ -272,6 +296,7 @@ class SignUpActivity : AppCompatActivity() {
                 }
                 pendingEmail = email
                 pendingPassword = password
+                pendingDisplayName = email
                 btnSignUp.isEnabled = false
                 Thread {
                     try {
@@ -365,7 +390,14 @@ class SignUpActivity : AppCompatActivity() {
                         cancelResendTimer()
                         botIdForLink = UUID.randomUUID().toString().take(8)
                         apiKeyForLink = UUID.randomUUID().toString().replace("-", "").take(16)
-                        SignUpFlowState.set(pendingEmail, pendingPassword, botIdForLink, apiKeyForLink)
+                        val linkName = pendingDisplayName.trim().ifBlank { pendingEmail }
+                        SignUpFlowState.set(
+                            pendingEmail,
+                            pendingPassword,
+                            botIdForLink,
+                            apiKeyForLink,
+                            nameForLink = linkName,
+                        )
                         linkAdminLauncher.launch(Intent(this, SignUpLinkAdminActivity::class.java))
                     } else {
                         Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
@@ -384,6 +416,11 @@ class SignUpActivity : AppCompatActivity() {
     }
 
     companion object {
+        const val EXTRA_START_AT_OTP = "start_at_otp"
+        const val EXTRA_EMAIL = "pending_email"
+        const val EXTRA_PASSWORD = "pending_password"
+        const val EXTRA_DISPLAY_NAME = "display_name"
+
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }
 }

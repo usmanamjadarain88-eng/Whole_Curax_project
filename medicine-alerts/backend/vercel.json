@@ -43,6 +43,10 @@
       "destination": "/api/signup_link_admin"
     },
     {
+      "source": "/signup/sign-in",
+      "destination": "/api/signup_sign_in"
+    },
+    {
       "source": "/user/account-status",
       "destination": "/api/user_account_status"
     },

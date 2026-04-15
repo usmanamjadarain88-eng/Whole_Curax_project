@@ -129,14 +129,16 @@ def connect_to_admin(body, query, headers):
 
 # ---- User signup flow (email -> OTP -> admin code); additive ----
 def signup_start(body, query, headers):
-    """POST { email, password } -> OTP issued (see server log); optional dev_otp if SIGNUP_DEV_RETURN_OTP=1."""
+    """POST { email, password, first_name?, last_name? } -> OTP issued (see server log); optional dev_otp if SIGNUP_DEV_RETURN_OTP=1."""
     data = body
     email = (data.get("email") or "").strip()
     password = (data.get("password") or "").strip()
+    first_name = (data.get("first_name") or "").strip()
+    last_name = (data.get("last_name") or "").strip()
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
-    r = db.signup_flow_start(email, password)
+    r = db.signup_flow_start(email, password, first_name=first_name, last_name=last_name)
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 503 if err == "signup_not_configured" else 400
@@ -158,6 +160,45 @@ def signup_start(body, query, headers):
     if r.get("dev_otp"):
         out["dev_otp"] = r["dev_otp"]
     return (200, out)
+
+
+def signup_sign_in(body, query, headers):
+    """POST { email, password } -> pending_email | pending_admin | active (with bot_id, api_key, admin fields)."""
+    data = body or {}
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.signup_sign_in(email, password)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err == "invalid_password":
+            code = 401
+        if err == "unknown_email":
+            code = 404
+        if err == "password_not_set":
+            code = 403
+        if err == "account_incomplete":
+            code = 409
+        payload = {"message": err, "detail": r.get("detail"), "account_status": r.get("account_status")}
+        return (code, payload)
+    phase = r.get("account_phase") or ""
+    out = {"message": "ok", "account_phase": phase}
+    if phase == "active":
+        for k in (
+            "bot_id",
+            "api_key",
+            "admin_id",
+            "admin_name",
+            "databus_access_code",
+            "connection_code",
+        ):
+            out[k] = r.get(k) or ""
+    return (200, out)
+
+
 def signup_verify_email(body, query, headers):
     """POST { email, otp } -> session moves to PENDING_ADMIN."""
     data = body
