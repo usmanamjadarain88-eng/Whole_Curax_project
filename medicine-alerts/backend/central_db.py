@@ -942,11 +942,12 @@ class CentralDB:
         finally:
             cur.close()
 
-    def upsert_user_from_bot(self, bot_id, api_key, admin_id, name=None, email=None, fcm_token=None):
+    def upsert_user_from_bot(self, bot_id, api_key, admin_id, name=None, email=None, fcm_token=None, username=None):
         """Insert or update the user by (bot_id, api_key); links this app to the given admin_id. Returns user id or None.
         If email is provided, any other user rows for the same admin_id + email (previous installs) are deleted first,
         but their medicines, dose_logs, and alert_settings are migrated to the new user to preserve data.
         fcm_token: when provided, stored for push alerts to this user.
+        username: optional display handle (e.g. first + last from signup). When omitted, derived from name.
         """
         bot_id = (bot_id or "").strip()
         api_key = (api_key or "").strip()
@@ -958,34 +959,59 @@ class CentralDB:
             return None
         email_clean = (email or "").strip()
         fcm = (fcm_token or "").strip() or None
+        if username is not None:
+            uname_val = str(username).strip() or None
+        else:
+            uname_val = ((name or "")).strip() or None
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
-            # Schema: users may have email, fcm_token columns
-            cur.execute(
-                """
-                INSERT INTO users (admin_id, name, email, bot_id, api_key, role, fcm_token, updated_at)
-                VALUES (%s::uuid, %s, %s, %s, %s, 'user', %s, NOW())
-                ON CONFLICT (bot_id, api_key)
-                DO UPDATE SET admin_id = EXCLUDED.admin_id,
-                              name = COALESCE(EXCLUDED.name, users.name),
-                              email = COALESCE(EXCLUDED.email, users.email),
-                              fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
-                              updated_at = NOW()
-                RETURNING id
-                """,
-                (admin_id, name or "", email_clean or None, bot_id, api_key, fcm),
-            )
+            # Schema: users may have email, fcm_token, username columns
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, fcm_token, updated_at)
+                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', %s, NOW())
+                    ON CONFLICT (bot_id, api_key)
+                    DO UPDATE SET admin_id = EXCLUDED.admin_id,
+                                  name = COALESCE(EXCLUDED.name, users.name),
+                                  email = COALESCE(EXCLUDED.email, users.email),
+                                  username = COALESCE(NULLIF(TRIM(EXCLUDED.username), ''), users.username),
+                                  fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
+                                  updated_at = NOW()
+                    RETURNING id
+                    """,
+                    (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key, fcm),
+                )
+            except Exception as e0:
+                conn.rollback()
+                el0 = str(e0).lower()
+                if "username" not in el0:
+                    raise e0
+                cur.execute(
+                    """
+                    INSERT INTO users (admin_id, name, email, bot_id, api_key, role, fcm_token, updated_at)
+                    VALUES (%s::uuid, %s, %s, %s, %s, 'user', %s, NOW())
+                    ON CONFLICT (bot_id, api_key)
+                    DO UPDATE SET admin_id = EXCLUDED.admin_id,
+                                  name = COALESCE(EXCLUDED.name, users.name),
+                                  email = COALESCE(EXCLUDED.email, users.email),
+                                  fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
+                                  updated_at = NOW()
+                    RETURNING id
+                    """,
+                    (admin_id, name or "", email_clean or None, bot_id, api_key, fcm),
+                )
             row = cur.fetchone()
             conn.commit()
             if row:
                 uid = row["id"] if hasattr(row, "keys") else row[0]
                 new_user_id = str(uid) if isinstance(uid, uuid.UUID) else uid
-                
+
                 # After creating/updating new user, migrate data from old users (if email provided)
                 if email_clean:
                     self._delete_other_users_by_admin_and_email(admin_id, email_clean, bot_id, api_key, migrate_to_user_id=new_user_id)
-                
+
                 return new_user_id
             return None
         except Exception as e:
@@ -2347,10 +2373,22 @@ class CentralDB:
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
-            cur.execute(
-                "SELECT password_hash, account_status FROM signup_sessions WHERE email_normalized = %s LIMIT 1",
-                (email_n,),
-            )
+            try:
+                cur.execute(
+                    """
+                    SELECT password_hash, account_status,
+                           COALESCE(TRIM(first_name), '') AS fn,
+                           COALESCE(TRIM(last_name), '') AS ln
+                    FROM signup_sessions WHERE email_normalized = %s LIMIT 1
+                    """,
+                    (email_n,),
+                )
+            except Exception:
+                conn.rollback()
+                cur.execute(
+                    "SELECT password_hash, account_status FROM signup_sessions WHERE email_normalized = %s LIMIT 1",
+                    (email_n,),
+                )
             srow = cur.fetchone()
             if not srow:
                 conn.rollback()
@@ -2360,6 +2398,11 @@ class CentralDB:
                 conn.rollback()
                 return {"ok": False, "error": "wrong_state", "account_status": st}
             pw_row = srow["password_hash"] if hasattr(srow, "keys") else None
+            session_fn = ""
+            session_ln = ""
+            if hasattr(srow, "get"):
+                session_fn = (srow.get("fn") or "").strip()
+                session_ln = (srow.get("ln") or "").strip()
             conn.rollback()
         finally:
             cur.close()
@@ -2370,7 +2413,19 @@ class CentralDB:
         admin_id = admin.get("id")
         admin_name = admin.get("name") or ""
 
-        user_id = self.upsert_user_from_bot(bot_id, api_key, admin_id, name=name or email_n, email=email_n, fcm_token=fcm_token)
+        combined = re.sub(r"\s+", " ", f"{session_fn} {session_ln}").strip()
+        display_name = combined if (session_fn or session_ln) else ((name or "").strip() or email_n)
+        user_uname = combined if (session_fn or session_ln) else None
+
+        user_id = self.upsert_user_from_bot(
+            bot_id,
+            api_key,
+            admin_id,
+            name=display_name,
+            email=email_n,
+            fcm_token=fcm_token,
+            username=user_uname,
+        )
         if not user_id:
             return {"ok": False, "error": "link_failed"}
 

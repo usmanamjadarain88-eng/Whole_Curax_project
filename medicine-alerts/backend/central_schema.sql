@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     admin_id UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
     name VARCHAR(255),
+    username VARCHAR(200) DEFAULT NULL,
     email VARCHAR(255),
     bot_id VARCHAR(255) NOT NULL,
     api_key VARCHAR(255) NOT NULL,
