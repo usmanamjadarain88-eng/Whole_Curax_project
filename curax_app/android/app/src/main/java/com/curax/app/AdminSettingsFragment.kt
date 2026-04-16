@@ -13,7 +13,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
@@ -34,11 +33,7 @@ class AdminSettingsFragment : Fragment() {
         }
     }
 
-    private fun isUserStandalone(): Boolean {
-        val ctx = requireContext()
-        val prefs = Prefs(ctx)
-        return LocalUserStore(ctx).role == LocalUserStore.ROLE_USER && prefs.userStandaloneMode
-    }
+    private fun isUserApp(): Boolean = AppRole.isUser(requireContext())
 
     companion object {
         private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
@@ -55,7 +50,7 @@ class AdminSettingsFragment : Fragment() {
         refresh()
         fetchSettingsFromServer()
 
-        if (isUserStandalone()) {
+        if (isUserApp()) {
             view.findViewById<MaterialButton>(R.id.btn_save_alert_settings).visibility = View.GONE
             view.findViewById<MaterialButton>(R.id.btn_save_gmail).visibility = View.GONE
             disableInputs(view)
@@ -97,7 +92,7 @@ class AdminSettingsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         refresh()
-        if (isUserStandalone()) return
+        if (isUserApp()) return
         fetchSettingsFromServer()
     }
 
@@ -106,19 +101,19 @@ class AdminSettingsFragment : Fragment() {
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty()) return
-        if (!isUserStandalone() && accessCode.isEmpty()) return
+        if (!isUserApp() && accessCode.isEmpty()) return
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
-        if (isUserStandalone() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
 
         Thread {
             try {
-                var url = if (isUserStandalone()) {
+                var url = if (isUserApp()) {
                     "$base/user/data?bot_id=${URLEncoder.encode(botId, "UTF-8")}&api_key=${URLEncoder.encode(apiKey, "UTF-8")}"
                 } else {
                     "$base/admin/data?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
                 }
-                if (!isUserStandalone() && prefs.actAsUserId.isNotEmpty()) {
+                if (!isUserApp() && prefs.actAsUserId.isNotEmpty()) {
                     url += "&act_as_user_id=${URLEncoder.encode(prefs.actAsUserId, "UTF-8")}"
                 }
                 val req = Request.Builder().url(url).get().build()
@@ -203,12 +198,12 @@ class AdminSettingsFragment : Fragment() {
     }
 
     private fun saveSettingsToApi(showSuccess: String) {
-        if (isUserStandalone()) return
+        if (isUserApp()) return
         val prefs = Prefs(requireContext())
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) {
-            Toast.makeText(requireContext(), "Not signed in as admin", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Not signed in as admin")
             return
         }
 
@@ -247,14 +242,14 @@ class AdminSettingsFragment : Fragment() {
 
                 activity?.runOnUiThread {
                     if (success) {
-                        Toast.makeText(requireContext(), showSuccess, Toast.LENGTH_SHORT).show()
+                        CuraxFeedback.success(this, showSuccess)
                     } else {
-                        Toast.makeText(requireContext(), "Saved locally. Sync will retry automatically", Toast.LENGTH_SHORT).show()
+                        CuraxFeedback.warn(this, "Saved locally. Sync will retry automatically")
                     }
                 }
             } catch (_: Exception) {
                 activity?.runOnUiThread {
-                    Toast.makeText(requireContext(), "Saved locally. Sync will retry automatically", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "Saved locally. Sync will retry automatically")
                 }
             }
         }.start()

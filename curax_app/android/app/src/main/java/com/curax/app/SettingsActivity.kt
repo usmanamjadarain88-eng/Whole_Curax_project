@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
@@ -44,7 +43,11 @@ class SettingsActivity : AppCompatActivity() {
         localUserStore = LocalUserStore(this)
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-        toolbar.title = getString(R.string.settings_screen_title)
+        toolbar.title = if (AppRole.isUser(this)) {
+            getString(R.string.settings_screen_user_title)
+        } else {
+            getString(R.string.settings_screen_title)
+        }
         toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 
         btnSetPin = findViewById(R.id.btnSetPin)
@@ -124,7 +127,7 @@ class SettingsActivity : AppCompatActivity() {
             .setPositiveButton("Copy") { _, _ ->
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText("app_info", msg))
-                Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.success(this, "Copied")
             }
             .setNegativeButton(android.R.string.ok, null)
             .show()
@@ -143,13 +146,13 @@ class SettingsActivity : AppCompatActivity() {
     private fun createUserDesktopLinkCode() {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty()) {
-            Toast.makeText(this, "Server URL not set", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Server URL not set")
             return
         }
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         if (botId.isEmpty() || apiKey.isEmpty()) {
-            Toast.makeText(this, "Not linked to an admin", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Not linked to an admin")
             return
         }
         val btn = findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode)
@@ -172,7 +175,7 @@ class SettingsActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     btn.isEnabled = true
-                    if (!isFinishing) Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    if (!isFinishing) CuraxFeedback.warn(this, "Error: ${e.message}")
                 }
             }
         }.start()
@@ -186,7 +189,7 @@ class SettingsActivity : AppCompatActivity() {
             val expiresIn = data.optInt("expires_in", 300)
             val userName = data.optString("user_name", "").trim()
             if (code.isEmpty()) {
-                Toast.makeText(this, "No code returned", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "No code returned")
                 return
             }
             val msg = buildString {
@@ -205,12 +208,12 @@ class SettingsActivity : AppCompatActivity() {
                 .setMessage(msg)
                 .setPositiveButton("Copy code") { _, _ ->
                     cm?.setPrimaryClip(ClipData.newPlainText("desktop_link_code", code))
-                    Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.success(this, "Copied")
                 }
                 .setNegativeButton(android.R.string.ok, null)
                 .show()
         } else {
-            Toast.makeText(this, "Failed to create code", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Failed to create code")
         }
     }
 
@@ -228,7 +231,7 @@ class SettingsActivity : AppCompatActivity() {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val accessCode = prefs.adminAccessCode.trim()
         if (base.isEmpty() || accessCode.isEmpty()) {
-            Toast.makeText(this, "Not signed in as admin", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Not signed in as admin")
             return
         }
         val btn = findViewById<MaterialButton>(R.id.btnDesktopLinkingCode)
@@ -249,7 +252,7 @@ class SettingsActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     btn.isEnabled = true
-                    if (!isFinishing) Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    if (!isFinishing) CuraxFeedback.warn(this, "Error: ${e.message}")
                 }
             }
         }.start()
@@ -263,7 +266,7 @@ class SettingsActivity : AppCompatActivity() {
             val expiresIn = data.optInt("expires_in", 600)
             val adminName = data.optString("admin_name", "").trim()
             if (code.isEmpty()) {
-                Toast.makeText(this, "No code returned", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "No code returned")
                 return
             }
             val msg = buildString {
@@ -282,12 +285,12 @@ class SettingsActivity : AppCompatActivity() {
                 .setMessage(msg)
                 .setPositiveButton("Copy code") { _, _ ->
                     cm?.setPrimaryClip(ClipData.newPlainText("desktop_link_code", code))
-                    Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.success(this, "Copied")
                 }
                 .setNegativeButton(android.R.string.ok, null)
                 .show()
         } else {
-            Toast.makeText(this, "Failed to create code", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Failed to create code")
         }
     }
 
@@ -330,7 +333,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun exportChatHistory() {
         val alerts = alertDb.getAllAlerts().sortedBy { it.receivedAt }
         if (alerts.isEmpty()) {
-            Toast.makeText(this, getString(R.string.no_alerts_to_export), Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, getString(R.string.no_alerts_to_export))
             return
         }
 

@@ -116,7 +116,7 @@
         <activity
             android:name=".UserStandaloneActivity"
             android:exported="false"
-            android:theme="@style/Theme.Curax" />
+            android:theme="@style/Theme.Curax.UserToolbar" />
 
         <activity
             android:name=".MainActivity"

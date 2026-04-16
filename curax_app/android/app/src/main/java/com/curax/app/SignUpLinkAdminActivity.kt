@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doOnTextChanged
 import com.google.android.material.button.MaterialButton
@@ -31,9 +30,9 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     private lateinit var btnLinkAdmin: MaterialButton
 
     private val http = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(22, TimeUnit.SECONDS)
+        .writeTimeout(22, TimeUnit.SECONDS)
         .build()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,7 +40,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         setContentView(R.layout.activity_signup_link_admin)
 
         if (!SignUpFlowState.isReady()) {
-            Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, getString(R.string.request_failed))
             finish()
             return
         }
@@ -75,16 +74,6 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         imm.hideSoftInputFromWindow(token, 0)
     }
 
-    private fun messageFromResponse(jo: JSONObject?): String {
-        if (jo == null) return getString(R.string.request_failed)
-        val m = jo.optString("message", "").trim()
-        if (m.isEmpty()) return getString(R.string.request_failed)
-        val hint = jo.optString("hint", "").trim()
-        val detail = jo.optString("detail", "").trim()
-        val extra = hint.ifEmpty { detail }
-        return if (extra.isNotEmpty()) "$m\n\n$extra" else m
-    }
-
     private fun postJson(path: String, json: JSONObject): Pair<Int, JSONObject?> {
         val base = apiBase()
         if (base.isEmpty()) return Pair(-1, null)
@@ -94,11 +83,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             .build()
         http.newCall(req).execute().use { res ->
             val raw = res.body?.string().orEmpty()
-            val jo = try {
-                if (raw.isNotBlank()) JSONObject(raw) else JSONObject()
-            } catch (_: Exception) {
-                JSONObject()
-            }
+            val jo = ApiErrorMessages.parseResponseBody(raw, res.code)
             return Pair(res.code, jo)
         }
     }
@@ -106,12 +91,12 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     private fun onLinkAdminClicked() {
         val connectionCode = etAdminConnectionCode.text?.toString()?.trim().orEmpty()
         if (connectionCode.isBlank()) {
-            Toast.makeText(this, getString(R.string.connection_code_hint), Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, getString(R.string.connection_code_hint))
             return
         }
         val base = apiBase()
         if (base.isEmpty()) {
-            Toast.makeText(this, getString(R.string.set_api_url_for_codes), Toast.LENGTH_LONG).show()
+            CuraxFeedback.warn(this, getString(R.string.set_api_url_for_codes), long = true)
             return
         }
         val email = SignUpFlowState.email
@@ -143,7 +128,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                         if (code == 200 && jo != null) {
                             applyPrefsAfterLink(jo, connectionCode, fcmToken, base, email, password, botId, apiKey)
                         } else {
-                            Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                            CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                             syncConnectButtonState()
                         }
                     }
@@ -151,7 +136,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                     runOnUiThread {
                         btnLinkAdmin.text = connectLabel
                         syncConnectButtonState()
-                        Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                        CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
                     }
                 }
             }.start()
@@ -209,13 +194,14 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
 
         UserDataBusClient.fetchAndApplyUserData(this, base, botId, apiKey) {
             runOnUiThread {
-                Toast.makeText(this, getString(R.string.linked_to_admin_success), Toast.LENGTH_SHORT).show()
-                startActivity(
-                    Intent(this, PinSetupActivity::class.java)
-                        .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_USER)
-                )
-                setResult(RESULT_OK)
-                finish()
+                CuraxFeedback.successThen(this, R.string.linked_to_admin_success) {
+                    startActivity(
+                        Intent(this, PinSetupActivity::class.java)
+                            .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_USER),
+                    )
+                    setResult(RESULT_OK)
+                    finish()
+                }
             }
         }
     }

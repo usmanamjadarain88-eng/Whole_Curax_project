@@ -117,8 +117,11 @@ class Prefs(context: Context) {
         set(value) = prefs.edit().putString(KEY_ACT_AS_USER_NAME, value?.trim().orEmpty()).apply()
 
     var userStandaloneMode: Boolean
+        /** Default false = Default mode until the user saves Standalone in the mode popup. */
         get() = prefs.getBoolean(KEY_USER_STANDALONE_MODE, false)
-        set(value) = prefs.edit().putBoolean(KEY_USER_STANDALONE_MODE, value).apply()
+        set(value) {
+            prefs.edit().putBoolean(KEY_USER_STANDALONE_MODE, value).commit()
+        }
 
     /** True once standalone has a cached/bootstrap snapshot to display. */
     var userStandaloneDataReady: Boolean

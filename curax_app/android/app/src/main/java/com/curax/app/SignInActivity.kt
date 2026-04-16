@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doOnTextChanged
 import com.google.android.material.button.MaterialButton
@@ -68,16 +67,6 @@ class SignInActivity : AppCompatActivity() {
         imm.hideSoftInputFromWindow(currentFocus?.windowToken ?: window.decorView.windowToken, 0)
     }
 
-    private fun messageFromResponse(jo: JSONObject?): String {
-        if (jo == null) return getString(R.string.request_failed)
-        val m = jo.optString("message", "").trim()
-        if (m.isEmpty()) return getString(R.string.request_failed)
-        val hint = jo.optString("hint", "").trim()
-        val detail = jo.optString("detail", "").trim()
-        val extra = hint.ifEmpty { detail }
-        return if (extra.isNotEmpty()) "$m\n\n$extra" else m
-    }
-
     private fun postJson(path: String, json: JSONObject): Pair<Int, JSONObject?> {
         val base = apiBase()
         if (base.isEmpty()) return Pair(-1, null)
@@ -87,11 +76,7 @@ class SignInActivity : AppCompatActivity() {
             .build()
         http.newCall(req).execute().use { res ->
             val raw = res.body?.string().orEmpty()
-            val jo = try {
-                if (raw.isNotBlank()) JSONObject(raw) else JSONObject()
-            } catch (_: Exception) {
-                JSONObject()
-            }
+            val jo = ApiErrorMessages.parseResponseBody(raw, res.code)
             return Pair(res.code, jo)
         }
     }
@@ -100,16 +85,16 @@ class SignInActivity : AppCompatActivity() {
         val email = etEmail.text?.toString()?.trim().orEmpty()
         val password = etPassword.text?.toString()?.trim().orEmpty()
         if (email.isBlank() || password.isBlank()) {
-            Toast.makeText(this, getString(R.string.sign_in_all_fields_required), Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, getString(R.string.sign_in_all_fields_required))
             return
         }
         if (password.length < 6) {
-            Toast.makeText(this, getString(R.string.password_min_length), Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, getString(R.string.password_min_length))
             return
         }
         val base = apiBase()
         if (base.isEmpty()) {
-            Toast.makeText(this, getString(R.string.set_api_url_for_codes), Toast.LENGTH_LONG).show()
+            CuraxFeedback.warn(this, getString(R.string.set_api_url_for_codes), long = true)
             return
         }
         hideKeyboard()
@@ -129,14 +114,22 @@ class SignInActivity : AppCompatActivity() {
                     if (code == 200 && jo != null) {
                         handleSignInSuccess(email, password, base, jo)
                     } else {
-                        Toast.makeText(this@SignInActivity, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                        CuraxFeedback.warn(
+                            this@SignInActivity,
+                            ApiErrorMessages.userMessage(this@SignInActivity, code, jo),
+                            long = true,
+                        )
                     }
                 }
             } catch (_: Exception) {
                 runOnUiThread {
                     btnSignIn.isEnabled = true
                     btnSignIn.text = label
-                    Toast.makeText(this@SignInActivity, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(
+                        this@SignInActivity,
+                        getString(R.string.error_network_unreachable),
+                        long = true,
+                    )
                 }
             }
         }.start()
@@ -165,12 +158,12 @@ class SignInActivity : AppCompatActivity() {
                 val botId = jo.optString("bot_id", "").trim()
                 val apiKey = jo.optString("api_key", "").trim()
                 if (botId.isEmpty() || apiKey.isEmpty()) {
-                    Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
                     return
                 }
                 applyActiveUserPrefs(jo, email, password, botId, apiKey, base)
             }
-            else -> Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+            else -> CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
         }
     }
 
@@ -218,12 +211,13 @@ class SignInActivity : AppCompatActivity() {
             runOnUiThread {
                 UserDataBusClient.fetchAndApplyUserData(this@SignInActivity, base, botId, apiKey) {
                     runOnUiThread {
-                        Toast.makeText(this@SignInActivity, getString(R.string.sign_in_success), Toast.LENGTH_SHORT).show()
-                        startActivity(
-                            Intent(this@SignInActivity, PinSetupActivity::class.java)
-                                .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_USER)
-                        )
-                        finish()
+                        CuraxFeedback.successThen(this@SignInActivity, R.string.sign_in_success) {
+                            startActivity(
+                                Intent(this@SignInActivity, PinSetupActivity::class.java)
+                                    .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_USER),
+                            )
+                            finish()
+                        }
                     }
                 }
             }

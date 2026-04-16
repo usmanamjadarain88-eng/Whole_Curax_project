@@ -3,7 +3,6 @@ package com.curax.app
 import android.os.Bundle
 import android.text.InputType
 import android.view.View
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
@@ -43,8 +42,7 @@ class SetPinActivity : AppCompatActivity() {
         btnRemovePin.setOnClickListener {
             prefs.appPin = ""
             localUserStore.disablePin()
-            Toast.makeText(this, getString(R.string.pin_removed), Toast.LENGTH_SHORT).show()
-            finish()
+            CuraxFeedback.successThen(this, R.string.pin_removed) { finish() }
         }
 
         findViewById<MaterialButton>(R.id.btnSavePin).setOnClickListener {
@@ -52,18 +50,17 @@ class SetPinActivity : AppCompatActivity() {
             val confirm = etPinConfirm.text?.toString()?.trim().orEmpty()
 
             if (pin.length !in 4..8 || !pin.all { it.isDigit() }) {
-                Toast.makeText(this, getString(R.string.pin_validation), Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, getString(R.string.pin_validation))
                 return@setOnClickListener
             }
             if (pin != confirm) {
-                Toast.makeText(this, getString(R.string.pin_mismatch), Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, getString(R.string.pin_mismatch))
                 return@setOnClickListener
             }
 
             prefs.appPin = pin
             localUserStore.savePin(pin)
-            Toast.makeText(this, getString(R.string.pin_saved), Toast.LENGTH_SHORT).show()
-            finish()
+            CuraxFeedback.successThen(this, R.string.pin_saved) { finish() }
         }
     }
 }

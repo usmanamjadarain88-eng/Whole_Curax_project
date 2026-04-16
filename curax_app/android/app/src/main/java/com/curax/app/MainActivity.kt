@@ -23,8 +23,6 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.TextView
-import android.widget.Toast
-import android.widget.RadioGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -37,7 +35,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.messaging.FirebaseMessaging
 import android.app.NotificationManager
 import okhttp3.MediaType.Companion.toMediaType
@@ -60,9 +57,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvNoAlerts: TextView
     private lateinit var tvSecurityLine: TextView
     private lateinit var tvNoAlertsFooter: TextView
-    private lateinit var toggleUserMode: RadioGroup
-    private lateinit var btnModeDefault: com.google.android.material.radiobutton.MaterialRadioButton
-    private lateinit var btnModeStandalone: com.google.android.material.radiobutton.MaterialRadioButton
     private lateinit var selectionActionBar: MaterialCardView
     private lateinit var btnSelectionCancel: MaterialButton
     private lateinit var btnSelectionSelectAll: MaterialButton
@@ -117,7 +111,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val store = LocalUserStore(this)
-        if (store.role == LocalUserStore.ROLE_USER && prefs.userStandaloneMode) {
+        if (store.role == LocalUserStore.ROLE_USER) {
             startActivity(Intent(this, UserStandaloneActivity::class.java))
             finish()
             return
@@ -141,9 +135,6 @@ class MainActivity : AppCompatActivity() {
         tvNoAlerts = findViewById(R.id.tvNoAlerts)
         tvSecurityLine = findViewById(R.id.tvSecurityLine)
         tvNoAlertsFooter = findViewById(R.id.tvNoAlertsFooter)
-        toggleUserMode = findViewById(R.id.toggleUserMode)
-        btnModeDefault = findViewById(R.id.btnModeDefault)
-        btnModeStandalone = findViewById(R.id.btnModeStandalone)
         selectionActionBar = findViewById(R.id.selectionActionBar)
         btnSelectionCancel = findViewById(R.id.btnSelectionCancel)
         btnSelectionSelectAll = findViewById(R.id.btnSelectionSelectAll)
@@ -202,29 +193,12 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SetPinActivity::class.java))
         }
 
-        if (store.role == LocalUserStore.ROLE_USER) {
-            toggleUserMode.check(if (prefs.userStandaloneMode) R.id.btnModeStandalone else R.id.btnModeDefault)
-            toggleUserMode.setOnCheckedChangeListener { _, checkedId ->
-                if (checkedId == R.id.btnModeStandalone) {
-                    if (!prefs.userStandaloneMode) {
-                        prefs.userStandaloneMode = true
-                        startActivity(Intent(this, UserStandaloneActivity::class.java))
-                        finish()
-                    }
-                } else if (checkedId == R.id.btnModeDefault) {
-                    prefs.userStandaloneMode = false
-                }
-            }
-        } else {
-            toggleUserMode.visibility = View.GONE
-        }
-
         btnConnect.setOnClickListener {
             if (connectionService?.isConnected() == true) {
                 disconnectService()
-                Toast.makeText(this, "Disconnected", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.info(this, "Disconnected")
             } else {
-                Toast.makeText(this, "Registering FCM and connecting to relay…", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.info(this, "Registering FCM and connecting to relay…")
                 askNotificationPermission()
                 if (!prefs.hasRequestedConnectWakePermissions) {
                     val didAskBattery = requestBatteryOptimizationExemption()
@@ -233,6 +207,24 @@ class MainActivity : AppCompatActivity() {
                 }
                 connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
             }
+        }
+
+        val btnDrawerLogout = findViewById<MaterialButton>(R.id.btnDrawerLogout)
+        if (store.role == LocalUserStore.ROLE_USER) {
+            btnDrawerLogout.visibility = View.VISIBLE
+            btnDrawerLogout.setOnClickListener {
+                AlertDialog.Builder(this)
+                    .setMessage(R.string.logout_confirm_message)
+                    .setPositiveButton(R.string.logout) { _, _ ->
+                        disconnectService()
+                        UserLogoutHelper.clearLocalSession(this)
+                        UserLogoutHelper.navigateToSignIn(this)
+                    }
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()
+            }
+        } else {
+            btnDrawerLogout.visibility = View.GONE
         }
     }
 
@@ -251,7 +243,7 @@ class MainActivity : AppCompatActivity() {
         if (prefs.linkedAdminId.isNotEmpty() && prefs.id.isNotEmpty()) {
             checkUserDeletedByAdmin()
         }
-        startService(Intent(this, AlertConnectionService::class.java).apply { action = AlertConnectionService.ACTION_RECONNECT_NOW })
+        ConnectionManager.requestReconnectRelayNow(this)
     }
 
     private fun checkUserDeletedByAdmin() {
@@ -389,7 +381,7 @@ class MainActivity : AppCompatActivity() {
                         data = Uri.parse("package:$packageName")
                     }
                     startActivity(intent)
-                    Toast.makeText(this, "Enable Full-screen intent for Curax to wake screen", Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(this, "Enable Full-screen intent for Curax to wake screen", long = true)
                 } catch (_: Exception) {
                 }
             }
@@ -399,7 +391,7 @@ class MainActivity : AppCompatActivity() {
     private fun copyToClipboard(text: String) {
         (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
             .setPrimaryClip(ClipData.newPlainText("", text))
-        Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+        CuraxFeedback.success(this, "Copied")
     }
 
     private fun openAlertDetail(item: AlertItem) {
@@ -466,26 +458,14 @@ class MainActivity : AppCompatActivity() {
         if (items.isEmpty()) return
         items.forEach { alertDb.deleteAlert(it.id) }
         loadAlerts()
-        Snackbar.make(findViewById(R.id.coordinatorRoot), message, Snackbar.LENGTH_LONG)
-            .setAction(R.string.undo) {
-                items.forEach { alertDb.insertAlert(it.type, it.message, it.receivedAt) }
-                loadAlerts()
-            }
-            .show()
+        CuraxFeedback.successWithUndo(this, message) {
+            items.forEach { alertDb.insertAlert(it.type, it.message, it.receivedAt) }
+            loadAlerts()
+        }
     }
 
     private fun startConnectionService(serverUrl: String, id: String, apiKey: String) {
-        val intent = Intent(this, AlertConnectionService::class.java).apply {
-            action = AlertConnectionService.ACTION_CONNECT
-            putExtra(AlertConnectionService.EXTRA_SERVER_URL, serverUrl)
-            putExtra(AlertConnectionService.EXTRA_BOT_ID, id)
-            putExtra(AlertConnectionService.EXTRA_API_KEY, apiKey)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        ConnectionManager.requestConnectRelay(this, serverUrl, id, apiKey)
         tvConnectionStatus.text = getString(R.string.connecting)
         tvConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
         bindService(Intent(this, AlertConnectionService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
@@ -665,9 +645,7 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Exception) {
         }
         connectionService = null
-        startService(Intent(this, AlertConnectionService::class.java).apply {
-            action = AlertConnectionService.ACTION_DISCONNECT
-        })
+        ConnectionManager.requestDisconnectRelay(this)
         tvConnectionStatus.text = getString(R.string.disconnected)
         tvConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
         btnConnect.text = getString(R.string.connect)

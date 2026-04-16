@@ -3,7 +3,6 @@ package com.curax.app
 import android.app.ProgressDialog
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -45,10 +44,10 @@ class AdminRegistrationActivity : AppCompatActivity() {
 
             when {
                 email.isBlank() || password.isBlank() || confirmPassword.isBlank() || accessCode.isBlank() -> {
-                    Toast.makeText(this, "All fields are required", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "All fields are required")
                 }
                 password != confirmPassword -> {
-                    Toast.makeText(this, "Password and confirm password must match", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "Password and confirm password must match")
                 }
                 else -> {
                     val base = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -68,7 +67,7 @@ class AdminRegistrationActivity : AppCompatActivity() {
                                 runOnUiThread {
                                     progress.dismiss()
                                     btnRegister.isEnabled = true
-                                    Toast.makeText(this, "Invalid admin access code", Toast.LENGTH_SHORT).show()
+                                    CuraxFeedback.warn(this, "Invalid admin access code")
                                 }
                                 return@Thread
                             }
@@ -78,7 +77,7 @@ class AdminRegistrationActivity : AppCompatActivity() {
                                 runOnUiThread {
                                     progress.dismiss()
                                     btnRegister.isEnabled = true
-                                    Toast.makeText(this, "Invalid admin access code", Toast.LENGTH_SHORT).show()
+                                    CuraxFeedback.warn(this, "Invalid admin access code")
                                 }
                                 return@Thread
                             }
@@ -157,19 +156,20 @@ class AdminRegistrationActivity : AppCompatActivity() {
                                 } else {
                                     "Imported Reminders, Settings from desktop. Sync medicines from desktop if needed."
                                 }
-                                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-                                startActivity(
-                                    Intent(this, PinSetupActivity::class.java)
-                                        .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_ADMIN)
-                                )
-                                finish()
+                                CuraxFeedback.successThen(this, msg) {
+                                    startActivity(
+                                        Intent(this, PinSetupActivity::class.java)
+                                            .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_ADMIN),
+                                    )
+                                    finish()
+                                }
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
                             runOnUiThread {
                                 progress.dismiss()
                                 btnRegister.isEnabled = true
-                                Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                CuraxFeedback.warn(this, "Error: ${e.message}", long = true)
                             }
                         }
                     }.start()

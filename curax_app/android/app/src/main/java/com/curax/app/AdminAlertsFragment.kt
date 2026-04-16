@@ -21,7 +21,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.datepicker.MaterialDatePicker
-import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -75,13 +74,6 @@ class AdminAlertsFragment : Fragment() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) refresh()
         }
-    }
-
-
-    private fun isUserStandalone(): Boolean {
-        val ctx = requireContext()
-        val prefs = Prefs(ctx)
-        return LocalUserStore(ctx).role == LocalUserStore.ROLE_USER && prefs.userStandaloneMode
     }
 
     override fun onCreateView(
@@ -455,9 +447,10 @@ class AdminAlertsFragment : Fragment() {
         adapter.clearSelection()
         refresh()
 
-        Snackbar.make(requireView(), getString(R.string.deleted_count, removed.size), Snackbar.LENGTH_LONG)
-            .setAction(R.string.undo) { undoDelete(removed) }
-            .show()
+        CuraxFeedback.successWithUndo(
+            this,
+            getString(R.string.deleted_count, removed.size),
+        ) { undoDelete(removed) }
     }
 
     private fun undoDelete(items: List<AlertItem>) {

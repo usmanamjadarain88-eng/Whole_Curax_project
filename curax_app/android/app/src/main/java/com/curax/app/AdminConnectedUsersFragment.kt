@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
@@ -166,22 +165,17 @@ class AdminConnectedUsersFragment : Fragment() {
                                     p.actAsUserId = userId
                                     p.actAsUserName = name
                                     updateActingAsRow()
-                                    Toast.makeText(
-                                        requireContext(),
-                                        "Loading $name's data…",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    CuraxFeedback.info(requireActivity(), "Loading $name's data…")
                                     // Same as drawer: load user's medicines/reminders from API (broadcast alone left admin's data on screen).
                                     AdminDataBusClient.fetchAdminSnapshotAsync(requireContext()) { result ->
                                         if (!isAdded) return@fetchAdminSnapshotAsync
                                         when (result) {
                                             AdminDataBusClient.SnapshotResult.APPLIED -> {
                                                 (activity as? AdminDashboardActivity)?.applyActAsUserUiFromChild()
-                                                Toast.makeText(
-                                                    requireContext(),
+                                                CuraxFeedback.success(
+                                                    this@AdminConnectedUsersFragment,
                                                     "Managing $name's desktop. Use Dashboard, Reminders, Settings tabs. Use \"Return to Admin\" in the drawer to go back.",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
+                                                )
                                             }
                                             AdminDataBusClient.SnapshotResult.FAILED -> {
                                                 Prefs(requireContext()).apply {
@@ -190,11 +184,10 @@ class AdminConnectedUsersFragment : Fragment() {
                                                 }
                                                 updateActingAsRow()
                                                 (activity as? AdminDashboardActivity)?.applyActAsUserUiFromChild()
-                                                Toast.makeText(
-                                                    requireContext(),
+                                                CuraxFeedback.warn(
+                                                    this@AdminConnectedUsersFragment,
                                                     "Could not load this user's data. Try again.",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
+                                                )
                                             }
                                             AdminDataBusClient.SnapshotResult.SKIPPED_STALE -> { }
                                         }
@@ -236,7 +229,7 @@ class AdminConnectedUsersFragment : Fragment() {
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) {
-            Toast.makeText(requireContext(), "Not signed in as admin", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Not signed in as admin")
             return
         }
         Thread {
@@ -258,15 +251,15 @@ class AdminConnectedUsersFragment : Fragment() {
                             requireContext().sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
                         }
                         fetchLinkedUsers()
-                        Toast.makeText(requireContext(), "User removed. They will be informed on their app and desktop.", Toast.LENGTH_LONG).show()
+                        CuraxFeedback.success(this, "User removed. They will be informed on their app and desktop.")
                     } else {
                         val msg = try { JSONObject(res.body?.string() ?: "{}").optString("message", "Failed to remove user") } catch (_: Exception) { "Failed to remove user" }
-                        Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                        CuraxFeedback.warn(this, msg)
                     }
                 }
             } catch (e: Exception) {
                 activity?.runOnUiThread {
-                    if (isAdded) Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    if (isAdded) CuraxFeedback.warn(this, "Error: ${e.message}")
                 }
             }
         }.start()

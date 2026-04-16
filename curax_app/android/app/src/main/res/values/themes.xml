@@ -8,4 +8,29 @@
         <item name="colorSecondary">@color/badge_end</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <!-- User standalone toolbar: theme, mode, overflow — same slot size, one row -->
+    <style name="Theme.Curax.UserToolbar" parent="Theme.Curax">
+        <item name="actionButtonStyle">@style/Curax.Widget.ToolbarActionButton</item>
+        <item name="android:actionButtonStyle">@style/Curax.Widget.ToolbarActionButton</item>
+        <item name="actionOverflowButtonStyle">@style/Curax.Widget.ToolbarOverflowButton</item>
+    </style>
+
+    <style name="Curax.Widget.ToolbarActionButton" parent="Widget.AppCompat.ActionButton">
+        <item name="android:minWidth">48dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+    </style>
+
+    <style name="Curax.Widget.ToolbarOverflowButton" parent="Widget.AppCompat.ActionButton.Overflow">
+        <item name="android:minWidth">48dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
+    </style>
 </resources>

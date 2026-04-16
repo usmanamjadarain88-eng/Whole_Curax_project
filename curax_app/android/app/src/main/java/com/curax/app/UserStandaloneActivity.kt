@@ -12,12 +12,12 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.View
+import android.content.res.ColorStateList
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import android.widget.TextView
-import android.widget.Toast
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -25,11 +25,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.RadioGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.MenuItemCompat
+import android.widget.LinearLayout
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.messaging.FirebaseMessaging
@@ -46,11 +47,20 @@ class UserStandaloneActivity : AppCompatActivity() {
     private lateinit var viewPager: ViewPager2
     private var tabMediator: TabLayoutMediator? = null
     private var overviewFragmentRef: AdminOverviewFragment? = null
-    private lateinit var toggleUserMode: RadioGroup
-    private lateinit var btnModeDefault: com.google.android.material.radiobutton.MaterialRadioButton
-    private lateinit var btnModeStandalone: com.google.android.material.radiobutton.MaterialRadioButton
     private lateinit var btnConnect: MaterialButton
-    private lateinit var tvConnectionStatus: TextView
+    private lateinit var tvUserSidebarAdminStatus: TextView
+    private lateinit var tvUserSidebarHealthStatus: TextView
+    private lateinit var tvUserSidebarAlertsStatus: TextView
+    private lateinit var tvUserSidebarRealtimeStatus: TextView
+    private lateinit var tvUserSidebarAdminDetail: TextView
+    private lateinit var tvUserSidebarHealthDetail: TextView
+    private lateinit var tvUserSidebarAlertsDetail: TextView
+    private lateinit var tvUserSidebarRealtimeDetail: TextView
+    private lateinit var tvChevronAdmin: TextView
+    private lateinit var tvChevronHealth: TextView
+    private lateinit var tvChevronAlerts: TextView
+    private lateinit var tvChevronRealtime: TextView
+    private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
     private var connectionService: AlertConnectionService? = null
     @Volatile
@@ -63,6 +73,15 @@ class UserStandaloneActivity : AppCompatActivity() {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
                 showLoading(false)
                 refreshVisibleDashboard()
+                refreshUserSidebar()
+            }
+        }
+    }
+    private var connectionBroadcastRegistered = false
+    private val relayConnectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            if (intent?.action == AlertEvents.ACTION_CONNECTION_STATE_CHANGED) {
+                refreshUserSidebar()
             }
         }
     }
@@ -89,8 +108,6 @@ class UserStandaloneActivity : AppCompatActivity() {
             finish()
             return
         }
-        prefs.userStandaloneMode = true
-
         // Bootstrap from the last saved standalone snapshot so the screen has data immediately on open.
         val restored = UserDataBusClient.restoreCachedUserData(this)
 
@@ -100,6 +117,36 @@ class UserStandaloneActivity : AppCompatActivity() {
         val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar)
         setSupportActionBar(toolbar)
         toolbar.setTitleTextColor(android.graphics.Color.WHITE)
+        toolbar.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_toggle_theme -> {
+                    val newMode = if (isDarkModeEnabled()) {
+                        AppCompatDelegate.MODE_NIGHT_NO
+                    } else {
+                        AppCompatDelegate.MODE_NIGHT_YES
+                    }
+                    AppLockState.grantUnlock()
+                    prefs.themeMode = newMode
+                    AppCompatDelegate.setDefaultNightMode(newMode)
+                    window.decorView.post { recreate() }
+                    true
+                }
+                R.id.action_settings -> {
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                    true
+                }
+                R.id.action_app_mode -> {
+                    toolbar.post {
+                        UserModePopup.show(
+                            this@UserStandaloneActivity,
+                            UserModePopup.anchorForModeIcon(toolbar),
+                        )
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
 
         val toggle = androidx.appcompat.app.ActionBarDrawerToggle(
             this,
@@ -118,29 +165,46 @@ class UserStandaloneActivity : AppCompatActivity() {
         loadingOverlay = findViewById(R.id.loadingOverlay)
         setupTabs()
 
-        toggleUserMode = findViewById(R.id.toggleUserModeStandalone)
-        btnModeDefault = findViewById(R.id.btnModeDefaultStandalone)
-        btnModeStandalone = findViewById(R.id.btnModeStandaloneStandalone)
         btnConnect = findViewById(R.id.btnStandaloneConnect)
-        tvConnectionStatus = findViewById(R.id.tvStandaloneConnectionStatus)
-        toggleUserMode.check(btnModeStandalone.id)
-        toggleUserMode.setOnCheckedChangeListener { _, checkedId ->
-            if (checkedId == btnModeDefault.id) {
-                prefs.userStandaloneMode = false
-                AppLockState.grantUnlock()
-                startActivity(Intent(this, MainActivity::class.java))
-                finish()
+        tvUserSidebarAdminStatus = findViewById(R.id.tvUserSidebarAdminStatus)
+        tvUserSidebarHealthStatus = findViewById(R.id.tvUserSidebarHealthStatus)
+        tvUserSidebarAlertsStatus = findViewById(R.id.tvUserSidebarAlertsStatus)
+        tvUserSidebarRealtimeStatus = findViewById(R.id.tvUserSidebarRealtimeStatus)
+        tvUserSidebarAdminDetail = findViewById(R.id.tvUserSidebarAdminDetail)
+        tvUserSidebarHealthDetail = findViewById(R.id.tvUserSidebarHealthDetail)
+        tvUserSidebarAlertsDetail = findViewById(R.id.tvUserSidebarAlertsDetail)
+        tvUserSidebarRealtimeDetail = findViewById(R.id.tvUserSidebarRealtimeDetail)
+        tvChevronAdmin = findViewById(R.id.tvChevronAdmin)
+        tvChevronHealth = findViewById(R.id.tvChevronHealth)
+        tvChevronAlerts = findViewById(R.id.tvChevronAlerts)
+        tvChevronRealtime = findViewById(R.id.tvChevronRealtime)
+
+        findViewById<LinearLayout>(R.id.sidebarSectionAdmin).setOnClickListener { toggleSidebarSection(0) }
+        findViewById<LinearLayout>(R.id.sidebarSectionHealth).setOnClickListener { toggleSidebarSection(1) }
+        findViewById<LinearLayout>(R.id.sidebarSectionAlerts).setOnClickListener { toggleSidebarSection(2) }
+        findViewById<LinearLayout>(R.id.sidebarSectionRealtime).setOnClickListener { toggleSidebarSection(3) }
+        listOf(
+            tvUserSidebarAdminDetail,
+            tvUserSidebarHealthDetail,
+            tvUserSidebarAlertsDetail,
+            tvUserSidebarRealtimeDetail,
+        ).forEach { detail -> detail.setOnClickListener { } }
+        applySidebarExpandUi()
+
+        drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) {
+                refreshUserSidebar()
             }
-        }
+        })
 
         btnConnect.setOnClickListener {
             val id = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
             if (connectionService?.isConnected() == true) {
                 disconnectService()
-                Toast.makeText(this, "Disconnected", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.info(this, "Disconnected")
             } else if (id.isNotEmpty() && apiKey.isNotEmpty()) {
-                Toast.makeText(this, "Registering FCM and connecting to relay...", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.info(this, "Registering FCM and connecting to relay...")
                 askNotificationPermission()
                 if (!prefs.hasRequestedConnectWakePermissions) {
                     val didAskBattery = requestBatteryOptimizationExemption()
@@ -150,35 +214,49 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         }
 
+        updateConnectionUi(false)
         showLoading(!restored)
     }
 
+    override fun onResume() {
+        super.onResume()
+        refreshUserSidebar()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1) {
+            refreshUserSidebar()
+        }
+    }
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.standalone_menu, menu)
+        menuInflater.inflate(R.menu.user_home_menu, menu)
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        val result = super.onPrepareOptionsMenu(menu)
         val isDark = isDarkModeEnabled()
         val themeItem = menu.findItem(R.id.action_toggle_theme)
-        themeItem?.setIcon(if (isDark) R.drawable.ic_theme_sun else R.drawable.ic_theme_moon)
+        themeItem?.setIcon(if (isDark) R.drawable.ic_theme_sun_toolbar else R.drawable.ic_theme_moon_toolbar)
         themeItem?.title = if (isDark) getString(R.string.light_mode) else getString(R.string.dark_mode)
-        findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar).overflowIcon?.setTint(android.graphics.Color.WHITE)
-        return super.onPrepareOptionsMenu(menu)
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_toggle_theme -> {
-                val newMode = if (isDarkModeEnabled()) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
-                AppLockState.grantUnlock()
-                prefs.themeMode = newMode
-                AppCompatDelegate.setDefaultNightMode(newMode)
-                window.decorView.post { recreate() }
-                true
+        menu.findItem(R.id.action_app_mode)?.apply {
+            val standalone = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
+            val label = if (standalone) {
+                getString(R.string.user_mode_standalone)
+            } else {
+                getString(R.string.user_mode_default)
             }
-            else -> super.onOptionsItemSelected(item)
+            title = label
+            MenuItemCompat.setTooltipText(this, "${getString(R.string.user_mode_section)} · $label")
         }
+        findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar).overflowIcon?.setTint(android.graphics.Color.WHITE)
+        return result
     }
 
     private fun isDarkModeEnabled(): Boolean {
@@ -208,7 +286,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                 2 -> "Reminders"
                 3 -> "Logs"
                 4 -> "Reports"
-                else -> "Settings"
+                else -> getString(R.string.tab_system_view)
             }
         }.apply { attach() }
         viewPager.setCurrentItem(0, false)
@@ -253,7 +331,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                     if (dc.isNotEmpty()) {
                         prefs.databusAccessCode = dc
                         runOnUiThread {
-                            if (!isFinishing && prefs.userStandaloneMode) connectDatabus(dc)
+                            if (!isFinishing) connectDatabus(dc)
                         }
                     }
                 }
@@ -270,6 +348,7 @@ class UserStandaloneActivity : AppCompatActivity() {
             runOnUiThread {
                 showLoading(false)
                 refreshVisibleDashboard()
+                refreshUserSidebar()
             }
         }
         if (!dataSyncReceiverRegistered) {
@@ -281,9 +360,21 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
             dataSyncReceiverRegistered = true
         }
+        if (!connectionBroadcastRegistered) {
+            val cf = IntentFilter(AlertEvents.ACTION_CONNECTION_STATE_CHANGED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(relayConnectionReceiver, cf, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(relayConnectionReceiver, cf)
+            }
+            connectionBroadcastRegistered = true
+        }
         ensureUserDataBusConnected()
+        UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
         bootstrapStandaloneDataOnce()
-        startService(Intent(this, AlertConnectionService::class.java).apply { action = AlertConnectionService.ACTION_RECONNECT_NOW })
+        ConnectionManager.requestReconnectRelayNow(this)
+        window.decorView.postDelayed({ refreshUserSidebar() }, 900L)
+        window.decorView.postDelayed({ refreshUserSidebar() }, 2800L)
     }
 
     override fun onStop() {
@@ -292,6 +383,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (dataSyncReceiverRegistered) {
             try { unregisterReceiver(dataSyncReceiver) } catch (_: Exception) {}
             dataSyncReceiverRegistered = false
+        }
+        if (connectionBroadcastRegistered) {
+            try { unregisterReceiver(relayConnectionReceiver) } catch (_: Exception) {}
+            connectionBroadcastRegistered = false
         }
         super.onStop()
     }
@@ -335,24 +430,12 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     private fun startConnectionService(serverUrl: String, id: String, apiKey: String) {
-        val intent = Intent(this, AlertConnectionService::class.java).apply {
-            action = AlertConnectionService.ACTION_CONNECT
-            putExtra(AlertConnectionService.EXTRA_SERVER_URL, serverUrl)
-            putExtra(AlertConnectionService.EXTRA_BOT_ID, id)
-            putExtra(AlertConnectionService.EXTRA_API_KEY, apiKey)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-        tvConnectionStatus.text = getString(R.string.connecting)
-        tvConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+        ConnectionManager.requestConnectRelay(this, serverUrl, id, apiKey)
+        applyConnectionButtonConnectingUi()
     }
 
     private fun connectWithLatestFcmToken(serverUrl: String, id: String, apiKey: String) {
-        tvConnectionStatus.text = getString(R.string.connecting)
-        tvConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+        applyConnectionButtonConnectingUi()
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val token = task.result.orEmpty()
@@ -396,14 +479,26 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     private fun updateConnectionUi(connected: Boolean) {
-        tvConnectionStatus.text = if (connected) getString(R.string.connected) else getString(R.string.disconnected)
-        tvConnectionStatus.setTextColor(
-            ContextCompat.getColor(
-                this,
-                if (connected) android.R.color.holo_green_dark else android.R.color.holo_red_dark
-            )
+        btnConnect.text = if (connected) {
+            getString(R.string.disconnect)
+        } else {
+            getString(R.string.user_sidebar_connect_for_alerts)
+        }
+        val tint = if (connected) {
+            ContextCompat.getColor(this, R.color.sidebar_connect_connected)
+        } else {
+            ContextCompat.getColor(this, R.color.sidebar_connect_disconnected)
+        }
+        btnConnect.backgroundTintList = ColorStateList.valueOf(tint)
+        refreshUserSidebar()
+    }
+
+    private fun applyConnectionButtonConnectingUi() {
+        btnConnect.text = getString(R.string.connecting)
+        btnConnect.backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, R.color.sidebar_connect_connecting),
         )
-        btnConnect.text = if (connected) getString(R.string.disconnect) else getString(R.string.connect)
+        refreshUserSidebar()
     }
 
     private fun disconnectService() {
@@ -411,12 +506,169 @@ class UserStandaloneActivity : AppCompatActivity() {
             unbindService(serviceConnection)
         } catch (_: Exception) { }
         connectionService = null
-        startService(Intent(this, AlertConnectionService::class.java).apply {
-            action = AlertConnectionService.ACTION_DISCONNECT
-        })
-        tvConnectionStatus.text = getString(R.string.disconnected)
-        tvConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
-        btnConnect.text = getString(R.string.connect)
+        ConnectionManager.requestDisconnectRelay(this)
+        btnConnect.text = getString(R.string.user_sidebar_connect_for_alerts)
+        btnConnect.backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, R.color.sidebar_connect_disconnected),
+        )
+        refreshUserSidebar()
+    }
+
+    private fun sidebarStatusColor(level: Int): Int = when (level) {
+        0 -> ContextCompat.getColor(this, R.color.sidebar_status_ok)
+        1 -> ContextCompat.getColor(this, R.color.sidebar_status_warn)
+        else -> ContextCompat.getColor(this, R.color.sidebar_status_err)
+    }
+
+    private fun setSidebarLine(tv: TextView, level: Int, message: String) {
+        val prefix = when (level) {
+            0 -> "🟢 "
+            1 -> "🟡 "
+            else -> "🔴 "
+        }
+        tv.text = "$prefix$message"
+        tv.setTextColor(sidebarStatusColor(level))
+    }
+
+    private fun notificationsChannelReady(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun toggleSidebarSection(index: Int) {
+        sidebarSectionExpanded[index] = !sidebarSectionExpanded[index]
+        applySidebarExpandUi()
+    }
+
+    private fun applySidebarExpandUi() {
+        if (!::tvUserSidebarAdminDetail.isInitialized) return
+        val details = arrayOf(
+            tvUserSidebarAdminDetail,
+            tvUserSidebarHealthDetail,
+            tvUserSidebarAlertsDetail,
+            tvUserSidebarRealtimeDetail,
+        )
+        val chevs = arrayOf(tvChevronAdmin, tvChevronHealth, tvChevronAlerts, tvChevronRealtime)
+        for (i in 0 until 4) {
+            details[i].visibility = if (sidebarSectionExpanded[i]) View.VISIBLE else View.GONE
+            chevs[i].text = if (sidebarSectionExpanded[i]) "▲" else "▼"
+        }
+    }
+
+    private fun refreshUserSidebar() {
+        if (!::tvUserSidebarAdminStatus.isInitialized) return
+
+        val base = prefs.centralApiUrl.trim().removeSuffix("/")
+        val botId = prefs.id.trim()
+        val apiKey = prefs.apiKey.trim()
+        val configOk = base.isNotEmpty() && botId.isNotEmpty() && apiKey.isNotEmpty()
+        val adminId = prefs.linkedAdminId.trim()
+        val adminName = prefs.linkedAdminName.trim()
+        val adminLinked = adminId.isNotEmpty()
+        val relayOk = connectionService?.isConnected() == true || ConnectionManager.isRelayConnectedHint()
+        val databusOk = UserDataBusClient.isSocketConnected()
+        val snapshotOk = prefs.userStandaloneDataReady
+
+        if (!adminLinked) {
+            setSidebarLine(tvUserSidebarAdminStatus, 2, getString(R.string.user_sidebar_admin_not_linked))
+        } else {
+            val label = if (adminName.isNotEmpty()) {
+                getString(R.string.user_sidebar_admin_connected, adminName)
+            } else {
+                getString(R.string.user_sidebar_admin_connected_generic)
+            }
+            setSidebarLine(tvUserSidebarAdminStatus, 0, label)
+        }
+
+        when {
+            !configOk -> setSidebarLine(
+                tvUserSidebarHealthStatus,
+                2,
+                getString(R.string.user_sidebar_health_config),
+            )
+            !adminLinked -> setSidebarLine(
+                tvUserSidebarHealthStatus,
+                1,
+                getString(R.string.user_sidebar_health_no_admin),
+            )
+            databusOk && relayOk -> setSidebarLine(
+                tvUserSidebarHealthStatus,
+                0,
+                getString(R.string.user_sidebar_health_ok),
+            )
+            databusOk || relayOk -> setSidebarLine(
+                tvUserSidebarHealthStatus,
+                1,
+                getString(R.string.user_sidebar_health_partial),
+            )
+            snapshotOk -> setSidebarLine(
+                tvUserSidebarHealthStatus,
+                1,
+                getString(R.string.user_sidebar_health_offline),
+            )
+            else -> setSidebarLine(
+                tvUserSidebarHealthStatus,
+                2,
+                getString(R.string.user_sidebar_health_issues),
+            )
+        }
+
+        val fcmOk = prefs.fcmToken.trim().isNotEmpty() && notificationsChannelReady()
+        if (fcmOk) {
+            setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
+        } else {
+            tvUserSidebarAlertsStatus.text = "⚪ ${getString(R.string.user_sidebar_alerts_inactive)}"
+            tvUserSidebarAlertsStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+        }
+
+        val rtState = UserDataBusClient.getRealtimeConnectionState()
+        when (rtState) {
+            0 -> setSidebarLine(
+                tvUserSidebarRealtimeStatus,
+                0,
+                getString(R.string.user_sidebar_realtime_connected),
+            )
+            1 -> setSidebarLine(
+                tvUserSidebarRealtimeStatus,
+                1,
+                getString(R.string.user_sidebar_realtime_reconnecting),
+            )
+            else -> setSidebarLine(
+                tvUserSidebarRealtimeStatus,
+                2,
+                getString(R.string.user_sidebar_realtime_disconnected),
+            )
+        }
+
+        val displayAdmin = if (adminName.isNotEmpty()) adminName else getString(R.string.user_sidebar_admin_connected_generic)
+        tvUserSidebarAdminDetail.text = if (adminLinked) {
+            getString(R.string.user_sidebar_detail_admin_linked, displayAdmin)
+        } else {
+            getString(R.string.user_sidebar_detail_admin_not_linked)
+        }
+
+        val healthDetailRes = when {
+            !configOk -> R.string.user_sidebar_detail_health_config
+            !adminLinked -> R.string.user_sidebar_detail_health_no_admin
+            databusOk && relayOk -> R.string.user_sidebar_detail_health_ok
+            databusOk || relayOk -> R.string.user_sidebar_detail_health_partial
+            snapshotOk -> R.string.user_sidebar_detail_health_offline
+            else -> R.string.user_sidebar_detail_health_issues
+        }
+        tvUserSidebarHealthDetail.setText(healthDetailRes)
+
+        tvUserSidebarAlertsDetail.text = if (fcmOk) {
+            getString(R.string.user_sidebar_detail_alerts_active)
+        } else {
+            getString(R.string.user_sidebar_detail_alerts_inactive)
+        }
+
+        tvUserSidebarRealtimeDetail.text = when (rtState) {
+            0 -> getString(R.string.user_sidebar_detail_realtime_connected)
+            1 -> getString(R.string.user_sidebar_detail_realtime_reconnecting)
+            else -> getString(R.string.user_sidebar_detail_realtime_disconnected)
+        }
     }
 
     private fun bootstrapStandaloneDataOnce() {
@@ -432,6 +684,22 @@ class UserStandaloneActivity : AppCompatActivity() {
         // One-time startup refresh: keeps the screen accurate without polling or tab-switch fetches.
         UserDataBusClient.fetchAndApplyUserData(this, base, botId, apiKey) {
             showLoading(false)
+        }
+    }
+
+    /** Toolbar label + medicine box colors after mode popup saves [AppModeManager]. */
+    fun notifyUserAppModePreferenceChanged() {
+        invalidateOptionsMenu()
+        val targets = linkedSetOf<AdminOverviewFragment>()
+        overviewFragmentRef?.let { targets.add(it) }
+        (supportFragmentManager.findFragmentByTag("f0") as? AdminOverviewFragment)?.let { targets.add(it) }
+        supportFragmentManager.fragments
+            .filterIsInstance<AdminOverviewFragment>()
+            .forEach { targets.add(it) }
+        targets.forEach { fragment ->
+            if (fragment.isAdded && fragment.view != null) {
+                fragment.refreshMedBoxThemeForUserMode()
+            }
         }
     }
 

@@ -21,7 +21,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -29,6 +28,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.curax.app.AdherenceLineChartView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
@@ -108,6 +108,7 @@ class AdminOverviewFragment : Fragment() {
         ensureInventorySeeded()
         setupInventory(view)
         setupBoxClicks(view)
+        applyStandaloneMedicineBoxGoldTheme(view)
         setupAdherenceChart(view)
         refreshDashboard(view)
         refreshInventoryList(view)
@@ -135,7 +136,7 @@ class AdminOverviewFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         val v = view ?: return
-        if (isUserStandalone()) {
+        if (isUserApp()) {
             // Standalone should not refetch on every tab switch; live changes arrive via DataBus sync.
             refreshStandaloneFromMemory()
             return
@@ -154,18 +155,18 @@ class AdminOverviewFragment : Fragment() {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val accessCode = prefs.adminAccessCode.trim()
         if (base.isEmpty()) return
-        if (!isUserStandalone() && accessCode.isEmpty()) return
+        if (!isUserApp() && accessCode.isEmpty()) return
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
-        if (isUserStandalone() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
         Thread {
             try {
-                var url = if (isUserStandalone()) {
+                var url = if (isUserApp()) {
                     "$base/user/data?bot_id=${URLEncoder.encode(botId, "UTF-8")}&api_key=${URLEncoder.encode(apiKey, "UTF-8")}"
                 } else {
                     "$base/admin/data?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
                 }
-                if (!isUserStandalone() && prefs.actAsUserId.isNotEmpty()) {
+                if (!isUserApp() && prefs.actAsUserId.isNotEmpty()) {
                     url += "&act_as_user_id=${URLEncoder.encode(prefs.actAsUserId, "UTF-8")}"
                 }
                 val req = Request.Builder().url(url).get().build()
@@ -216,18 +217,18 @@ class AdminOverviewFragment : Fragment() {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val accessCode = prefs.adminAccessCode.trim()
         if (base.isEmpty()) return
-        if (!isUserStandalone() && accessCode.isEmpty()) return
+        if (!isUserApp() && accessCode.isEmpty()) return
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
-        if (isUserStandalone() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
         Thread {
             try {
-                var url = if (isUserStandalone()) {
+                var url = if (isUserApp()) {
                     "$base/user/data?bot_id=${URLEncoder.encode(botId, "UTF-8")}&api_key=${URLEncoder.encode(apiKey, "UTF-8")}"
                 } else {
                     "$base/admin/data?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
                 }
-                if (!isUserStandalone() && prefs.actAsUserId.isNotEmpty()) {
+                if (!isUserApp() && prefs.actAsUserId.isNotEmpty()) {
                     url += "&act_as_user_id=${URLEncoder.encode(prefs.actAsUserId, "UTF-8")}"
                 }
                 val req = Request.Builder().url(url).get().build()
@@ -268,8 +269,11 @@ class AdminOverviewFragment : Fragment() {
                             refreshInventoryList(v)
                             refreshDashboard(v)
                             adherenceChart?.data = computeAdherenceData()
-                            val msg = if (n > 0) "Imported $n medicines from desktop." else "No medicines imported from desktop."
-                            Toast.makeText(v.context, msg, Toast.LENGTH_LONG).show()
+                            if (n > 0) {
+                                CuraxFeedback.success(requireActivity(), "Imported $n medicines from desktop.")
+                            } else {
+                                CuraxFeedback.warn(requireActivity(), "No medicines imported from desktop.", long = true)
+                            }
                         }
                     } catch (_: Exception) { }
                 }
@@ -339,7 +343,7 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun ensureInventorySeeded() {
-        if (isUserStandalone() && !Prefs(requireContext()).userStandaloneDataReady) {
+        if (isUserApp() && !Prefs(requireContext()).userStandaloneDataReady) {
             return
         }
         if (allItems.isEmpty() && AdminDemoData.medicines.isNotEmpty()) {
@@ -349,7 +353,7 @@ class AdminOverviewFragment : Fragment() {
 
     fun refreshStandaloneFromMemory() {
         val v = view ?: return
-        if (!isUserStandalone()) return
+        if (!isUserApp()) return
         allItems.clear()
         seedInventory()
         if (allItems.none { it.id == selectedItemId }) {
@@ -384,7 +388,7 @@ class AdminOverviewFragment : Fragment() {
         view.findViewById<MaterialButton>(R.id.btnEditMedicine).setOnClickListener {
             val selected = allItems.find { it.id == selectedItemId }
             if (selected == null) {
-                Toast.makeText(requireContext(), "Select a medicine first", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "Select a medicine first")
             } else {
                 showEditDialog(view, selected)
             }
@@ -393,7 +397,7 @@ class AdminOverviewFragment : Fragment() {
         view.findViewById<MaterialButton>(R.id.btnRemoveMedicine).setOnClickListener {
             val index = allItems.indexOfFirst { it.id == selectedItemId }
             if (index < 0) {
-                Toast.makeText(requireContext(), "Select a medicine first", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "Select a medicine first")
             } else {
                 allItems.removeAt(index)
                 selectedItemId = null
@@ -402,15 +406,79 @@ class AdminOverviewFragment : Fragment() {
                 saveMedicinesToApi()
                 refreshDashboard(view)
                 refreshInventoryList(view)
-                Toast.makeText(requireContext(), "Box cleared", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.success(this, "Box cleared")
             }
         }
 
-        if (isUserStandalone()) {
+        if (isUserApp()) {
             view.findViewById<MaterialButton>(R.id.btnAddMedicine).visibility = View.GONE
             view.findViewById<MaterialButton>(R.id.btnEditMedicine).visibility = View.GONE
             view.findViewById<MaterialButton>(R.id.btnRemoveMedicine).visibility = View.GONE
         }
+    }
+
+    /** Green boxes in Default mode; gold only when [AppModeManager] is Standalone (user app only). */
+    private fun applyStandaloneMedicineBoxGoldTheme(view: View) {
+        if (!isUserApp()) return
+        if (!AppModeManager.isStandaloneMode(requireContext())) {
+            restoreUserMedBoxColors(view)
+            return
+        }
+        val ctx = requireContext()
+        val bg = ContextCompat.getColor(ctx, R.color.med_box_standalone_bg)
+        val stroke = ContextCompat.getColor(ctx, R.color.med_box_standalone_stroke)
+        val strokePx = (2f * resources.displayMetrics.density).toInt().coerceAtLeast(2)
+        val textColor = ContextCompat.getColor(ctx, R.color.med_box_standalone_text)
+        val cardIds = intArrayOf(
+            R.id.cardB1, R.id.cardB2, R.id.cardB3, R.id.cardB4, R.id.cardB5, R.id.cardB6,
+        )
+        for (id in cardIds) {
+            val card = view.findViewById<MaterialCardView>(id) ?: continue
+            card.setCardBackgroundColor(bg)
+            card.strokeColor = stroke
+            card.strokeWidth = strokePx
+            val inner = card.getChildAt(0) as? ViewGroup ?: continue
+            for (i in 0 until inner.childCount) {
+                val ch = inner.getChildAt(i)
+                if (ch is TextView) ch.setTextColor(textColor)
+            }
+        }
+    }
+
+    private fun restoreUserMedBoxColors(view: View) {
+        if (!isUserApp()) return
+        val ctx = requireContext()
+        val bg = ContextCompat.getColor(ctx, R.color.med_box_bg)
+        val stroke = ContextCompat.getColor(ctx, R.color.med_box_stroke)
+        val label = ContextCompat.getColor(ctx, R.color.med_box_label)
+        val nameCol = ContextCompat.getColor(ctx, R.color.med_box_text)
+        val strokePx = (2f * resources.displayMetrics.density).toInt().coerceAtLeast(2)
+        val rows = listOf(
+            Triple(R.id.cardB1, R.id.tvBoxB1Name, R.id.tvBoxB1Qty),
+            Triple(R.id.cardB2, R.id.tvBoxB2Name, R.id.tvBoxB2Qty),
+            Triple(R.id.cardB3, R.id.tvBoxB3Name, R.id.tvBoxB3Qty),
+            Triple(R.id.cardB4, R.id.tvBoxB4Name, R.id.tvBoxB4Qty),
+            Triple(R.id.cardB5, R.id.tvBoxB5Name, R.id.tvBoxB5Qty),
+            Triple(R.id.cardB6, R.id.tvBoxB6Name, R.id.tvBoxB6Qty),
+        )
+        for ((cardId, nameId, qtyId) in rows) {
+            val card = view.findViewById<MaterialCardView>(cardId) ?: continue
+            card.setCardBackgroundColor(bg)
+            card.strokeColor = stroke
+            card.strokeWidth = strokePx
+            val inner = card.getChildAt(0) as? ViewGroup ?: continue
+            val header = inner.getChildAt(0)
+            if (header is TextView) header.setTextColor(label)
+            view.findViewById<TextView>(nameId)?.setTextColor(nameCol)
+            view.findViewById<TextView>(qtyId)?.setTextColor(label)
+        }
+    }
+
+    /** After [AppModeManager] mode changes while the overview is visible. */
+    fun refreshMedBoxThemeForUserMode() {
+        val v = view ?: return
+        if (!isUserApp()) return
+        applyStandaloneMedicineBoxGoldTheme(v)
     }
 
     private fun setupBoxClicks(view: View) {
@@ -426,7 +494,7 @@ class AdminOverviewFragment : Fragment() {
         view.findViewById<View>(cardId).setOnClickListener {
             val item = allItems.find { it.box.equals(box, true) }
             if (item == null) {
-                Toast.makeText(requireContext(), "$box is empty", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "$box is empty")
             } else {
                 showBoxDetailsDialog(item)
             }
@@ -455,7 +523,7 @@ class AdminOverviewFragment : Fragment() {
     private fun showAddDialog(view: View) {
         val available = availableBoxes()
         if (available.isEmpty()) {
-            Toast.makeText(requireContext(), "All 6 boxes are filled", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "All 6 boxes are filled")
             return
         }
 
@@ -554,7 +622,7 @@ class AdminOverviewFragment : Fragment() {
                 val box = actvBox.text.toString().trim().uppercase()
 
                 if (name.isBlank() || stock < 0 || dosePerDay !in 1..4 || expiry.isBlank() || box !in availableBoxes()) {
-                    Toast.makeText(requireContext(), "Use valid values. Dose/day must be 1..4 and box must be empty", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "Use valid values. Dose/day must be 1..4 and box must be empty")
                     return@setPositiveButton
                 }
 
@@ -577,7 +645,7 @@ class AdminOverviewFragment : Fragment() {
                 saveMedicinesToApi()
                 refreshDashboard(view)
                 refreshInventoryList(view)
-                Toast.makeText(requireContext(), "Medicine added to $box", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.success(this, "Medicine added to $box")
             }
             .create()
 
@@ -693,7 +761,7 @@ class AdminOverviewFragment : Fragment() {
                 val occupiedByOther = allItems.any { it.id != existing.id && it.box.equals(box, true) }
 
                 if (name.isBlank() || stock < 0 || dosePerDay !in 1..4 || expiry.isBlank() || !validBox || occupiedByOther) {
-                    Toast.makeText(requireContext(), "Use valid data. Dose/day 1..4 and unique box B1-B6", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "Use valid data. Dose/day 1..4 and unique box B1-B6")
                     return@setPositiveButton
                 }
 
@@ -711,7 +779,7 @@ class AdminOverviewFragment : Fragment() {
                 saveMedicinesToApi()
                 refreshDashboard(view)
                 refreshInventoryList(view)
-                Toast.makeText(requireContext(), "Medicine updated", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.success(this, "Medicine updated")
             }
             .create()
 
@@ -740,7 +808,7 @@ class AdminOverviewFragment : Fragment() {
             "${working.size}/6 filled. Empty: ${avail.joinToString(", ")}" 
         }
 
-        if (isUserStandalone()) {
+        if (isUserApp()) {
             view.findViewById<MaterialButton>(R.id.btnAddMedicine).visibility = View.GONE
         } else {
             view.findViewById<MaterialButton>(R.id.btnAddMedicine).visibility = if (avail.isEmpty()) View.GONE else View.VISIBLE
@@ -779,6 +847,7 @@ class AdminOverviewFragment : Fragment() {
         view.findViewById<TextView>(R.id.tvKpiRefill).text = refill.toString()
 
         updateTrendFromInventory(view)
+        if (isUserApp()) applyStandaloneMedicineBoxGoldTheme(view)
     }
 
     private fun animateDonutSection(view: View, total: Int) {
@@ -1168,7 +1237,7 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun saveMedicinesToApi() {
-        if (isUserStandalone()) return
+        if (isUserApp()) return
         val prefs = Prefs(requireContext())
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -1233,7 +1302,7 @@ class AdminOverviewFragment : Fragment() {
         return arr
     }
     private fun pushFullSyncFallback(base: String, accessCode: String, actAsUserId: String? = null): Boolean {
-        if (isUserStandalone()) return false
+        if (isUserApp()) return false
         return try {
             val payload = JSONObject().apply {
                 put("access_code", accessCode)
@@ -1282,9 +1351,5 @@ class AdminOverviewFragment : Fragment() {
             }
         )
     }
-    private fun isUserStandalone(): Boolean {
-        val ctx = requireContext()
-        val prefs = Prefs(ctx)
-        return LocalUserStore(ctx).role == LocalUserStore.ROLE_USER && prefs.userStandaloneMode
-    }
+    private fun isUserApp(): Boolean = AppRole.isUser(requireContext())
 }

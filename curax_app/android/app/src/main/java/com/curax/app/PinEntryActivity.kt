@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -44,7 +43,7 @@ class PinEntryActivity : AppCompatActivity() {
             if (enteredPin == expectedPin && enteredPin.isNotBlank()) {
                 openTarget(store.role)
             } else {
-                Toast.makeText(this, "Invalid PIN", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "Invalid PIN")
             }
         }
 
@@ -69,7 +68,7 @@ class PinEntryActivity : AppCompatActivity() {
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                             super.onAuthenticationError(errorCode, errString)
                             if (errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-                                Toast.makeText(this@PinEntryActivity, errString, Toast.LENGTH_SHORT).show()
+                                CuraxFeedback.warn(this@PinEntryActivity, errString)
                             }
                         }
                     }
@@ -83,7 +82,7 @@ class PinEntryActivity : AppCompatActivity() {
             }
 
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> openBiometricEnroll()
-            else -> Toast.makeText(this, getString(R.string.biometric_not_available), Toast.LENGTH_SHORT).show()
+            else -> CuraxFeedback.warn(this, getString(R.string.biometric_not_available))
         }
     }
 
@@ -123,7 +122,7 @@ class PinEntryActivity : AppCompatActivity() {
             val homeIntent = if (role == LocalUserStore.ROLE_ADMIN) {
                 Intent(this, AdminDashboardActivity::class.java)
             } else {
-                Intent(this, MainActivity::class.java)
+                UserHomeIntent.forSignedInUser(this)
             }
             homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             startActivity(homeIntent)

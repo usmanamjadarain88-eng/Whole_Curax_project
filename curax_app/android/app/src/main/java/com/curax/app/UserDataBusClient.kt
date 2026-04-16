@@ -45,6 +45,17 @@ object UserDataBusClient {
     private var reconnectRunnable: Runnable? = null
     /** True between WebSocket onOpen and onClosed/onFailure. */
     private var socketConnected = false
+
+    private val apiFallbackRunnable = Runnable {
+        if (isSocketConnected()) return@Runnable
+        val ctx = appContext ?: return@Runnable
+        val p = Prefs(ctx)
+        val base = p.centralApiUrl.trim().removeSuffix("/")
+        val bid = p.id.trim()
+        val key = p.apiKey.trim()
+        if (base.isEmpty() || bid.isEmpty() || key.isEmpty()) return@Runnable
+        fetchAndApplyUserData(ctx, base, bid, key, null)
+    }
     @Volatile
     private var onUserDataApplied: (() -> Unit)? = null
 
@@ -113,6 +124,7 @@ object UserDataBusClient {
     }
 
     fun stop() {
+        mainHandler.removeCallbacks(apiFallbackRunnable)
         running = false
         socketConnected = false
         cancelReconnect()
@@ -142,6 +154,7 @@ object UserDataBusClient {
         val req = Request.Builder().url(currentWsUrl).build()
         ws = client!!.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
+                mainHandler.removeCallbacks(apiFallbackRunnable)
                 reconnectDelayMs = 3000L
                 synchronized(this@UserDataBusClient) { socketConnected = true }
                 val register = JSONObject().apply {
@@ -346,5 +359,32 @@ object UserDataBusClient {
             return base
         }
         return u
+    }
+
+    /** True when the data-bus WebSocket session is up (see [start]). */
+    fun isSocketConnected(): Boolean = synchronized(this) {
+        running && socketConnected && ws != null
+    }
+
+    /** True after [start] until [stop] (socket may still be handshaking or reconnecting). */
+    fun isDataBusRunning(): Boolean = synchronized(this) { running }
+
+    /** 0 = socket up, 1 = reconnecting (client running, socket down), 2 = off. */
+    fun getRealtimeConnectionState(): Int = synchronized(this) {
+        when {
+            socketConnected -> 0
+            running -> 1
+            else -> 2
+        }
+    }
+
+    /**
+     * If the socket is still down after [delayMs], runs one [fetchAndApplyUserData] using prefs
+     * (same snapshot path as bootstrap). Cancelled when the socket opens.
+     */
+    fun scheduleApiFallbackIfDataBusOffline(context: Context, delayMs: Long = 5000L) {
+        appContext = context.applicationContext
+        mainHandler.removeCallbacks(apiFallbackRunnable)
+        mainHandler.postDelayed(apiFallbackRunnable, delayMs)
     }
 }

@@ -21,7 +21,6 @@ import android.os.IBinder
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
@@ -185,9 +184,9 @@ class AdminDashboardActivity : AppCompatActivity() {
         btnAdminConnect.setOnClickListener {
             if (connectionService?.isConnected() == true) {
                 disconnectService()
-                Toast.makeText(this, "Disconnected", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.info(this, "Disconnected")
             } else {
-                Toast.makeText(this, "Registering FCM and connecting to relay…", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.info(this, "Registering FCM and connecting to relay…")
                 askNotificationPermission()
                 if (!prefs.hasRequestedConnectWakePermissions) {
                     ensureFullScreenIntentPermission()
@@ -241,7 +240,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                                 }
                                 tv.setOnClickListener {
                                     if (!desktopLinked) {
-                                        Toast.makeText(this@AdminDashboardActivity, getString(R.string.user_link_desktop_first_title), Toast.LENGTH_LONG).show()
+                                        CuraxFeedback.warn(this@AdminDashboardActivity, getString(R.string.user_link_desktop_first_title), long = true)
                                         androidx.appcompat.app.AlertDialog.Builder(this@AdminDashboardActivity)
                                             .setTitle(getString(R.string.user_link_desktop_first_title))
                                             .setMessage(getString(R.string.user_link_desktop_first_message))
@@ -253,7 +252,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                                     prefs.actAsUserId = userId
                                     prefs.actAsUserName = name
                                     drawerLayout.closeDrawer(android.view.Gravity.START)
-                                    Toast.makeText(this@AdminDashboardActivity, "Loading $name's data…", Toast.LENGTH_SHORT).show()
+                                    CuraxFeedback.info(this@AdminDashboardActivity, "Loading $name's data…")
                                     fetchActAsUserDataThenNotify()
                                 }
                                 sidebarUsersList.addView(tv)
@@ -275,7 +274,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         updateReturnToAdminBar()
         fetchSidebarConnectedUsers()
         fetchAdminSnapshotFromServer()
-        startService(Intent(this, AlertConnectionService::class.java).apply { action = AlertConnectionService.ACTION_RECONNECT_NOW })
+        ConnectionManager.requestReconnectRelayNow(this)
     }
 
     private fun fetchAdminSnapshotFromServer() {
@@ -304,13 +303,12 @@ class AdminDashboardActivity : AppCompatActivity() {
             updateReturnToAdminBar()
             when (result) {
                 AdminDataBusClient.SnapshotResult.APPLIED ->
-                    Toast.makeText(
+                    CuraxFeedback.success(
                         this@AdminDashboardActivity,
                         if (actAsUserName.isNotEmpty()) "Loaded $actAsUserName's data" else "Loaded user data",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    )
                 AdminDataBusClient.SnapshotResult.FAILED ->
-                    Toast.makeText(this@AdminDashboardActivity, "Could not load user data", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this@AdminDashboardActivity, "Could not load user data")
                 AdminDataBusClient.SnapshotResult.SKIPPED_STALE -> { /* newer selection or return-to-admin */ }
             }
         }
@@ -511,7 +509,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                         data = Uri.parse("package:$packageName")
                     }
                     startActivity(intent)
-                    Toast.makeText(this, "Enable Full-screen intent for Curax to wake screen", Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(this, "Enable Full-screen intent for Curax to wake screen", long = true)
                 } catch (_: Exception) {
                 }
             }
@@ -581,17 +579,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     private fun startConnectionService(serverUrl: String, id: String, apiKey: String) {
-        val intent = Intent(this, AlertConnectionService::class.java).apply {
-            action = AlertConnectionService.ACTION_CONNECT
-            putExtra(AlertConnectionService.EXTRA_SERVER_URL, serverUrl)
-            putExtra(AlertConnectionService.EXTRA_BOT_ID, id)
-            putExtra(AlertConnectionService.EXTRA_API_KEY, apiKey)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        ConnectionManager.requestConnectRelay(this, serverUrl, id, apiKey)
         tvAdminConnectionStatus.text = getString(R.string.connecting)
         tvAdminConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
         bindService(Intent(this, AlertConnectionService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
@@ -613,9 +601,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         } catch (_: Exception) {
         }
         connectionService = null
-        startService(Intent(this, AlertConnectionService::class.java).apply {
-            action = AlertConnectionService.ACTION_DISCONNECT
-        })
+        ConnectionManager.requestDisconnectRelay(this)
         tvAdminConnectionStatus.text = getString(R.string.disconnected)
         tvAdminConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
         btnAdminConnect.text = getString(R.string.connect)
@@ -633,13 +619,12 @@ class AdminDashboardActivity : AppCompatActivity() {
             )
         )
         btnAdminConnect.text = if (connected) getString(R.string.disconnect) else getString(R.string.connect)
-        sendBroadcast(Intent(AlertEvents.ACTION_CONNECTION_STATE_CHANGED).putExtra(AlertEvents.EXTRA_CONNECTED, connected))
     }
 
     private fun copyToClipboard(text: String) {
         (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
             .setPrimaryClip(ClipData.newPlainText("", text))
-        Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+        CuraxFeedback.success(this, "Copied")
     }
 
     override fun onDestroy() {

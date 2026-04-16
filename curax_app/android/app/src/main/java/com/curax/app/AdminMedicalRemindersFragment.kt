@@ -15,7 +15,6 @@ import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -62,11 +61,7 @@ class AdminMedicalRemindersFragment : Fragment() {
         }
     }
 
-    private fun isUserStandalone(): Boolean {
-        val ctx = requireContext()
-        val prefs = Prefs(ctx)
-        return LocalUserStore(ctx).role == LocalUserStore.ROLE_USER && prefs.userStandaloneMode
-    }
+    private fun isUserApp(): Boolean = AppRole.isUser(requireContext())
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -84,7 +79,7 @@ class AdminMedicalRemindersFragment : Fragment() {
         refresh()
 
         val fab = view.findViewById<FloatingActionButton>(R.id.fabAddReminder)
-        if (isUserStandalone()) {
+        if (isUserApp()) {
             fab.visibility = View.GONE
         } else {
             fab.setOnClickListener { showAddReminderDialog() }
@@ -107,7 +102,7 @@ class AdminMedicalRemindersFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         // Standalone updates come from DataBus sync; avoid refetching on every tab switch.
-        if (isUserStandalone()) return
+        if (isUserApp()) return
         loadRemindersFromServer()
     }
 
@@ -130,19 +125,19 @@ class AdminMedicalRemindersFragment : Fragment() {
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty()) return
-        if (!isUserStandalone() && accessCode.isEmpty()) return
+        if (!isUserApp() && accessCode.isEmpty()) return
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
-        if (isUserStandalone() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
 
         Thread {
             try {
-                var url = if (isUserStandalone()) {
+                var url = if (isUserApp()) {
                     "$base/user/data?bot_id=${URLEncoder.encode(botId, "UTF-8")}&api_key=${URLEncoder.encode(apiKey, "UTF-8")}"
                 } else {
                     "$base/admin/data?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
                 }
-                if (!isUserStandalone() && prefs.actAsUserId.isNotEmpty()) {
+                if (!isUserApp() && prefs.actAsUserId.isNotEmpty()) {
                     url += "&act_as_user_id=${URLEncoder.encode(prefs.actAsUserId, "UTF-8")}"
                 }
                 val req = Request.Builder().url(url).get().build()
@@ -223,7 +218,7 @@ class AdminMedicalRemindersFragment : Fragment() {
             tv.text = lines.filter { it.isNotBlank() }.joinToString(" - ")
             if (tv.text.isBlank()) tv.text = "-"
             card.setOnClickListener {
-                if (isUserStandalone()) {
+                if (isUserApp()) {
                     showReminderDetailsDialog(r)
                 } else {
                     showReminderOptionsDialog(category, index, r)
@@ -293,7 +288,7 @@ class AdminMedicalRemindersFragment : Fragment() {
                 saveRemindersToApi(finalMap)
                 lastRefreshSignature = null
                 refresh()
-                Toast.makeText(requireContext(), "\"$title\" deleted", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.success(this, "\"$title\" deleted")
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -659,12 +654,12 @@ class AdminMedicalRemindersFragment : Fragment() {
     }
 
     private fun saveRemindersToApi(reminders: Map<String, List<Map<String, Any?>>>) {
-        if (isUserStandalone()) return
+        if (isUserApp()) return
         val prefs = Prefs(requireContext())
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) {
-            Toast.makeText(requireContext(), "Not signed in as admin", Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, "Not signed in as admin")
             return
         }
         Thread {
@@ -682,14 +677,14 @@ class AdminMedicalRemindersFragment : Fragment() {
                 val res = http.newCall(req).execute()
                 activity?.runOnUiThread {
                     if (res.isSuccessful) {
-                        Toast.makeText(requireContext(), "Reminders saved", Toast.LENGTH_SHORT).show()
+                        CuraxFeedback.success(this, "Reminders saved")
                     } else {
-                        Toast.makeText(requireContext(), "Failed to save reminders", Toast.LENGTH_SHORT).show()
+                        CuraxFeedback.warn(this, "Failed to save reminders")
                     }
                 }
             } catch (e: Exception) {
                 activity?.runOnUiThread {
-                    Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "Error: ${e.message}")
                 }
             }
         }.start()

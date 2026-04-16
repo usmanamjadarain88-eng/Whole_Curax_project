@@ -44,7 +44,7 @@ class CuraxApp : Application() {
 
             override fun onActivityDestroyed(activity: Activity) {
                 if (startedActivities == 0 && activity.isFinishing && !activity.isChangingConfigurations &&
-                    (activity is MainActivity || activity is AdminDashboardActivity)) {
+                    (activity is MainActivity || activity is UserStandaloneActivity || activity is AdminDashboardActivity)) {
                     Prefs(this@CuraxApp).lastExitWasClose = true
                 }
             }

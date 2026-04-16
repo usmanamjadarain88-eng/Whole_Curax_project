@@ -16,7 +16,6 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
@@ -71,7 +70,7 @@ class AdminReportsFragment : Fragment() {
         bindMetrics(view)
         fetchLinkedUsersAndMaybeSelectFirst()
 
-        if (!isUserStandalone()) {
+        if (!isUserApp()) {
             view.findViewById<MaterialButton>(R.id.btnReportPrev).setOnClickListener {
                 if (linkedUsers.isEmpty()) return@setOnClickListener
                 selectedReportIndex = (selectedReportIndex - 1).let { if (it < 0) linkedUsers.size - 1 else it }
@@ -88,7 +87,7 @@ class AdminReportsFragment : Fragment() {
             try {
                 shareFile(writeCsv(), "text/csv")
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "CSV export failed", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "CSV export failed")
             }
         }
         view.findViewById<MaterialButton>(R.id.btnExportPdf).setOnClickListener {
@@ -96,7 +95,7 @@ class AdminReportsFragment : Fragment() {
                 val name = if (reportUserName.isNotEmpty()) "curax_report_${reportUserName.replace(" ", "_")}.pdf" else "curax_admin_report.pdf"
                 shareFile(writePdf(name, buildReportText()), "application/pdf")
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "PDF export failed", Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, "PDF export failed")
             }
         }
     }
@@ -141,7 +140,7 @@ class AdminReportsFragment : Fragment() {
     }
 
     private fun fetchLinkedUsersAndMaybeSelectFirst() {
-        if (isUserStandalone()) {
+        if (isUserApp()) {
             view?.findViewById<View>(R.id.panelReportUserNav)?.visibility = View.GONE
             reportMedicines = emptyList()
             reportAlerts = emptyList()
@@ -240,10 +239,10 @@ class AdminReportsFragment : Fragment() {
 
     private fun bindMetrics(view: View) {
         val useReportData = (linkedUsers.isNotEmpty() && reportMedicines.isNotEmpty()) ||
-            (isUserStandalone() && reportMedicines.isNotEmpty())
+            (isUserApp() && reportMedicines.isNotEmpty())
         val medicines = if (useReportData) reportMedicines else AdminDemoData.medicines
         val alerts = if ((linkedUsers.isNotEmpty() && reportAlerts.isNotEmpty()) ||
-            (isUserStandalone() && reportAlerts.isNotEmpty())
+            (isUserApp() && reportAlerts.isNotEmpty())
         ) reportAlerts else {
             val alertDb = AlertDb(requireContext())
             AdminDemoData.getApiAlerts() + alertDb.getAllAlerts()
@@ -265,7 +264,7 @@ class AdminReportsFragment : Fragment() {
         val todayMissed = todayAlerts.count { it.type.contains("missed", true) || it.message.contains("missed", true) }
 
         // Subtitle
-        val sub = if (reportUserName.isNotEmpty()) "Report for $reportUserName" else if (isUserStandalone()) "User dashboard" else "Admin dashboard"
+        val sub = if (reportUserName.isNotEmpty()) "Report for $reportUserName" else if (isUserApp()) "User dashboard" else "Admin dashboard"
         view.findViewById<TextView>(R.id.tvReportSubtitle).text =
             "$sub  |  ${medicines.size} medicines  |  Today: $todayTaken taken, $todayMissed missed"
 
@@ -355,10 +354,10 @@ class AdminReportsFragment : Fragment() {
 
     private fun buildReportText(): String {
         val medicines = if ((linkedUsers.isNotEmpty() && reportMedicines.isNotEmpty()) ||
-            (isUserStandalone() && reportMedicines.isNotEmpty())
+            (isUserApp() && reportMedicines.isNotEmpty())
         ) reportMedicines else AdminDemoData.medicines
         val alerts = if ((linkedUsers.isNotEmpty() && reportAlerts.isNotEmpty()) ||
-            (isUserStandalone() && reportAlerts.isNotEmpty())
+            (isUserApp() && reportAlerts.isNotEmpty())
         ) reportAlerts else {
             AlertDb(requireContext()).getAllAlerts() + AdminDemoData.getApiAlerts()
         }
@@ -402,7 +401,7 @@ class AdminReportsFragment : Fragment() {
         val name = if (reportUserName.isNotEmpty()) "curax_report_${reportUserName.replace(" ", "_")}.csv" else "curax_admin_report.csv"
         val file = File(exportsDir, name)
         val alerts = if ((linkedUsers.isNotEmpty() && reportAlerts.isNotEmpty()) ||
-            (isUserStandalone() && reportAlerts.isNotEmpty())
+            (isUserApp() && reportAlerts.isNotEmpty())
         ) reportAlerts else {
             AlertDb(requireContext()).getAllAlerts() + AdminDemoData.getApiAlerts()
         }
@@ -446,9 +445,5 @@ class AdminReportsFragment : Fragment() {
         startActivity(Intent.createChooser(intent, "Share report"))
     }
 
-    private fun isUserStandalone(): Boolean {
-        val ctx = requireContext()
-        val prefs = Prefs(ctx)
-        return LocalUserStore(ctx).role == LocalUserStore.ROLE_USER && prefs.userStandaloneMode
-    }
+    private fun isUserApp(): Boolean = AppRole.isUser(requireContext())
 }

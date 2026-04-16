@@ -82,6 +82,7 @@ class AlertConnectionService : Service() {
                 }
             }
             ACTION_DISCONNECT -> {
+                relayConnectedHint = false
                 lastServerUrl = null
                 lastBotId = null
                 lastApiKey = null
@@ -169,10 +170,11 @@ class AlertConnectionService : Service() {
 
     private fun connect(serverUrl: String, botId: String, apiKey: String) {
         if (isConnecting) return
+        relayConnectedHint = false
         disconnect()
         val wsUrl = buildWsUrl(serverUrl)
         isConnecting = true
-        onConnectionStateChanged?.invoke(false)
+        runOnMain { notifyRelayConnectionUi(false) }
 
         client = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -188,9 +190,12 @@ class AlertConnectionService : Service() {
                 sendRegister(botId, apiKey, Prefs(this@AlertConnectionService).fcmToken)
                 isConnecting = false
                 reconnectBackoffMs = 2000L
+                relayConnectedHint = true
                 Log.d(TAG, "WebSocket connected; backend should store FCM for this bot_id + api_key")
-                runOnMain { onConnectionStateChanged?.invoke(true) }
-                runOnMain { updateNotification(true) }
+                runOnMain {
+                    notifyRelayConnectionUi(true)
+                    updateNotification(true)
+                }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -213,17 +218,23 @@ class AlertConnectionService : Service() {
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 isConnecting = false
                 this@AlertConnectionService.webSocket = null
-                runOnMain { onConnectionStateChanged?.invoke(false) }
-                runOnMain { updateNotification(false) }
+                relayConnectedHint = false
+                runOnMain {
+                    notifyRelayConnectionUi(false)
+                    updateNotification(false)
+                }
                 if (lastServerUrl != null) scheduleReconnect()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 isConnecting = false
                 this@AlertConnectionService.webSocket = null
+                relayConnectedHint = false
                 Log.e(TAG, "WebSocket error", t)
-                runOnMain { onConnectionStateChanged?.invoke(false) }
-                runOnMain { updateNotification(false) }
+                runOnMain {
+                    notifyRelayConnectionUi(false)
+                    updateNotification(false)
+                }
                 if (lastServerUrl != null) scheduleReconnect()
             }
         })
@@ -231,6 +242,16 @@ class AlertConnectionService : Service() {
 
     private fun runOnMain(block: () -> Unit) {
         Handler(Looper.getMainLooper()).post(block)
+    }
+
+    private fun notifyRelayConnectionUi(connected: Boolean) {
+        onConnectionStateChanged?.invoke(connected)
+        sendBroadcast(
+            Intent(AlertEvents.ACTION_CONNECTION_STATE_CHANGED).apply {
+                putExtra(AlertEvents.EXTRA_CONNECTED, connected)
+                setPackage(packageName)
+            },
+        )
     }
 
     private fun sendRegister(botId: String, apiKey: String, fcmToken: String) {
@@ -253,7 +274,8 @@ class AlertConnectionService : Service() {
         webSocket = null
         client = null
         isConnecting = false
-        onConnectionStateChanged?.invoke(false)
+        relayConnectedHint = false
+        runOnMain { notifyRelayConnectionUi(false) }
     }
 
     private fun acquireWakeLock() {
@@ -334,6 +356,11 @@ class AlertConnectionService : Service() {
 
     companion object {
         const val TAG = "CuraxService"
+
+        /** Best-effort mirror of relay WebSocket state for [ConnectionManager.isRelayConnectedHint]. */
+        @Volatile
+        var relayConnectedHint: Boolean = false
+
         const val ACTION_CONNECT = "com.curax.app.CONNECT"
         const val ACTION_DISCONNECT = "com.curax.app.DISCONNECT"
         const val ACTION_RECONNECT_NOW = "com.curax.app.RECONNECT_NOW"

@@ -8,7 +8,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -46,9 +45,9 @@ class SignUpActivity : AppCompatActivity() {
     private lateinit var btnVerifyOtp: MaterialButton
 
     private val http = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(22, TimeUnit.SECONDS)
+        .writeTimeout(22, TimeUnit.SECONDS)
         .build()
 
     private val linkAdminLauncher = registerForActivityResult(
@@ -206,7 +205,7 @@ class SignUpActivity : AppCompatActivity() {
     private fun requestOtpEmailAfterSignInPending() {
         val base = apiBase()
         if (base.isEmpty()) {
-            Toast.makeText(this, getString(R.string.set_api_url_for_codes), Toast.LENGTH_LONG).show()
+            CuraxFeedback.warn(this, getString(R.string.set_api_url_for_codes), long = true)
             startResendCooldown()
             etOtp.post { focusOtpField() }
             return
@@ -222,34 +221,23 @@ class SignUpActivity : AppCompatActivity() {
                     if (code == 200) {
                         startResendCooldown()
                         val emailOk = jo?.optBoolean("email_sent", true) != false
-                        val msg = if (emailOk) {
-                            getString(R.string.otp_resend_email_success)
+                        if (emailOk) {
+                            CuraxFeedback.success(this, getString(R.string.otp_resend_email_success))
                         } else {
-                            getString(R.string.otp_resend_email_saved_smtp_failed)
+                            CuraxFeedback.warn(this, getString(R.string.otp_resend_email_saved_smtp_failed), long = true)
                         }
-                        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                     } else {
-                        Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                        CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                     }
                     etOtp.post { focusOtpField() }
                 }
             } catch (_: Exception) {
                 runOnUiThread {
-                    Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
                     etOtp.post { focusOtpField() }
                 }
             }
         }.start()
-    }
-
-    private fun messageFromResponse(jo: JSONObject?): String {
-        if (jo == null) return getString(R.string.request_failed)
-        val m = jo.optString("message", "").trim()
-        if (m.isEmpty()) return getString(R.string.request_failed)
-        val hint = jo.optString("hint", "").trim()
-        val detail = jo.optString("detail", "").trim()
-        val extra = hint.ifEmpty { detail }
-        return if (extra.isNotEmpty()) "$m\n\n$extra" else m
     }
 
     private fun postJson(path: String, json: JSONObject): Pair<Int, JSONObject?> {
@@ -261,11 +249,7 @@ class SignUpActivity : AppCompatActivity() {
             .build()
         http.newCall(req).execute().use { res ->
             val raw = res.body?.string().orEmpty()
-            val jo = try {
-                if (raw.isNotBlank()) JSONObject(raw) else JSONObject()
-            } catch (_: Exception) {
-                JSONObject()
-            }
+            val jo = ApiErrorMessages.parseResponseBody(raw, res.code)
             return Pair(res.code, jo)
         }
     }
@@ -300,7 +284,7 @@ class SignUpActivity : AppCompatActivity() {
         tvResend.isEnabled = false
         tvResend.alpha = 0.45f
         tvResendCountdown.visibility = View.VISIBLE
-        resendTimer = object : CountDownTimer(15_000L, 1_000L) {
+        resendTimer = object : CountDownTimer(8_000L, 1_000L) {
             override fun onTick(msUntilFinished: Long) {
                 val sec = ((msUntilFinished + 999) / 1000).toInt().coerceAtLeast(0)
                 tvResendCountdown.text = getString(R.string.resend_code_wait, sec)
@@ -346,15 +330,15 @@ class SignUpActivity : AppCompatActivity() {
         val password = etPassword.text?.toString()?.trim().orEmpty()
         when {
             email.isBlank() || password.isBlank() -> {
-                Toast.makeText(this, getString(R.string.sign_in_all_fields_required), Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, getString(R.string.sign_in_all_fields_required))
             }
             password.length < 6 -> {
-                Toast.makeText(this, getString(R.string.password_min_length), Toast.LENGTH_SHORT).show()
+                CuraxFeedback.warn(this, getString(R.string.password_min_length))
             }
             else -> {
                 val base = apiBase()
                 if (base.isEmpty()) {
-                    Toast.makeText(this, getString(R.string.set_api_url_for_codes), Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(this, getString(R.string.set_api_url_for_codes), long = true)
                     return
                 }
                 pendingEmail = email
@@ -377,13 +361,17 @@ class SignUpActivity : AppCompatActivity() {
                                 startResendCooldown()
                                 etOtp.post { focusOtpField() }
                             } else {
-                                Toast.makeText(this@SignUpActivity, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                                CuraxFeedback.warn(
+                                    this@SignUpActivity,
+                                    ApiErrorMessages.userMessage(this@SignUpActivity, code, jo),
+                                    long = true,
+                                )
                             }
                         }
                     } catch (_: Exception) {
                         runOnUiThread {
                             btnSignUp.isEnabled = true
-                            Toast.makeText(this@SignUpActivity, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                            CuraxFeedback.warn(this@SignUpActivity, getString(R.string.error_network_unreachable), long = true)
                         }
                     }
                 }.start()
@@ -395,7 +383,7 @@ class SignUpActivity : AppCompatActivity() {
         if (!tvResend.isEnabled) return
         val base = apiBase()
         if (base.isEmpty()) {
-            Toast.makeText(this, getString(R.string.set_api_url_for_codes), Toast.LENGTH_LONG).show()
+            CuraxFeedback.warn(this, getString(R.string.set_api_url_for_codes), long = true)
             return
         }
         tvResend.isEnabled = false
@@ -410,21 +398,20 @@ class SignUpActivity : AppCompatActivity() {
                     if (code == 200) {
                         startResendCooldown()
                         val emailOk = jo?.optBoolean("email_sent", true) != false
-                        val msg = if (emailOk) {
-                            getString(R.string.otp_resend_email_success)
+                        if (emailOk) {
+                            CuraxFeedback.success(this, getString(R.string.otp_resend_email_success))
                         } else {
-                            getString(R.string.otp_resend_email_saved_smtp_failed)
+                            CuraxFeedback.warn(this, getString(R.string.otp_resend_email_saved_smtp_failed), long = true)
                         }
-                        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                     } else {
-                        Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                        CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                         tvResend.isEnabled = true
                         tvResend.alpha = 1f
                     }
                 }
             } catch (_: Exception) {
                 runOnUiThread {
-                    Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
                     tvResend.isEnabled = true
                     tvResend.alpha = 1f
                 }
@@ -436,12 +423,12 @@ class SignUpActivity : AppCompatActivity() {
         if (step2ContinueOnly) return
         val otp = etOtp.text?.toString()?.trim().orEmpty()
         if (otp.length != 6) {
-            Toast.makeText(this, getString(R.string.otp_enter_all_digits), Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, getString(R.string.otp_enter_all_digits))
             return
         }
         val base = apiBase()
         if (base.isEmpty()) {
-            Toast.makeText(this, getString(R.string.set_api_url_for_codes), Toast.LENGTH_LONG).show()
+            CuraxFeedback.warn(this, getString(R.string.set_api_url_for_codes), long = true)
             return
         }
         hideKeyboard()
@@ -470,7 +457,7 @@ class SignUpActivity : AppCompatActivity() {
                         )
                         linkAdminLauncher.launch(Intent(this, SignUpLinkAdminActivity::class.java))
                     } else {
-                        Toast.makeText(this, messageFromResponse(jo), Toast.LENGTH_LONG).show()
+                        CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                     }
                     btnVerifyOtp.text = verifyLabel
                     btnVerifyOtp.isEnabled = etOtp.text?.length == 6
@@ -479,7 +466,7 @@ class SignUpActivity : AppCompatActivity() {
                 runOnUiThread {
                     btnVerifyOtp.text = verifyLabel
                     btnVerifyOtp.isEnabled = etOtp.text?.length == 6
-                    Toast.makeText(this, getString(R.string.request_failed), Toast.LENGTH_LONG).show()
+                    CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
                 }
             }
         }.start()

@@ -2,7 +2,6 @@ package com.curax.app
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -28,10 +27,10 @@ class PinSetupActivity : AppCompatActivity() {
 
             when {
                 pin.length != 4 || !pin.all { it.isDigit() } -> {
-                    Toast.makeText(this, "PIN must be 4 digits", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "PIN must be 4 digits")
                 }
                 pin != confirmPin -> {
-                    Toast.makeText(this, "PIN and confirm PIN must match", Toast.LENGTH_SHORT).show()
+                    CuraxFeedback.warn(this, "PIN and confirm PIN must match")
                 }
                 else -> {
                     store.savePin(pin)
@@ -58,7 +57,7 @@ class PinSetupActivity : AppCompatActivity() {
         val target = if (role == LocalUserStore.ROLE_ADMIN) {
             Intent(this, AdminDashboardActivity::class.java)
         } else {
-            Intent(this, MainActivity::class.java)
+            UserHomeIntent.forSignedInUser(this)
         }
         target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         startActivity(target)

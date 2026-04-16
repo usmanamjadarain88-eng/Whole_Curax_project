@@ -39,5 +39,20 @@
     <color name="med_box_stroke">#2CA77F</color>
     <color name="med_box_label">#D7F5EA</color>
     <color name="med_box_text">#FFFFFF</color>
+    <color name="med_box_standalone_bg">#C9A227</color>
+    <color name="med_box_standalone_stroke">#E8C85C</color>
+    <color name="med_box_standalone_text">#1E1606</color>
     <color name="inventory_row_selected_bg">#1A3D2D</color>
-    <color name="inventory_row_selected_stroke">#2CA77F</color></resources>
+    <color name="inventory_row_selected_stroke">#2CA77F</color>
+
+    <color name="sidebar_accent_admin">#C084FC</color>
+    <color name="sidebar_accent_alerts">#F87171</color>
+    <color name="sidebar_accent_realtime">#22D3EE</color>
+    <color name="sidebar_status_ok">#4ADE80</color>
+    <color name="sidebar_status_warn">#FACC15</color>
+    <color name="sidebar_status_err">#F87171</color>
+    <color name="sidebar_connect_connected">#EF4444</color>
+    <color name="sidebar_connect_disconnected">#3B82F6</color>
+    <color name="sidebar_connect_connecting">#FB923C</color>
+    <color name="sidebar_detail_bg">#0A1F17</color>
+</resources>

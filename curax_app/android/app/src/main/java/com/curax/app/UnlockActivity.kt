@@ -7,7 +7,6 @@ import android.provider.Settings
 import android.text.InputType
 import android.view.KeyEvent
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -70,7 +69,7 @@ class UnlockActivity : AppCompatActivity() {
         if (enteredPin == prefs.appPin && enteredPin.isNotEmpty()) {
             completeUnlock()
         } else {
-            Toast.makeText(this, getString(R.string.pin_incorrect), Toast.LENGTH_SHORT).show()
+            CuraxFeedback.warn(this, getString(R.string.pin_incorrect))
             etUnlockPin.setText("")
         }
     }
@@ -93,7 +92,7 @@ class UnlockActivity : AppCompatActivity() {
                         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                             super.onAuthenticationError(errorCode, errString)
                             if (errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-                                Toast.makeText(this@UnlockActivity, errString, Toast.LENGTH_SHORT).show()
+                                CuraxFeedback.warn(this@UnlockActivity, errString)
                             }
                         }
                     }
@@ -107,7 +106,7 @@ class UnlockActivity : AppCompatActivity() {
             }
 
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> openBiometricEnroll()
-            else -> Toast.makeText(this, getString(R.string.biometric_not_available), Toast.LENGTH_SHORT).show()
+            else -> CuraxFeedback.warn(this, getString(R.string.biometric_not_available))
         }
     }
 
@@ -135,7 +134,7 @@ class UnlockActivity : AppCompatActivity() {
         val homeIntent = if (store.role == LocalUserStore.ROLE_ADMIN) {
             Intent(this, AdminDashboardActivity::class.java)
         } else {
-            Intent(this, MainActivity::class.java)
+            UserHomeIntent.forSignedInUser(this)
         }.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
         val target = intent.getStringExtra(EXTRA_TARGET)
