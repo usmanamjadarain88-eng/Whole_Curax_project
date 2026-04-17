@@ -63,6 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_users_pending_cleanup ON users(created_at)
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(120) DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(120) DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_display_mode VARCHAR(32) DEFAULT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS health_hub_plans JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 -- Email-first signup (staging). Existing DBs: run migration_signup_sessions.sql
 CREATE TABLE IF NOT EXISTS signup_sessions (

@@ -141,9 +141,23 @@ class AdminOverviewFragment : Fragment() {
         refreshDashboard(view)
         refreshInventoryList(view)
         setupStandaloneHealthHubStatus(view)
+        setupStandaloneHealthHubPills(view)
         setupKpiClicks(view)
         // Socket-only sync: no periodic HTTP polling.
         startAdminPollingIfNeeded(view)
+    }
+
+    private fun setupStandaloneHealthHubPills(view: View) {
+        if (!isUserApp() || !StandaloneUi.isUserStandalone(requireContext())) return
+        view.findViewById<View>(R.id.health_hub_pill_planned)?.setOnClickListener {
+            startActivity(Intent(requireContext(), StandalonePlannedItemsActivity::class.java))
+        }
+        view.findViewById<View>(R.id.health_hub_pill_alerts)?.setOnClickListener {
+            startActivity(Intent(requireContext(), StandaloneHealthHubAlertsReportActivity::class.java))
+        }
+        view.findViewById<View>(R.id.health_hub_pill_sync)?.setOnClickListener {
+            startActivity(Intent(requireContext(), StandaloneHealthHubSyncHistoryActivity::class.java))
+        }
     }
 
     override fun onStart() {

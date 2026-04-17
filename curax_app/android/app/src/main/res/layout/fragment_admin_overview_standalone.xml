@@ -99,11 +99,15 @@
                     android:orientation="horizontal">
 
                 <LinearLayout
+                    android:id="@+id/health_hub_pill_planned"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="3dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_standalone_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackgroundBorderless"
                     android:gravity="center_vertical"
                     android:minHeight="58dp"
                     android:orientation="vertical"
@@ -128,11 +132,15 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/health_hub_pill_alerts"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="3dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_standalone_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackgroundBorderless"
                     android:gravity="center_vertical"
                     android:minHeight="58dp"
                     android:orientation="vertical"
@@ -157,11 +165,15 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/health_hub_pill_sync"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="3dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_standalone_pill"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackgroundBorderless"
                     android:gravity="center_vertical"
                     android:minHeight="58dp"
                     android:orientation="vertical"

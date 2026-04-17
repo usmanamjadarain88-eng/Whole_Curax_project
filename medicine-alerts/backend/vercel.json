@@ -107,6 +107,10 @@
       "destination": "/api/user_databus_room"
     },
     {
+      "source": "/user/plans",
+      "destination": "/api/user_plans"
+    },
+    {
       "source": "/admin/sync",
       "destination": "/api/admin_sync"
     },

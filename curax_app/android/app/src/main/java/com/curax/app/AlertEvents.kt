@@ -11,5 +11,7 @@ object AlertEvents {
     const val ACTION_USER_STANDALONE_DATA_FETCH_ENDED = "com.curax.app.ACTION_USER_STANDALONE_DATA_FETCH_ENDED"
     /** Server [user_display_mode] differed from local; home should relaunch to apply Default vs Standalone shell. */
     const val ACTION_USER_DISPLAY_MODE_FROM_SERVER = "com.curax.app.ACTION_USER_DISPLAY_MODE_FROM_SERVER"
+    /** User data-bus WebSocket opened/closed/failed; sidebar should refresh realtime / health lines. */
+    const val ACTION_USER_DATABUS_SOCKET_STATE = "com.curax.app.ACTION_USER_DATABUS_SOCKET_STATE"
     const val EXTRA_CONNECTED = "connected"
 }

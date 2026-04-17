@@ -34,6 +34,7 @@ SIMPLE = [
     ("user_data", {"GET": "user_data"}),
     ("user_display_mode", {"POST": "user_post_display_mode"}),
     ("user_databus_room", {"GET": "user_databus_room"}),
+    ("user_plans", {"GET": "user_plans_get", "POST": "user_plans_post"}),
     ("admin_sync", {"POST": "admin_sync"}),
     ("admin_notify", {"POST": "admin_notify"}),
     ("admin_delete", {"DELETE": "delete_admin"}),

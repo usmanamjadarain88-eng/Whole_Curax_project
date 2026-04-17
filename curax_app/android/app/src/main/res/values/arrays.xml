@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="plan_activity_types">
+        <item>Medication</item>
+        <item>Appointment</item>
+        <item>Exercise</item>
+        <item>Meal</item>
+        <item>Rest</item>
+        <item>Lab test</item>
+        <item>Other</item>
+    </string-array>
+</resources>

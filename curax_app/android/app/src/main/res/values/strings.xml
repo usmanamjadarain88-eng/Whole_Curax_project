@@ -252,6 +252,21 @@
     <string name="user_link_desktop_first_title">User has not linked desktop</string>
     <string name="user_link_desktop_first_message">Ask this user to link their desktop first.\n\nThey must:\n1. Open the desktop app\n2. Go to Settings → System → Link this desktop to you\n3. Choose \"Use existing admin\" and enter the desktop code you gave them\n\nSetup is complete only after they do this. Then you can manage their desktop here.</string>
     <string name="return_to_admin">Return to Admin</string>
+    <string name="health_hub_alerts_report_title">Alerts report</string>
+    <string name="health_hub_sync_history_title">Last sync history</string>
+    <string name="planned_items_title">Planned items</string>
+    <string name="health_hub_print">Print</string>
+    <string name="plan_field_title">Title</string>
+    <string name="plan_field_notes">Details</string>
+    <string name="plan_field_activity">Activity</string>
+    <string name="plan_pick_date">Date</string>
+    <string name="plan_pick_time">Time</string>
+    <string name="plan_save">Save plan</string>
+    <string name="plan_list_header">Your plans</string>
+    <string name="plan_saved">Plan saved</string>
+    <string name="plan_save_failed">Could not save plan</string>
+    <string name="sync_history_empty">No sync events yet. They appear after each successful data sync.</string>
+    <string name="plan_list_empty">No saved plans yet. Add one with the form above.</string>
 </resources>
 
 

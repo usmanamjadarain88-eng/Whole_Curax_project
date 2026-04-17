@@ -16,6 +16,9 @@ import android.provider.Settings
 import android.content.res.ColorStateList
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
@@ -142,8 +145,10 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var connectionBroadcastRegistered = false
     private val relayConnectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
-            if (intent?.action == AlertEvents.ACTION_CONNECTION_STATE_CHANGED) {
-                refreshUserSidebar()
+            when (intent?.action) {
+                AlertEvents.ACTION_CONNECTION_STATE_CHANGED,
+                AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE,
+                -> refreshUserSidebar()
             }
         }
     }
@@ -602,7 +607,10 @@ class UserStandaloneActivity : AppCompatActivity() {
             dataSyncReceiverRegistered = true
         }
         if (!connectionBroadcastRegistered) {
-            val cf = IntentFilter(AlertEvents.ACTION_CONNECTION_STATE_CHANGED)
+            val cf = IntentFilter().apply {
+                addAction(AlertEvents.ACTION_CONNECTION_STATE_CHANGED)
+                addAction(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(relayConnectionReceiver, cf, Context.RECEIVER_NOT_EXPORTED)
             } else {
@@ -782,20 +790,24 @@ class UserStandaloneActivity : AppCompatActivity() {
         refreshUserSidebar()
     }
 
-    private fun sidebarStatusColor(level: Int): Int = when (level) {
-        0 -> ContextCompat.getColor(this, R.color.sidebar_status_ok)
-        1 -> ContextCompat.getColor(this, R.color.sidebar_status_warn)
-        else -> ContextCompat.getColor(this, R.color.sidebar_status_err)
-    }
-
     private fun setSidebarLine(tv: TextView, level: Int, message: String) {
         val prefix = when (level) {
             0 -> "🟢 "
             1 -> "🟡 "
             else -> "🔴 "
         }
-        tv.text = "$prefix$message"
-        tv.setTextColor(sidebarStatusColor(level))
+        val full = prefix + message
+        val bodyColor = ContextCompat.getColor(this, R.color.text_primary)
+        val s = SpannableString(full)
+        if (full.length > prefix.length) {
+            s.setSpan(
+                ForegroundColorSpan(bodyColor),
+                prefix.length,
+                full.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+        tv.text = s
     }
 
     private fun notificationsChannelReady(): Boolean {
@@ -886,8 +898,18 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (fcmOk) {
             setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
         } else {
-            tvUserSidebarAlertsStatus.text = "⚪ ${getString(R.string.user_sidebar_alerts_inactive)}"
-            tvUserSidebarAlertsStatus.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+            val prefix = "⚪ "
+            val inactive = getString(R.string.user_sidebar_alerts_inactive)
+            val full = prefix + inactive
+            val bodyColor = ContextCompat.getColor(this, R.color.text_primary)
+            val s = SpannableString(full)
+            s.setSpan(
+                ForegroundColorSpan(bodyColor),
+                prefix.length,
+                full.length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+            tvUserSidebarAlertsStatus.text = s
         }
 
         val rtState = UserDataBusClient.getRealtimeConnectionState()

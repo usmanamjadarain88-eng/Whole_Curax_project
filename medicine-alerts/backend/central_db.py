@@ -1771,6 +1771,122 @@ class CentralDB:
         finally:
             cur.close()
 
+    def list_user_plans_by_bot(self, bot_id, api_key):
+        """List plans from users.health_hub_plans JSON array. None = unknown user, [] = empty or error."""
+        info = self.get_user_and_admin_bot_by_user_bot((bot_id or "").strip(), (api_key or "").strip())
+        if not info:
+            return None
+        uid = str(info["user_id"])
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT health_hub_plans FROM users WHERE id = %s::uuid LIMIT 1",
+                (uid,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return []
+            raw = row["health_hub_plans"] if hasattr(row, "keys") else row[0]
+            if raw is None:
+                return []
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode("utf-8", errors="replace")
+            if isinstance(raw, str):
+                arr = json.loads(raw) if raw.strip() else []
+            elif isinstance(raw, list):
+                arr = raw
+            else:
+                arr = json.loads(str(raw)) if str(raw).strip() else []
+            if not isinstance(arr, list):
+                return []
+            out = []
+            for item in arr:
+                if not isinstance(item, dict):
+                    continue
+                pt = item.get("plan_time") or ""
+                out.append({
+                    "id": str(item.get("id") or ""),
+                    "title": (item.get("title") or "").strip(),
+                    "notes": (item.get("notes") or "").strip(),
+                    "plan_date": (item.get("plan_date") or "").strip(),
+                    "plan_time": str(pt).strip()[:16],
+                    "activity_type": (item.get("activity_type") or "other").strip(),
+                    "created_at": (item.get("created_at") or "").strip(),
+                })
+            out.sort(key=lambda p: (p.get("plan_date") or "", p.get("created_at") or ""), reverse=True)
+            return out[:300]
+        except Exception as e:
+            print(f"CentralDB list_user_plans_by_bot: {e}")
+            return []
+        finally:
+            cur.close()
+
+    def create_user_plan_by_bot(self, bot_id, api_key, title, notes, plan_date, plan_time, activity_type):
+        """
+        Append one plan object to users.health_hub_plans (JSON array).
+        plan_date must be YYYY-MM-DD. plan_time optional (stored as string).
+        Returns (plan_id_str, None) or (None, error_message).
+        """
+        info = self.get_user_and_admin_bot_by_user_bot((bot_id or "").strip(), (api_key or "").strip())
+        if not info:
+            return None, "user_not_found"
+        uid = str(info["user_id"])
+        title = (title or "").strip()[:255]
+        notes_s = (notes or "").strip()
+        plan_date = (plan_date or "").strip()
+        if len(plan_date) != 10 or plan_date[4] != "-" or plan_date[7] != "-":
+            return None, "invalid_plan_date"
+        plan_time = (plan_time or "").strip()[:32]
+        act = (activity_type or "other").strip()[:80] or "other"
+        plan_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc).isoformat()
+        new_obj = {
+            "id": plan_id,
+            "title": title,
+            "notes": notes_s,
+            "plan_date": plan_date,
+            "plan_time": plan_time,
+            "activity_type": act,
+            "created_at": created_at,
+        }
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT health_hub_plans FROM users WHERE id = %s::uuid FOR UPDATE",
+                (uid,),
+            )
+            row = cur.fetchone()
+            if not row:
+                conn.rollback()
+                return None, "user_not_found"
+            raw = row["health_hub_plans"] if hasattr(row, "keys") else row[0]
+            if raw is None:
+                arr = []
+            elif isinstance(raw, str):
+                arr = json.loads(raw) if raw.strip() else []
+            elif isinstance(raw, list):
+                arr = list(raw)
+            else:
+                arr = json.loads(str(raw)) if str(raw).strip() else []
+            if not isinstance(arr, list):
+                arr = []
+            arr.insert(0, new_obj)
+            arr = arr[:400]
+            cur.execute(
+                "UPDATE users SET health_hub_plans = %s::jsonb, updated_at = NOW() WHERE id = %s::uuid",
+                (json.dumps(arr), uid),
+            )
+            conn.commit()
+            return plan_id, None
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB create_user_plan_by_bot: {e}")
+            return None, "db_error"
+        finally:
+            cur.close()
+
     def get_sync(self, bot_id, api_key):
         user_id = self.get_user_id_by_bot(bot_id, api_key)
         if not user_id:

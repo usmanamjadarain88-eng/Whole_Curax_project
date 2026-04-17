@@ -119,6 +119,24 @@
             android:theme="@style/Theme.Curax.UserToolbar" />
 
         <activity
+            android:name=".StandaloneHealthHubAlertsReportActivity"
+            android:exported="false"
+            android:parentActivityName=".UserStandaloneActivity"
+            android:theme="@style/Theme.Curax" />
+
+        <activity
+            android:name=".StandaloneHealthHubSyncHistoryActivity"
+            android:exported="false"
+            android:parentActivityName=".UserStandaloneActivity"
+            android:theme="@style/Theme.Curax" />
+
+        <activity
+            android:name=".StandalonePlannedItemsActivity"
+            android:exported="false"
+            android:parentActivityName=".UserStandaloneActivity"
+            android:theme="@style/Theme.Curax" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="false"
             android:configChanges="uiMode"

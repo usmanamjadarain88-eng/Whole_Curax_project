@@ -731,6 +731,50 @@ def user_post_display_mode(body, query, headers):
     return (200, {"ok": True, "user_display_mode": mode})
 
 
+def user_plans_get(body, query, headers):
+    """GET /user/plans?bot_id=&api_key= — list Health Hub planned items for this user."""
+    bot_id = (query.get("bot_id") or "").strip()
+    api_key = (query.get("api_key") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required"})
+    plans = db.list_user_plans_by_bot(bot_id, api_key)
+    if plans is None:
+        return (404, {"message": "User not found"})
+    return (200, {"plans": plans})
+
+
+def user_plans_post(body, query, headers):
+    """POST { bot_id, api_key, title, plan_date, notes?, plan_time?, activity_type? } — create a plan."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    title = (data.get("title") or "").strip()
+    notes = (data.get("notes") or "").strip()
+    plan_date = (data.get("plan_date") or "").strip()
+    plan_time = (data.get("plan_time") or "").strip()
+    activity_type = (data.get("activity_type") or "other").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required"})
+    if not title:
+        return (400, {"message": "title required"})
+    if not plan_date:
+        return (400, {"message": "plan_date required (YYYY-MM-DD)"})
+    pid, err = db.create_user_plan_by_bot(bot_id, api_key, title, notes, plan_date, plan_time, activity_type)
+    if err == "user_not_found":
+        return (404, {"message": "User not found"})
+    if err == "invalid_plan_date":
+        return (400, {"message": "plan_date must be YYYY-MM-DD"})
+    if pid is None:
+        return (500, {"message": "Failed to save plan", "detail": err or "unknown", "hint": "Run: ALTER TABLE users ADD COLUMN IF NOT EXISTS health_hub_plans JSONB NOT NULL DEFAULT '[]'::jsonb;"})
+    return (200, {"ok": True, "id": pid})
+
+
 def user_databus_room(body, query, headers):
     """GET ?bot_id=&api_key= ΓåÆ { databus_access_code } for WebSocket data bus (same room as admin/desktop)."""
     bot_id = (query.get("bot_id") or "").strip()

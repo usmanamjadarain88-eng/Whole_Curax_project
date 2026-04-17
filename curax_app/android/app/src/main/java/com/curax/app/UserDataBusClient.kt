@@ -108,6 +108,9 @@ object UserDataBusClient {
                 currentApiKey == key
             ) {
                 Log.d(TAG, "Data bus already connected; skip restart")
+                mainHandler.post {
+                    appContext?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                }
                 return
             }
         }
@@ -168,6 +171,9 @@ object UserDataBusClient {
                     // First open for a fresh install: pull one snapshot so cache can be seeded.
                     triggerFetch()
                 }
+                mainHandler.post {
+                    ctx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -186,6 +192,10 @@ object UserDataBusClient {
                 synchronized(this@UserDataBusClient) { socketConnected = false }
                 ws = null
                 scheduleReconnect()
+                val ctx = appContext
+                mainHandler.post {
+                    ctx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -193,8 +203,16 @@ object UserDataBusClient {
                 ws = null
                 Log.w(TAG, "Data bus WS failure: ${t.message}")
                 scheduleReconnect()
+                val ctx = appContext
+                mainHandler.post {
+                    ctx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                }
             }
         })
+        val ctxNotify = appContext
+        mainHandler.post {
+            ctxNotify?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+        }
     }
 
     private fun triggerFetch() {
@@ -321,7 +339,13 @@ object UserDataBusClient {
     private fun applyUserPayload(ctx: Context, data: JSONObject) {
         val prefs = Prefs(ctx)
         val serverTime = data.optString("server_time", "").trim()
-        if (serverTime.isNotEmpty()) prefs.lastSyncTime = serverTime
+        if (serverTime.isNotEmpty()) {
+            val before = prefs.lastSyncTime.trim()
+            prefs.lastSyncTime = serverTime
+            if (serverTime != before) {
+                HealthHubHistoryStore.appendSyncEvent(ctx.applicationContext, serverTime)
+            }
+        }
 
         val ufn = data.optString("user_first_name", "").trim()
         if (ufn.isNotEmpty()) prefs.userHubFirstName = ufn
