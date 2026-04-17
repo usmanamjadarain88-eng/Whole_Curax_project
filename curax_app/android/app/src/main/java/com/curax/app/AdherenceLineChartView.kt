@@ -63,7 +63,7 @@ class AdherenceLineChartView @JvmOverloads constructor(
 
     private val axisPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = ContextCompat.getColor(context, R.color.text_secondary)
-        textSize = 11f * resources.displayMetrics.density
+        textSize = 10f * resources.displayMetrics.density
     }
 
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -109,10 +109,10 @@ class AdherenceLineChartView @JvmOverloads constructor(
 
         val w = width.toFloat()
         val h = height.toFloat()
-        val padLeft = 40f
-        val padRight = 24f
-        val padTop = 20f
-        val padBottom = 36f
+        val padLeft = 34f
+        val padRight = 14f
+        val padTop = 10f
+        val padBottom = 26f
         val chartW = w - padLeft - padRight
         val chartH = h - padTop - padBottom
 
@@ -134,7 +134,7 @@ class AdherenceLineChartView @JvmOverloads constructor(
             canvas.drawText(
                 point.label,
                 x - axisPaint.measureText(point.label) / 2,
-                h - 10f,
+                h - 6f,
                 axisPaint
             )
         }
@@ -222,9 +222,10 @@ class AdherenceLineChartView @JvmOverloads constructor(
                 touchX = event.x
                 touchY = event.y
                 if (data.isEmpty()) return true
-                val chartW = width - 40f - 24f
+                val padLeft = 34f
+                val padRight = 14f
+                val chartW = width - padLeft - padRight
                 val stepX = if (data.size > 1) chartW / (data.size - 1) else chartW
-                val padLeft = 40f
                 val idx = ((event.x - padLeft + stepX / 2) / stepX).toInt().coerceIn(0, data.size - 1)
                 highlightedIndex = idx
                 invalidate()

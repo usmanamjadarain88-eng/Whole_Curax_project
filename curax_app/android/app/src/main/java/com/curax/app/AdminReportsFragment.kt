@@ -63,7 +63,14 @@ class AdminReportsFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(R.layout.fragment_admin_reports, container, false)
+    ): View {
+        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+            R.layout.fragment_admin_reports_standalone
+        } else {
+            R.layout.fragment_admin_reports
+        }
+        return inflater.inflate(layout, container, false)
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

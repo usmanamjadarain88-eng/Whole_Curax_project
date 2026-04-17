@@ -319,6 +319,8 @@ def signup_link_admin():
         "admin_name": r.get("admin_name"),
         "databus_access_code": r.get("databus_access_code"),
         "account_status": r.get("account_status", "ACTIVE"),
+        "user_first_name": r.get("user_first_name") or "",
+        "user_display_mode": r.get("user_display_mode") or "",
     })
 
 
@@ -747,6 +749,7 @@ def _normalize_user_data_response(data):
         m["expiry"] = expiry
     if data.get("medicine_box_ids") is not None:
         out["medicine_box_ids"] = data["medicine_box_ids"]
+    out["user_first_name"] = str(data.get("user_first_name") or "").strip()
     return out
 
 

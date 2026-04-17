@@ -12,12 +12,15 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -27,6 +30,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.curax.app.AdherenceLineChartView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.datepicker.MaterialDatePicker
@@ -62,6 +66,7 @@ class AdminOverviewFragment : Fragment() {
     private val allItems = mutableListOf<InventoryItem>()
     private var selectedItemId: Long? = null
     private lateinit var adapter: AdminInventoryAdapter
+    private var standaloneMedicineChipAdapter: StandaloneMedicineChipAdapter? = null
     private var adherenceChart: AdherenceLineChartView? = null
     private var weekOffset: Int = 0 // 0 = current 7 days, 1 = previous 7, etc.
     private var lastDonutTotal: Int = -1
@@ -72,6 +77,10 @@ class AdminOverviewFragment : Fragment() {
     private var adminPollRunnable: Runnable? = null
     private var adminPollInFlight: Boolean = false
     private val adminPollIntervalMs: Long = 5000L
+    private var healthHubPulseSet: AnimatorSet? = null
+    private val healthHubRippleSets = mutableListOf<AnimatorSet>()
+    private var healthHubIndicatorSyncing: Boolean = false
+
     private val dataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
@@ -90,6 +99,18 @@ class AdminOverviewFragment : Fragment() {
                         }
                     }
                 }
+                AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_STARTED -> {
+                    view?.post {
+                        val v = view ?: return@post
+                        setHealthHubSyncing(v, true)
+                    }
+                }
+                AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED -> {
+                    view?.post {
+                        val v = view ?: return@post
+                        setHealthHubSyncing(v, false)
+                    }
+                }
             }
         }
     }
@@ -98,7 +119,14 @@ class AdminOverviewFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(R.layout.fragment_admin_overview, container, false)
+    ): View {
+        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+            R.layout.fragment_admin_overview_standalone
+        } else {
+            R.layout.fragment_admin_overview
+        }
+        return inflater.inflate(layout, container, false)
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -107,11 +135,14 @@ class AdminOverviewFragment : Fragment() {
         // For admin mode, seed immediately (admin data is loaded separately).
         ensureInventorySeeded()
         setupInventory(view)
-        setupBoxClicks(view)
+        if (view.findViewById<View>(R.id.cardB1) != null) {
+            setupBoxClicks(view)
+        }
         applyStandaloneMedicineBoxGoldTheme(view)
         setupAdherenceChart(view)
         refreshDashboard(view)
         refreshInventoryList(view)
+        setupStandaloneHealthHubStatus(view)
         setupKpiClicks(view)
         // Socket-only sync: no periodic HTTP polling.
         startAdminPollingIfNeeded(view)
@@ -123,6 +154,8 @@ class AdminOverviewFragment : Fragment() {
             val filter = IntentFilter().apply {
                 addAction(AlertEvents.ACTION_ALERTS_UPDATED)
                 addAction(AlertEvents.ACTION_ADMIN_DATA_SYNCED)
+                addAction(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_STARTED)
+                addAction(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 requireContext().registerReceiver(dataSyncReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -198,6 +231,10 @@ class AdminOverviewFragment : Fragment() {
                     }
 
                     activity?.runOnUiThread {
+                        if (isUserApp()) {
+                            val ufn = data.optString("user_first_name", "").trim()
+                            if (ufn.isNotEmpty()) Prefs(requireContext()).userHubFirstName = ufn
+                        }
                         // Use AdminDataBusClient to apply all data (medicines, alerts, medical_reminders, alert_settings)
                         // This ensures medical reminders and settings are also loaded when dashboard is shown
                         AdminDataBusClient.applyAdminDataJson(requireContext(), data)
@@ -261,6 +298,10 @@ class AdminOverviewFragment : Fragment() {
                         val alertsArray = data.optJSONArray("alerts")
                         val apiAlerts = AdminDemoData.fromApiAlerts(alertsArray)
                         activity?.runOnUiThread {
+                            if (isUserApp()) {
+                                val ufn = data.optString("user_first_name", "").trim()
+                                if (ufn.isNotEmpty()) Prefs(requireContext()).userHubFirstName = ufn
+                            }
                             AdminDemoData.replaceMedicines(medicinesList)
                             AdminDemoData.replaceApiAlerts(apiAlerts)
                             val n = AdminDemoData.medicines.size
@@ -289,6 +330,7 @@ class AdminOverviewFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        cancelHealthHubStatusAnimations()
         if (alertsReceiverRegistered) {
             try {
                 requireContext().unregisterReceiver(dataSyncReceiver)
@@ -313,8 +355,8 @@ class AdminOverviewFragment : Fragment() {
         }
         adherenceChart?.data = points
         view?.let { v ->
-            val tvIndicator = v.findViewById<TextView>(R.id.tvChartPageIndicator)
-            val btnNext = v.findViewById<MaterialButton>(R.id.btnChartNext)
+            val tvIndicator = v.findViewById<TextView>(R.id.tvChartPageIndicator) ?: return@let
+            val btnNext = v.findViewById<MaterialButton>(R.id.btnChartNext) ?: return@let
             val (start, end) = getWeekRangeLabels()
             tvIndicator.text = "$start - $end"
             btnNext.isEnabled = weekOffset > 0
@@ -369,9 +411,13 @@ class AdminOverviewFragment : Fragment() {
 
     private fun setupInventory(view: View) {
         adapter = AdminInventoryAdapter(
+            useStandaloneCards = StandaloneUi.isUserStandalone(requireContext()),
             onItemClick = { item ->
                 selectedItemId = item.id
                 adapter.setSelectedId(selectedItemId)
+                if (isUserApp()) {
+                    showBoxDetailsDialog(item)
+                }
             },
             computedStatus = { computedStatus(it) }
         )
@@ -381,11 +427,11 @@ class AdminOverviewFragment : Fragment() {
             adapter = this@AdminOverviewFragment.adapter
         }
 
-        view.findViewById<MaterialButton>(R.id.btnAddMedicine).setOnClickListener {
+        view.findViewById<MaterialButton>(R.id.btnAddMedicine)?.setOnClickListener {
             showAddDialog(view)
         }
 
-        view.findViewById<MaterialButton>(R.id.btnEditMedicine).setOnClickListener {
+        view.findViewById<MaterialButton>(R.id.btnEditMedicine)?.setOnClickListener {
             val selected = allItems.find { it.id == selectedItemId }
             if (selected == null) {
                 CuraxFeedback.warn(this, "Select a medicine first")
@@ -394,7 +440,38 @@ class AdminOverviewFragment : Fragment() {
             }
         }
 
-        view.findViewById<MaterialButton>(R.id.btnRemoveMedicine).setOnClickListener {
+        view.findViewById<RecyclerView>(R.id.rvStandaloneMedicineChips)?.let { rv ->
+            standaloneMedicineChipAdapter = StandaloneMedicineChipAdapter(
+                computedStatus = { computedStatus(it) },
+                onItemClick = { item ->
+                    selectedItemId = item.id
+                    adapter.setSelectedId(selectedItemId)
+                    if (isUserApp()) showBoxDetailsDialog(item)
+                },
+                onPlaceholderClick = {
+                    CuraxFeedback.warn(
+                        this,
+                        getString(R.string.standalone_medicines_empty_slot_hint),
+                        long = false,
+                    )
+                },
+            )
+            val chipLm = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false).apply {
+                initialPrefetchItemCount = 6
+            }
+            rv.layoutManager = chipLm
+            rv.adapter = standaloneMedicineChipAdapter
+            rv.setHasFixedSize(true)
+            rv.isNestedScrollingEnabled = false
+            rv.itemAnimator = null
+            rv.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            attachHorizontalScrollHandoff(rv, immediateDisallowOnDown = true)
+        }
+
+        view.findViewById<HorizontalScrollView>(R.id.hsvStandaloneInventory)?.let { attachHorizontalScrollHandoff(it) }
+        view.findViewById<HorizontalScrollView>(R.id.hsvAdminInventoryTable)?.let { attachHorizontalScrollHandoff(it) }
+
+        view.findViewById<MaterialButton>(R.id.btnRemoveMedicine)?.setOnClickListener {
             val index = allItems.indexOfFirst { it.id == selectedItemId }
             if (index < 0) {
                 CuraxFeedback.warn(this, "Select a medicine first")
@@ -411,15 +488,68 @@ class AdminOverviewFragment : Fragment() {
         }
 
         if (isUserApp()) {
-            view.findViewById<MaterialButton>(R.id.btnAddMedicine).visibility = View.GONE
-            view.findViewById<MaterialButton>(R.id.btnEditMedicine).visibility = View.GONE
-            view.findViewById<MaterialButton>(R.id.btnRemoveMedicine).visibility = View.GONE
+            view.findViewById<MaterialButton>(R.id.btnAddMedicine)?.visibility = View.GONE
+            view.findViewById<MaterialButton>(R.id.btnEditMedicine)?.visibility = View.GONE
+            view.findViewById<MaterialButton>(R.id.btnRemoveMedicine)?.visibility = View.GONE
+        }
+    }
+
+    /**
+     * When the user drags mostly horizontally, ask ancestors not to intercept so nested
+     * [NestedScrollView] / [androidx.viewpager2.widget.ViewPager2] do not steal the gesture from medicine chips or the wide
+     * inventory table.
+     *
+     * @param immediateDisallowOnDown When true (medicine chip row), parent scroll views do not
+     *   capture the gesture first — horizontal scroll works like the inventory header strip.
+     */
+    private fun attachHorizontalScrollHandoff(view: View, immediateDisallowOnDown: Boolean = false) {
+        val start = FloatArray(2)
+        fun disallowAllParents(v: View, disallow: Boolean) {
+            var p: android.view.ViewParent? = v.parent
+            var depth = 0
+            while (p != null && depth < 24) {
+                p.requestDisallowInterceptTouchEvent(disallow)
+                p = p.parent
+                depth++
+            }
+        }
+        view.setOnTouchListener { v, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    start[0] = ev.x
+                    start[1] = ev.y
+                    if (immediateDisallowOnDown) {
+                        disallowAllParents(v, true)
+                    }
+                }
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    if (immediateDisallowOnDown) {
+                        disallowAllParents(v, true)
+                    }
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (immediateDisallowOnDown) {
+                        disallowAllParents(v, true)
+                    } else {
+                        val dx = kotlin.math.abs(ev.x - start[0])
+                        val dy = kotlin.math.abs(ev.y - start[1])
+                        if (dx > dy + 10f) {
+                            disallowAllParents(v, true)
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    disallowAllParents(v, false)
+                }
+            }
+            false
         }
     }
 
     /** Green boxes in Default mode; gold only when [AppModeManager] is Standalone (user app only). */
     private fun applyStandaloneMedicineBoxGoldTheme(view: View) {
         if (!isUserApp()) return
+        if (view.findViewById<MaterialCardView>(R.id.cardB1) == null) return
         if (!AppModeManager.isStandaloneMode(requireContext())) {
             restoreUserMedBoxColors(view)
             return
@@ -447,6 +577,7 @@ class AdminOverviewFragment : Fragment() {
 
     private fun restoreUserMedBoxColors(view: View) {
         if (!isUserApp()) return
+        if (view.findViewById<MaterialCardView>(R.id.cardB1) == null) return
         val ctx = requireContext()
         val bg = ContextCompat.getColor(ctx, R.color.med_box_bg)
         val stroke = ContextCompat.getColor(ctx, R.color.med_box_stroke)
@@ -494,7 +625,12 @@ class AdminOverviewFragment : Fragment() {
         view.findViewById<View>(cardId).setOnClickListener {
             val item = allItems.find { it.box.equals(box, true) }
             if (item == null) {
-                CuraxFeedback.warn(this, "$box is empty")
+                val msg = if (isUserApp()) {
+                    getString(R.string.standalone_medicines_empty_slot_hint)
+                } else {
+                    "$box is empty"
+                }
+                CuraxFeedback.warn(this, msg)
             } else {
                 showBoxDetailsDialog(item)
             }
@@ -502,21 +638,22 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun showBoxDetailsDialog(item: InventoryItem) {
+        val ctx = requireContext()
         val status = computedStatus(item)
-        val detail = """
-            Name: ${item.name}
-            Quantity: ${item.stock}
-            Dose/day: ${item.dosePerDay}
-            Time: ${item.exactTime}
-            Status: $status
-            Expiry: ${item.expiry}
-            Box: ${item.box}
-        """.trimIndent()
-
-        AlertDialog.Builder(requireContext())
-            .setTitle("${item.box} Details")
+        val boxLabel = item.box.ifBlank { "—" }
+        val detail = buildString {
+            appendLine(ctx.getString(R.string.medicine_detail_name, item.name))
+            appendLine(ctx.getString(R.string.medicine_detail_box, boxLabel))
+            appendLine(ctx.getString(R.string.medicine_detail_stock, item.stock))
+            appendLine(ctx.getString(R.string.medicine_detail_dose, item.dosePerDay))
+            appendLine(ctx.getString(R.string.medicine_detail_time, item.exactTime.ifBlank { "—" }))
+            appendLine(ctx.getString(R.string.medicine_detail_status, status))
+            append(ctx.getString(R.string.medicine_detail_expiry, item.expiry.ifBlank { "—" }))
+        }
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(ctx.getString(R.string.medicine_detail_dialog_title, boxLabel))
             .setMessage(detail)
-            .setPositiveButton("Close", null)
+            .setPositiveButton(android.R.string.ok, null)
             .show()
     }
 
@@ -802,16 +939,48 @@ class AdminOverviewFragment : Fragment() {
         }
 
         val avail = availableBoxes()
-        view.findViewById<TextView>(R.id.tvInventoryHint).text = if (avail.isEmpty()) {
-            "6/6 boxes filled. Tap row to Edit or Clear Box"
-        } else {
-            "${working.size}/6 filled. Empty: ${avail.joinToString(", ")}" 
+        view.findViewById<TextView>(R.id.tvInventoryHint)?.apply {
+            if (StandaloneUi.isUserStandalone(requireContext())) {
+                visibility = View.GONE
+                text = ""
+            } else {
+                visibility = View.VISIBLE
+                text = if (avail.isEmpty()) {
+                    "6/6 boxes filled. Tap row to Edit or Clear Box"
+                } else {
+                    "${working.size}/6 filled. Empty: ${avail.joinToString(", ")}"
+                }
+            }
         }
 
         if (isUserApp()) {
-            view.findViewById<MaterialButton>(R.id.btnAddMedicine).visibility = View.GONE
+            view.findViewById<MaterialButton>(R.id.btnAddMedicine)?.visibility = View.GONE
         } else {
-            view.findViewById<MaterialButton>(R.id.btnAddMedicine).visibility = if (avail.isEmpty()) View.GONE else View.VISIBLE
+            view.findViewById<MaterialButton>(R.id.btnAddMedicine)?.visibility = if (avail.isEmpty()) View.GONE else View.VISIBLE
+        }
+
+        if (standaloneMedicineChipAdapter != null && StandaloneUi.isUserStandalone(requireContext())) {
+            val chipList = working.toMutableList()
+            var pad = 0
+            while (chipList.size < 3) {
+                chipList.add(
+                    InventoryItem(
+                        id = StandaloneMedicineChipAdapter.PLACEHOLDER_CHIP_MAX_ID - 1 - pad,
+                        name = "",
+                        stock = 0,
+                        dosePerDay = 0,
+                        exactTime = "",
+                        expiry = "",
+                        status = "Normal",
+                        box = "",
+                        addedAt = 0L,
+                    ),
+                )
+                pad++
+            }
+            standaloneMedicineChipAdapter!!.submit(chipList)
+        } else {
+            standaloneMedicineChipAdapter?.submit(working)
         }
     }
 
@@ -821,33 +990,265 @@ class AdminOverviewFragment : Fragment() {
         return all.filter { it !in used }
     }
 
+    private fun applyStandaloneHealthHubTitle(view: View) {
+        val tv = view.findViewById<TextView>(R.id.tv_standalone_health_hub_title) ?: return
+        val first = Prefs(requireContext()).userHubFirstName.trim()
+        tv.text = if (first.isNotEmpty()) {
+            getString(R.string.standalone_health_hub_title_format, first)
+        } else {
+            getString(R.string.standalone_health_hub_fallback_title)
+        }
+    }
+
+    private fun cancelHealthHubStatusAnimations() {
+        healthHubPulseSet?.cancel()
+        healthHubPulseSet = null
+        healthHubRippleSets.forEach { it.cancel() }
+        healthHubRippleSets.clear()
+    }
+
+    private fun setupStandaloneHealthHubStatus(view: View) {
+        if (!isUserApp()) return
+        if (view.findViewById<View>(R.id.view_health_hub_pulse_dot) == null) return
+        applyStandaloneHealthHubTitle(view)
+        if (!healthHubIndicatorSyncing) {
+            startHealthHubPulseAnimation(view)
+        }
+    }
+
+    private fun setHealthHubSyncing(view: View, syncing: Boolean) {
+        if (view.findViewById<View>(R.id.view_health_hub_pulse_dot) == null) return
+        healthHubIndicatorSyncing = syncing
+        cancelHealthHubStatusAnimations()
+        if (syncing) {
+            startHealthHubRippleAnimation(view)
+        } else {
+            startHealthHubPulseAnimation(view)
+        }
+    }
+
+    private fun startHealthHubPulseAnimation(view: View) {
+        val dot = view.findViewById<View>(R.id.view_health_hub_pulse_dot) ?: return
+        val ra = view.findViewById<View>(R.id.view_health_hub_ripple_a) ?: return
+        val rb = view.findViewById<View>(R.id.view_health_hub_ripple_b) ?: return
+        ra.alpha = 0f
+        rb.alpha = 0f
+        ra.scaleX = 0.4f
+        ra.scaleY = 0.4f
+        rb.scaleX = 0.4f
+        rb.scaleY = 0.4f
+        dot.scaleX = 1f
+        dot.scaleY = 1f
+        dot.alpha = 1f
+        val ease = AccelerateDecelerateInterpolator()
+        val dur = 1350L
+        val sx = ObjectAnimator.ofFloat(dot, View.SCALE_X, 1f, 1.35f, 1f).apply {
+            duration = dur
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = ease
+        }
+        val sy = ObjectAnimator.ofFloat(dot, View.SCALE_Y, 1f, 1.35f, 1f).apply {
+            duration = dur
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = ease
+        }
+        val al = ObjectAnimator.ofFloat(dot, View.ALPHA, 1f, 0.45f, 1f).apply {
+            duration = dur
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = ease
+        }
+        healthHubPulseSet = AnimatorSet().apply {
+            playTogether(sx, sy, al)
+            start()
+        }
+    }
+
+    private fun startHealthHubRippleAnimation(view: View) {
+        val dot = view.findViewById<View>(R.id.view_health_hub_pulse_dot) ?: return
+        val ra = view.findViewById<View>(R.id.view_health_hub_ripple_a) ?: return
+        val rb = view.findViewById<View>(R.id.view_health_hub_ripple_b) ?: return
+        dot.scaleX = 1f
+        dot.scaleY = 1f
+        dot.alpha = 1f
+        fun startRing(v: View, startDelay: Long) {
+            v.alpha = 0.5f
+            v.scaleX = 0.5f
+            v.scaleY = 0.5f
+            val ease = AccelerateDecelerateInterpolator()
+            val dur = 950L
+            val sx = ObjectAnimator.ofFloat(v, View.SCALE_X, 0.5f, 2f).apply {
+                duration = dur
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = ease
+                this.startDelay = startDelay
+            }
+            val sy = ObjectAnimator.ofFloat(v, View.SCALE_Y, 0.5f, 2f).apply {
+                duration = dur
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = ease
+                this.startDelay = startDelay
+            }
+            val al = ObjectAnimator.ofFloat(v, View.ALPHA, 0.5f, 0f).apply {
+                duration = dur
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = ease
+                this.startDelay = startDelay
+            }
+            val set = AnimatorSet().apply {
+                playTogether(sx, sy, al)
+                start()
+            }
+            healthHubRippleSets.add(set)
+        }
+        startRing(ra, 0L)
+        startRing(rb, 475L)
+    }
+
     private fun refreshDashboard(view: View) {
+        applyStandaloneHealthHubTitle(view)
         ensureInventorySeeded()
         val total = allItems.size
         val boxesWithMedicine = allItems.count { it.stock > 0 }
         val threshold = AdminDemoData.getLowStockThreshold()
         val low = allItems.count { it.stock in 1..threshold }
-        val emptyBoxes = 6 - allItems.size
+        val emptyBoxes = (6 - allItems.size).coerceAtLeast(0)
         val zeroStockItems = allItems.count { it.stock == 0 }
-        val refill = emptyBoxes + zeroStockItems
+        val refill = if (StandaloneUi.isUserStandalone(requireContext())) {
+            zeroStockItems
+        } else {
+            emptyBoxes + zeroStockItems
+        }
         val exp = allItems.count { isExpiringSoon(it.expiry) }
         val normal = allItems.count { computedStatus(it) == "Normal" }
 
-        bindMedicineBoxes(view)
+        if (view.findViewById<TextView>(R.id.tvBoxB1Name) != null) {
+            bindMedicineBoxes(view)
+        }
 
-        animateDonutSection(view, boxesWithMedicine)
+        val legacyDonut = view.findViewById<View>(R.id.frameDonut)
+        if (legacyDonut != null) {
+            animateDonutSection(view, boxesWithMedicine)
+        } else {
+            view.findViewById<TextView>(R.id.tvDonutTotal)?.text = total.toString()
+            lastDonutTotal = total
+        }
 
-        view.findViewById<TextView>(R.id.tvDistNormal).text = "Normal: $normal"
-        view.findViewById<TextView>(R.id.tvDistLow).text = "Low: $low"
-        view.findViewById<TextView>(R.id.tvDistExpiring).text = "Expiring: $exp"
+        val legacyStockLabels = legacyDonut != null
+        if (legacyStockLabels) {
+            view.findViewById<TextView>(R.id.tvDistNormal).text = "Normal: $normal"
+            view.findViewById<TextView>(R.id.tvDistLow).text = "Low: $low"
+            view.findViewById<TextView>(R.id.tvDistExpiring).text = "Expiring: $exp"
+        } else {
+            view.findViewById<TextView>(R.id.tvDistNormal)?.text = normal.toString()
+            view.findViewById<TextView>(R.id.tvDistLow)?.text = low.toString()
+            view.findViewById<TextView>(R.id.tvDistExpiring)?.text = exp.toString()
+        }
 
-        view.findViewById<TextView>(R.id.tvKpiTotal).text = total.toString()
-        view.findViewById<TextView>(R.id.tvKpiLow).text = low.toString()
-        view.findViewById<TextView>(R.id.tvKpiExpiring).text = exp.toString()
-        view.findViewById<TextView>(R.id.tvKpiRefill).text = refill.toString()
+        view.findViewById<View>(R.id.ll_stock_bar_segments)?.let {
+            layoutStandaloneStockBar(view, normal, low, exp)
+            view.findViewById<TextView>(R.id.tv_stock_snapshot_caption)?.text = when {
+                total == 0 -> getString(R.string.stock_snapshot_caption_empty)
+                else -> getString(R.string.stock_snapshot_caption_split, total)
+            }
+        }
+
+        view.findViewById<TextView>(R.id.tvKpiTotal)?.text = total.toString()
+        view.findViewById<TextView>(R.id.tvKpiLow)?.text = low.toString()
+        view.findViewById<TextView>(R.id.tvKpiExpiring)?.text = exp.toString()
+        view.findViewById<TextView>(R.id.tvKpiRefill)?.text = refill.toString()
+
+        view.findViewById<TextView>(R.id.tv_standalone_summary_total)?.text = total.toString()
+        view.findViewById<TextView>(R.id.tv_standalone_summary_alerts)?.text = runCatching {
+            AlertDb(requireContext()).getAllAlerts().size.toString()
+        }.getOrDefault("0")
+        view.findViewById<TextView>(R.id.tv_standalone_summary_sync)?.text =
+            formatStandaloneSyncLabel(Prefs(requireContext()).lastSyncTime)
 
         updateTrendFromInventory(view)
         if (isUserApp()) applyStandaloneMedicineBoxGoldTheme(view)
+    }
+
+    /** Short label for Health hub "Last sync" so it fits the pill without harsh clipping. */
+    private fun formatStandaloneSyncLabel(raw: String): String {
+        val t = raw.trim()
+        if (t.isEmpty()) return "—"
+        return try {
+            val normalized = t.replace(' ', 'T').substringBefore('Z').substringBefore('+')
+            val dot = normalized.indexOf('.')
+            val base = if (dot >= 0) normalized.substring(0, dot) else normalized.take(19)
+            val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
+                timeZone = TimeZone.getDefault()
+            }
+            val d = parser.parse(base) ?: return if (t.length > 24) t.take(23) + "…" else t
+            val out = SimpleDateFormat("MMM d · HH:mm", Locale.getDefault()).apply {
+                timeZone = TimeZone.getDefault()
+            }
+            out.format(d)
+        } catch (_: Exception) {
+            if (t.length > 24) t.take(23) + "…" else t
+        }
+    }
+
+    /** Standalone stock snapshot: proportional bar (Normal / Low / Expiring). */
+    private fun layoutStandaloneStockBar(view: View, normal: Int, low: Int, expiring: Int) {
+        val container = view.findViewById<LinearLayout>(R.id.ll_stock_bar_segments) ?: return
+        val vN = view.findViewById<View>(R.id.view_stock_bar_normal) ?: return
+        val vL = view.findViewById<View>(R.id.view_stock_bar_low) ?: return
+        val vE = view.findViewById<View>(R.id.view_stock_bar_exp) ?: return
+        val ctx = requireContext()
+        val neutral = ContextCompat.getDrawable(ctx, R.drawable.bg_stock_seg_neutral)
+        val dn = ContextCompat.getDrawable(ctx, R.drawable.bg_stock_seg_normal)
+        val dl = ContextCompat.getDrawable(ctx, R.drawable.bg_stock_seg_low)
+        val de = ContextCompat.getDrawable(ctx, R.drawable.bg_stock_seg_exp)
+        val gapPx = (4 * ctx.resources.displayMetrics.density).toInt()
+
+        fun lpSeg(weight: Float, marginEndPx: Int) = LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            weight,
+        ).apply {
+            marginEnd = marginEndPx
+        }
+
+        val sum = normal + low + expiring
+        if (sum == 0) {
+            listOf(vN, vL, vE).forEach {
+                it.visibility = View.VISIBLE
+                it.background = neutral
+                it.alpha = 0.35f
+            }
+            vN.layoutParams = lpSeg(1f, gapPx)
+            vL.layoutParams = lpSeg(1f, gapPx)
+            vE.layoutParams = lpSeg(1f, 0)
+            container.weightSum = 3f
+        } else {
+            listOf(vN, vL, vE).forEach { it.alpha = 1f }
+            vN.background = dn
+            vL.background = dl
+            vE.background = de
+            container.weightSum = sum.toFloat()
+            if (normal > 0) {
+                vN.visibility = View.VISIBLE
+                val endAfterN = low > 0 || expiring > 0
+                vN.layoutParams = lpSeg(normal.toFloat(), if (endAfterN) gapPx else 0)
+            } else {
+                vN.visibility = View.GONE
+            }
+            if (low > 0) {
+                vL.visibility = View.VISIBLE
+                val endAfterL = expiring > 0
+                vL.layoutParams = lpSeg(low.toFloat(), if (endAfterL) gapPx else 0)
+            } else {
+                vL.visibility = View.GONE
+            }
+            if (expiring > 0) {
+                vE.visibility = View.VISIBLE
+                vE.layoutParams = lpSeg(expiring.toFloat(), 0)
+            } else {
+                vE.visibility = View.GONE
+            }
+        }
+        container.requestLayout()
     }
 
     private fun animateDonutSection(view: View, total: Int) {
@@ -992,10 +1393,10 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun setupAdherenceChart(view: View) {
-        adherenceChart = view.findViewById(R.id.adherenceChart)
-        val btnPrev = view.findViewById<MaterialButton>(R.id.btnChartPrev)
-        val btnNext = view.findViewById<MaterialButton>(R.id.btnChartNext)
-        val tvIndicator = view.findViewById<TextView>(R.id.tvChartPageIndicator)
+        adherenceChart = view.findViewById(R.id.adherenceChart) ?: return
+        val btnPrev = view.findViewById<MaterialButton>(R.id.btnChartPrev) ?: return
+        val btnNext = view.findViewById<MaterialButton>(R.id.btnChartNext) ?: return
+        val tvIndicator = view.findViewById<TextView>(R.id.tvChartPageIndicator) ?: return
 
         fun refreshChartAndIndicator() {
             val points = computeAdherenceData()
@@ -1102,8 +1503,8 @@ class AdminOverviewFragment : Fragment() {
     private fun updateTrendFromInventory(view: View) {
         val points = computeAdherenceData()
         adherenceChart?.data = points
-        val tvIndicator = view.findViewById<TextView>(R.id.tvChartPageIndicator)
-        val btnNext = view.findViewById<MaterialButton>(R.id.btnChartNext)
+        val tvIndicator = view.findViewById<TextView>(R.id.tvChartPageIndicator) ?: return
+        val btnNext = view.findViewById<MaterialButton>(R.id.btnChartNext) ?: return
         val (start, end) = getWeekRangeLabels()
         tvIndicator.text = "$start - $end"
         btnNext.isEnabled = weekOffset > 0
@@ -1145,14 +1546,29 @@ class AdminOverviewFragment : Fragment() {
         }
 
         view.findViewById<View>(R.id.cardKpiRefill)?.setOnClickListener {
-            val zeroStock = allItems.filter { it.stock == 0 }.sortedBy { it.box }.map { formatMedicineLine(it) }
-            val used = allItems.map { it.box.uppercase() }.toSet()
-            val emptyBoxes = listOf("B1", "B2", "B3", "B4", "B5", "B6").filter { it !in used }
-                .map { "Box: $it | Empty | Refill needed" }
+            val zeroStockLines = allItems.filter { it.stock == 0 }.sortedBy { it.box }.map { formatMedicineLine(it) }
+            val lines = if (StandaloneUi.isUserStandalone(requireContext())) {
+                zeroStockLines
+            } else {
+                val used = allItems.map { it.box.uppercase() }.toSet()
+                val emptyBoxes = listOf("B1", "B2", "B3", "B4", "B5", "B6").filter { it !in used }
+                    .map { "Box: $it | Empty | Refill needed" }
+                zeroStockLines + emptyBoxes
+            }
+            val subtitle = if (StandaloneUi.isUserStandalone(requireContext())) {
+                "Medicines on your list with stock at zero (not tied to six slots)"
+            } else {
+                "Zero-stock medicines and empty B1–B6 slots"
+            }
             showKpiDetailsDialog(
                 title = "Refill Required",
-                subtitle = "Zero-stock and empty boxes",
-                lines = zeroStock + emptyBoxes
+                subtitle = subtitle,
+                lines = lines,
+                emptyMessage = if (StandaloneUi.isUserStandalone(requireContext())) {
+                    "Refill is zero — no medicines on your list have stock at zero."
+                } else {
+                    "No refills needed: no empty boxes and no zero-stock medicines."
+                },
             )
         }
     }
@@ -1161,7 +1577,12 @@ class AdminOverviewFragment : Fragment() {
         return "${item.name} | Box: ${item.box} | Stock: ${item.stock} | Dose/day: ${item.dosePerDay} | Time: ${item.exactTime} | Expiry: ${item.expiry}"
     }
 
-    private fun showKpiDetailsDialog(title: String, subtitle: String, lines: List<String>) {
+    private fun showKpiDetailsDialog(
+        title: String,
+        subtitle: String,
+        lines: List<String>,
+        emptyMessage: String = "No matching medicines",
+    ) {
         val root = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(12f), dpToPx(8f), dpToPx(12f), dpToPx(4f))
@@ -1182,7 +1603,7 @@ class AdminOverviewFragment : Fragment() {
 
             if (lines.isEmpty()) {
                 val empty = TextView(requireContext()).apply {
-                    text = "No matching medicines"
+                    text = emptyMessage
                     textSize = 13f
                     setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
                 }
@@ -1220,6 +1641,7 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun bindMedicineBoxes(view: View) {
+        if (view.findViewById<TextView>(R.id.tvBoxB1Name) == null) return
         val byBox = allItems.associateBy { it.box.uppercase() }
 
         fun setBox(nameId: Int, qtyId: Int, box: String) {

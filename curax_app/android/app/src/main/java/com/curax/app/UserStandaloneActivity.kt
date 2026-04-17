@@ -5,17 +5,20 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.Context
 import android.content.ServiceConnection
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.provider.Settings
+import android.graphics.Color
 import android.view.View
-import android.content.res.ColorStateList
+import android.view.ViewGroup
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import java.net.URLEncoder
+import java.util.ArrayDeque
 import java.util.concurrent.TimeUnit
 import android.widget.TextView
 import okhttp3.OkHttpClient
@@ -25,14 +28,22 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.PopupWindow
+import android.graphics.drawable.ColorDrawable
+import android.widget.CompoundButton
+import android.widget.RadioGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.MenuItemCompat
 import android.widget.LinearLayout
 import androidx.drawerlayout.widget.DrawerLayout
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
@@ -41,6 +52,17 @@ import android.content.res.Configuration
 
 class UserStandaloneActivity : AppCompatActivity() {
 
+    companion object {
+        private const val STATE_VIEW_PAGER_TAB = "user_standalone_vp_tab"
+        /** Cold start of this activity after mode toggle (avoids fragment restore from [recreate]). */
+        private const val EXTRA_RELAUNCH_TAB = "user_standalone_relaunch_tab"
+        /** Toolbar action order: lower = further left (Test → theme → mode → overflow). */
+        private const val MENU_ORDER_DEV = 1
+        private const val MENU_ORDER_THEME = 2
+        private const val MENU_ORDER_MODE = 3
+        private const val MENU_ORDER_SETTINGS = 100
+    }
+
     private lateinit var prefs: Prefs
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var tabLayout: TabLayout
@@ -48,6 +70,15 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var tabMediator: TabLayoutMediator? = null
     private var overviewFragmentRef: AdminOverviewFragment? = null
     private lateinit var btnConnect: MaterialButton
+    private var sidebarConnectShowsConnecting = false
+    private val devModeSwitchListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
+        AppModeManager.setStandaloneMode(this, isChecked)
+        UserDisplayModeApi.postDisplayModeAsync(this, isChecked)
+        relaunchAfterDisplayModeChange()
+    }
+
+    private fun isDebuggableBuild(): Boolean =
+        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     private lateinit var tvUserSidebarAdminStatus: TextView
     private lateinit var tvUserSidebarHealthStatus: TextView
     private lateinit var tvUserSidebarAlertsStatus: TextView
@@ -67,6 +98,17 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var databusResolveInFlight = false
     @Volatile
     private var bootstrapFetchRequested = false
+    private var mandatoryModeSheetLaunched = false
+    private var firstAppModeBottomSheet: BottomSheetDialog? = null
+    private var appModeLabelPopup: PopupWindow? = null
+    private var displayModeReceiverRegistered = false
+    private val displayModeFromServerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AlertEvents.ACTION_USER_DISPLAY_MODE_FROM_SERVER && !isFinishing) {
+                relaunchAfterDisplayModeChange()
+            }
+        }
+    }
     private var dataSyncReceiverRegistered = false
     private val dataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
@@ -108,6 +150,9 @@ class UserStandaloneActivity : AppCompatActivity() {
             finish()
             return
         }
+        if (savedInstanceState == null) {
+            prefs.userHomeColdStartCount = prefs.userHomeColdStartCount + 1
+        }
         // Bootstrap from the last saved standalone snapshot so the screen has data immediately on open.
         val restored = UserDataBusClient.restoreCachedUserData(this)
 
@@ -136,12 +181,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                     true
                 }
                 R.id.action_app_mode -> {
-                    toolbar.post {
-                        UserModePopup.show(
-                            this@UserStandaloneActivity,
-                            UserModePopup.anchorForModeIcon(toolbar),
-                        )
-                    }
+                    toolbar.post { showCurrentAppModeInfo() }
                     true
                 }
                 else -> false
@@ -163,7 +203,17 @@ class UserStandaloneActivity : AppCompatActivity() {
         tabLayout = findViewById(R.id.userStandaloneTabs)
         viewPager = findViewById(R.id.userStandalonePager)
         loadingOverlay = findViewById(R.id.loadingOverlay)
-        setupTabs()
+        val extraTab = intent.getIntExtra(EXTRA_RELAUNCH_TAB, -1)
+        if (extraTab >= 0) {
+            intent.removeExtra(EXTRA_RELAUNCH_TAB)
+        }
+        val restoreTab = if (extraTab >= 0) {
+            extraTab.coerceIn(0, 5)
+        } else {
+            savedInstanceState?.getInt(STATE_VIEW_PAGER_TAB)?.coerceIn(0, 5) ?: 0
+        }
+        setupTabs(restoreTab)
+        refreshUserShellChrome()
 
         btnConnect = findViewById(R.id.btnStandaloneConnect)
         tvUserSidebarAdminStatus = findViewById(R.id.tvUserSidebarAdminStatus)
@@ -216,10 +266,25 @@ class UserStandaloneActivity : AppCompatActivity() {
 
         updateConnectionUi(false)
         showLoading(!restored)
+
+        window.decorView.post {
+            showMandatoryFirstAppModeSheetIfNeeded()
+            if (prefs.userInitialAppModeSheetCompleted) {
+                maybeOfferPinSecurityDialog()
+            }
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (::viewPager.isInitialized) {
+            outState.putInt(STATE_VIEW_PAGER_TAB, viewPager.currentItem)
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        refreshUserShellChrome()
         refreshUserSidebar()
     }
 
@@ -235,7 +300,26 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.user_home_menu, menu)
+        menu.clear()
+        val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar)
+        if (isDebuggableBuild()) {
+            val devSwitchLayout = layoutInflater.inflate(R.layout.toolbar_dev_mode_switch, toolbar, false)
+            devSwitchLayout.findViewById<SwitchCompat>(R.id.switchDevStandalone).apply {
+                isChecked = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
+                setOnCheckedChangeListener(devModeSwitchListener)
+            }
+            menu.add(Menu.NONE, R.id.action_dev_test_mode, MENU_ORDER_DEV, "")
+                .setActionView(devSwitchLayout)
+                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        }
+        menu.add(Menu.NONE, R.id.action_toggle_theme, MENU_ORDER_THEME, getString(R.string.dark_mode))
+            .setIcon(R.drawable.ic_theme_moon_toolbar)
+            .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        menu.add(Menu.NONE, R.id.action_app_mode, MENU_ORDER_MODE, "")
+            .setIcon(R.drawable.ic_app_mode_toolbar)
+            .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+        menu.add(Menu.NONE, R.id.action_settings, MENU_ORDER_SETTINGS, getString(R.string.settings_screen_title))
+            .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
         return true
     }
 
@@ -246,14 +330,17 @@ class UserStandaloneActivity : AppCompatActivity() {
         themeItem?.setIcon(if (isDark) R.drawable.ic_theme_sun_toolbar else R.drawable.ic_theme_moon_toolbar)
         themeItem?.title = if (isDark) getString(R.string.light_mode) else getString(R.string.dark_mode)
         menu.findItem(R.id.action_app_mode)?.apply {
-            val standalone = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
-            val label = if (standalone) {
-                getString(R.string.user_mode_standalone)
-            } else {
-                getString(R.string.user_mode_default)
-            }
-            title = label
-            MenuItemCompat.setTooltipText(this, "${getString(R.string.user_mode_section)} · $label")
+            title = ""
+            MenuItemCompat.setTooltipText(this, getString(R.string.user_mode_section))
+        }
+        if (isDebuggableBuild()) {
+            menu.findItem(R.id.action_dev_test_mode)?.actionView
+                ?.findViewById<SwitchCompat>(R.id.switchDevStandalone)
+                ?.let { sw ->
+                    sw.setOnCheckedChangeListener(null)
+                    sw.isChecked = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
+                    sw.setOnCheckedChangeListener(devModeSwitchListener)
+                }
         }
         findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar).overflowIcon?.setTint(android.graphics.Color.WHITE)
         return result
@@ -264,7 +351,85 @@ class UserStandaloneActivity : AppCompatActivity() {
         return mask == Configuration.UI_MODE_NIGHT_YES
     }
 
-    private fun setupTabs() {
+    private fun shellDp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    /** Standalone vs default: shell gradient, tab strip, and pager surface. */
+    private fun refreshUserShellChrome() {
+        val main = findViewById<LinearLayout>(R.id.userStandaloneMainColumn)
+        val tabCard = findViewById<MaterialCardView>(R.id.userStandaloneTabStripCard)
+        val pagerCard = findViewById<MaterialCardView>(R.id.userStandalonePagerCard)
+        if (StandaloneUi.isUserStandalone(this)) {
+            main.setBackgroundResource(R.drawable.bg_standalone_app_shell)
+            tabCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.standalone_tab_strip_bg))
+            pagerCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.standalone_tab_strip_bg))
+            tabLayout.setBackgroundColor(Color.TRANSPARENT)
+            tabLayout.setSelectedTabIndicatorColor(ContextCompat.getColor(this, R.color.standalone_tab_indicator))
+            tabLayout.setTabTextColors(
+                ContextCompat.getColor(this, R.color.standalone_tab_text_normal),
+                ContextCompat.getColor(this, R.color.standalone_tab_text_selected),
+            )
+            (tabCard.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = shellDp(8)
+                marginEnd = shellDp(8)
+                topMargin = shellDp(10)
+            }
+            (pagerCard.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = shellDp(8)
+                marginEnd = shellDp(8)
+                topMargin = shellDp(8)
+                bottomMargin = shellDp(10)
+            }
+        } else {
+            main.setBackgroundResource(R.drawable.bg_admin_dashboard_surface)
+            tabCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.summary_card))
+            pagerCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.summary_card))
+            tabLayout.setBackgroundColor(Color.TRANSPARENT)
+            tabLayout.setSelectedTabIndicatorColor(ContextCompat.getColor(this, R.color.button_primary_bg))
+            tabLayout.setTabTextColors(
+                ContextCompat.getColor(this, R.color.text_secondary),
+                ContextCompat.getColor(this, R.color.connection_panel_title),
+            )
+            (tabCard.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = shellDp(14)
+                marginEnd = shellDp(14)
+                topMargin = shellDp(12)
+            }
+            (pagerCard.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = shellDp(14)
+                marginEnd = shellDp(14)
+                topMargin = shellDp(10)
+                bottomMargin = shellDp(12)
+            }
+        }
+        tabCard.requestLayout()
+        pagerCard.requestLayout()
+        syncSidebarConnectButtonStyleWithRelayState()
+    }
+
+    /** Sidebar Connect: Default mode = medicine-box green; Standalone = same gradient as Health hub hero. */
+    private fun setSidebarConnectBackgroundDrawable(connected: Boolean, connecting: Boolean) {
+        val resId = when {
+            connected -> R.drawable.bg_sidebar_connect_connected
+            connecting && !StandaloneUi.isUserStandalone(this) -> R.drawable.bg_sidebar_connect_connecting_default
+            connecting -> R.drawable.bg_sidebar_connect_standalone
+            StandaloneUi.isUserStandalone(this) -> R.drawable.bg_sidebar_connect_standalone
+            else -> R.drawable.bg_sidebar_connect_default
+        }
+        btnConnect.background = ContextCompat.getDrawable(this, resId)
+        btnConnect.backgroundTintList = null
+    }
+
+    private fun syncSidebarConnectButtonStyleWithRelayState() {
+        if (!::btnConnect.isInitialized) return
+        val connected = connectionService?.isConnected() == true
+        if (sidebarConnectShowsConnecting) {
+            setSidebarConnectBackgroundDrawable(connected = false, connecting = true)
+        } else {
+            setSidebarConnectBackgroundDrawable(connected = connected, connecting = false)
+        }
+    }
+
+    private fun setupTabs(restoreTab: Int = 0) {
         tabMediator?.detach()
         viewPager.adapter = object : androidx.viewpager2.adapter.FragmentStateAdapter(this) {
             override fun getItemCount(): Int = 6
@@ -289,7 +454,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                 else -> getString(R.string.tab_system_view)
             }
         }.apply { attach() }
-        viewPager.setCurrentItem(0, false)
+        viewPager.setCurrentItem(restoreTab.coerceIn(0, 5), false)
     }
 
     /**
@@ -369,6 +534,15 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
             connectionBroadcastRegistered = true
         }
+        if (!displayModeReceiverRegistered) {
+            val df = IntentFilter(AlertEvents.ACTION_USER_DISPLAY_MODE_FROM_SERVER)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(displayModeFromServerReceiver, df, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(displayModeFromServerReceiver, df)
+            }
+            displayModeReceiverRegistered = true
+        }
         ensureUserDataBusConnected()
         UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
         bootstrapStandaloneDataOnce()
@@ -388,10 +562,20 @@ class UserStandaloneActivity : AppCompatActivity() {
             try { unregisterReceiver(relayConnectionReceiver) } catch (_: Exception) {}
             connectionBroadcastRegistered = false
         }
+        if (displayModeReceiverRegistered) {
+            try { unregisterReceiver(displayModeFromServerReceiver) } catch (_: Exception) {}
+            displayModeReceiverRegistered = false
+        }
         super.onStop()
     }
 
     override fun onDestroy() {
+        try {
+            firstAppModeBottomSheet?.dismiss()
+        } catch (_: Exception) {
+        }
+        firstAppModeBottomSheet = null
+        dismissAppModeLabelPopup()
         tabMediator?.detach()
         overviewFragmentRef = null
         try {
@@ -479,25 +663,20 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     private fun updateConnectionUi(connected: Boolean) {
+        sidebarConnectShowsConnecting = false
         btnConnect.text = if (connected) {
             getString(R.string.disconnect)
         } else {
             getString(R.string.user_sidebar_connect_for_alerts)
         }
-        val tint = if (connected) {
-            ContextCompat.getColor(this, R.color.sidebar_connect_connected)
-        } else {
-            ContextCompat.getColor(this, R.color.sidebar_connect_disconnected)
-        }
-        btnConnect.backgroundTintList = ColorStateList.valueOf(tint)
+        setSidebarConnectBackgroundDrawable(connected = connected, connecting = false)
         refreshUserSidebar()
     }
 
     private fun applyConnectionButtonConnectingUi() {
+        sidebarConnectShowsConnecting = true
         btnConnect.text = getString(R.string.connecting)
-        btnConnect.backgroundTintList = ColorStateList.valueOf(
-            ContextCompat.getColor(this, R.color.sidebar_connect_connecting),
-        )
+        setSidebarConnectBackgroundDrawable(connected = false, connecting = true)
         refreshUserSidebar()
     }
 
@@ -507,10 +686,9 @@ class UserStandaloneActivity : AppCompatActivity() {
         } catch (_: Exception) { }
         connectionService = null
         ConnectionManager.requestDisconnectRelay(this)
+        sidebarConnectShowsConnecting = false
         btnConnect.text = getString(R.string.user_sidebar_connect_for_alerts)
-        btnConnect.backgroundTintList = ColorStateList.valueOf(
-            ContextCompat.getColor(this, R.color.sidebar_connect_disconnected),
-        )
+        setSidebarConnectBackgroundDrawable(connected = false, connecting = false)
         refreshUserSidebar()
     }
 
@@ -687,8 +865,157 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    private fun showMandatoryFirstAppModeSheetIfNeeded() {
+        if (prefs.userInitialAppModeSheetCompleted || mandatoryModeSheetLaunched) return
+        mandatoryModeSheetLaunched = true
+        val sheetView = layoutInflater.inflate(R.layout.bottom_sheet_first_app_mode, null)
+        val rg = sheetView.findViewById<RadioGroup>(R.id.rgFirstAppMode)
+        val btnContinue = sheetView.findViewById<MaterialButton>(R.id.btnFirstModeContinue)
+        val sheet = BottomSheetDialog(this)
+        firstAppModeBottomSheet = sheet
+        sheet.setContentView(sheetView)
+        sheet.behavior.isDraggable = false
+        sheet.setCancelable(false)
+        sheet.setCanceledOnTouchOutside(false)
+        sheet.setOnDismissListener {
+            firstAppModeBottomSheet = null
+            if (!prefs.userInitialAppModeSheetCompleted) {
+                mandatoryModeSheetLaunched = false
+            }
+        }
+        rg.setOnCheckedChangeListener { _, _ ->
+            btnContinue.isEnabled = rg.checkedRadioButtonId != View.NO_ID
+        }
+        btnContinue.setOnClickListener {
+            val checked = rg.checkedRadioButtonId
+            if (checked == View.NO_ID) return@setOnClickListener
+            val standalone = checked == R.id.rbFirstModeStandalone
+            AppModeManager.setStandaloneMode(this, standalone)
+            prefs.userInitialAppModeSheetCompleted = true
+            UserDisplayModeApi.postDisplayModeAsync(this, standalone)
+            sheet.dismiss()
+            window.decorView.post {
+                notifyUserAppModePreferenceChanged()
+                maybeOfferPinSecurityDialog()
+            }
+        }
+        sheet.show()
+    }
+
+    private fun maybeOfferPinSecurityDialog() {
+        if (prefs.appPin.isNotEmpty()) return
+        if (prefs.pinDeferredAutoPromptShown) return
+        if (prefs.userHomeColdStartCount < 2) return
+        val dlg = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.pin_deferred_dialog_title)
+            .setMessage(R.string.pin_deferred_dialog_message)
+            .setNegativeButton(R.string.pin_deferred_skip, null)
+            .setPositiveButton(R.string.pin_deferred_set) { _, _ ->
+                startActivity(
+                    Intent(this, PinSetupActivity::class.java).putExtra(
+                        PinSetupActivity.EXTRA_NEXT_ROLE,
+                        LocalUserStore.ROLE_USER,
+                    ),
+                )
+            }
+            .create()
+        dlg.setOnDismissListener { prefs.pinDeferredAutoPromptShown = true }
+        dlg.show()
+    }
+
+    private fun dismissAppModeLabelPopup() {
+        try {
+            appModeLabelPopup?.dismiss()
+        } catch (_: Exception) {
+        }
+        appModeLabelPopup = null
+    }
+
+    /** Breadth-first: menu action views live under [toolbar] with [android.view.View.id] == itemId. */
+    private fun findToolbarMenuAnchor(toolbar: View, itemId: Int): View? {
+        val queue = ArrayDeque<ViewGroup>()
+        (toolbar as? ViewGroup)?.let { queue.add(it) }
+        while (queue.isNotEmpty()) {
+            val g = queue.removeFirst()
+            for (i in 0 until g.childCount) {
+                val c = g.getChildAt(i)
+                if (c.id == itemId) return c
+                if (c is ViewGroup) queue.add(c)
+            }
+        }
+        return null
+    }
+
+    private fun showCurrentAppModeInfo() {
+        val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar)
+        if (appModeLabelPopup?.isShowing == true) {
+            dismissAppModeLabelPopup()
+            return
+        }
+        dismissAppModeLabelPopup()
+        val anchor = findToolbarMenuAnchor(toolbar, R.id.action_app_mode)
+        if (anchor == null) {
+            toolbar.post {
+                findToolbarMenuAnchor(toolbar, R.id.action_app_mode)?.let { showCurrentAppModeInfoInternal(it) }
+            }
+            return
+        }
+        showCurrentAppModeInfoInternal(anchor)
+    }
+
+    private fun showCurrentAppModeInfoInternal(anchor: View) {
+        val label = if (AppModeManager.isStandaloneMode(this)) {
+            getString(R.string.user_mode_standalone)
+        } else {
+            getString(R.string.user_mode_default)
+        }
+        val content = layoutInflater.inflate(R.layout.popup_toolbar_mode_label, null, false) as TextView
+        content.text = label
+        val density = resources.displayMetrics.density
+        val gap = (6 * density).toInt()
+        val popup = PopupWindow(
+            content,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            true,
+        )
+        popup.isOutsideTouchable = true
+        popup.isFocusable = true
+        popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            popup.elevation = 10f * density
+        }
+        popup.setOnDismissListener { appModeLabelPopup = null }
+        appModeLabelPopup = popup
+        content.measure(
+            android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+            android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED),
+        )
+        val pw = content.measuredWidth
+        val xOff = ((anchor.width - pw) / 2f).toInt()
+        popup.showAsDropDown(anchor, xOff, gap)
+    }
+
+    /**
+     * After Default ↔ Standalone save: [recreate] restores ViewPager fragments (wrong layouts until
+     * tab switch). [super.onCreate(null)] to skip that restore has caused process crashes on some
+     * devices. Starting a fresh instance + [finish] gives a clean fragment tree with no restore.
+     */
+    fun relaunchAfterDisplayModeChange() {
+        val tab = if (::viewPager.isInitialized) viewPager.currentItem else 0
+        AppLockState.grantUnlock(60_000L)
+        AppLockState.clearBackgroundTimestamp()
+        prefs.lastBackgroundAtMs = 0L
+        val i = Intent(this, UserStandaloneActivity::class.java)
+        i.putExtra(EXTRA_RELAUNCH_TAB, tab.coerceIn(0, 5))
+        startActivity(i)
+        overridePendingTransition(0, 0)
+        finish()
+    }
+
     /** Toolbar label + medicine box colors after mode popup saves [AppModeManager]. */
     fun notifyUserAppModePreferenceChanged() {
+        refreshUserShellChrome()
         invalidateOptionsMenu()
         val targets = linkedSetOf<AdminOverviewFragment>()
         overviewFragmentRef?.let { targets.add(it) }

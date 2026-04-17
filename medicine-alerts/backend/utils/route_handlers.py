@@ -262,6 +262,8 @@ def signup_link_admin(body, query, headers):
         "admin_name": r.get("admin_name"),
         "databus_access_code": r.get("databus_access_code"),
         "account_status": r.get("account_status", "ACTIVE"),
+        "user_first_name": r.get("user_first_name") or "",
+        "user_display_mode": r.get("user_display_mode") or "",
     })
 def user_account_status(body, query, headers):
     """GET ?bot_id=&api_key= -> { account_status } for lifecycle gating on the client."""
@@ -648,6 +650,8 @@ def _normalize_user_data_response(data):
         "medical_reminders": data.get("medical_reminders") if data.get("medical_reminders") is not None else {"appointments": [], "prescriptions": [], "lab_tests": [], "custom": []},
         "server_time": data.get("server_time") or "",
         "incremental": bool(data.get("incremental")),
+        "user_display_mode": str(data.get("user_display_mode") or "").strip().lower(),
+        "user_first_name": str(data.get("user_first_name") or "").strip(),
     }
     settings_obj = out["alert_settings"] if isinstance(out["alert_settings"], dict) else {}
     medicine_meta = settings_obj.get("medicine_meta") if isinstance(settings_obj.get("medicine_meta"), dict) else {}
@@ -703,6 +707,30 @@ def user_data(body, query, headers):
     if data is None:
         return (500, {"message": "Failed to load user data"})
     return (200, _normalize_user_data_response(data))
+
+
+def user_post_display_mode(body, query, headers):
+    """POST { bot_id, api_key, display_mode: standalone|default } — user app first-time / sync (admin can overwrite in DB)."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    mode = (data.get("display_mode") or data.get("user_display_mode") or "").strip().lower()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required"})
+    if mode not in ("standalone", "default"):
+        return (400, {"message": "display_mode must be standalone or default"})
+    info = db.get_user_and_admin_bot_by_user_bot(bot_id, api_key)
+    if not info:
+        return (404, {"message": "User not found"})
+    ok = db.set_user_display_mode_by_bot(bot_id, api_key, mode)
+    if not ok:
+        return (500, {"message": "Failed to save display mode"})
+    return (200, {"ok": True, "user_display_mode": mode})
+
+
 def user_databus_room(body, query, headers):
     """GET ?bot_id=&api_key= ΓåÆ { databus_access_code } for WebSocket data bus (same room as admin/desktop)."""
     bot_id = (query.get("bot_id") or "").strip()

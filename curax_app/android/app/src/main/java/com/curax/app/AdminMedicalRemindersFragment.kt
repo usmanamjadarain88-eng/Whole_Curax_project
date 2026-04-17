@@ -67,7 +67,14 @@ class AdminMedicalRemindersFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(R.layout.fragment_admin_medical_reminders, container, false)
+    ): View {
+        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+            R.layout.fragment_admin_medical_reminders_standalone
+        } else {
+            R.layout.fragment_admin_medical_reminders
+        }
+        return inflater.inflate(layout, container, false)
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)

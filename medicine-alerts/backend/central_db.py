@@ -1973,7 +1973,168 @@ class CentralDB:
         if incremental:
             all_meds = self.list_medicines(user_id)
             out["medicine_box_ids"] = [m.get("box_id") for m in all_meds if m.get("box_id")]
+        try:
+            dm = self.get_user_display_mode_for_user_id(user_id)
+            out["user_display_mode"] = dm or ""
+        except Exception:
+            out["user_display_mode"] = ""
+        try:
+            greet = self.get_user_first_name_for_user_id(user_id)
+            if greet:
+                out["user_first_name"] = greet
+        except Exception:
+            pass
         return out
+
+    def get_user_first_name_for_user_id(self, user_id):
+        """users.first_name (preferred), else first token of username or name — title-cased for UI."""
+        uid = str(user_id or "").strip()
+        if not uid:
+            return ""
+        self._ensure_users_first_last_name_columns()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            try:
+                cur.execute(
+                    "SELECT TRIM(COALESCE(first_name, '')), TRIM(COALESCE(username, '')), TRIM(COALESCE(name, '')) FROM users WHERE id = %s::uuid LIMIT 1",
+                    (uid,),
+                )
+            except Exception:
+                cur.execute(
+                    "SELECT TRIM(COALESCE(username, '')), TRIM(COALESCE(name, '')) FROM users WHERE id = %s::uuid LIMIT 1",
+                    (uid,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return ""
+                uname = (row[0] or "").strip() if row else ""
+                name = (row[1] or "").strip() if row and len(row) > 1 else ""
+                raw = uname if uname else name
+                return self._first_name_greeting_token(raw)
+            row = cur.fetchone()
+            if not row:
+                return ""
+            stored_fn = (row[0] or "").strip() if row else ""
+            uname = (row[1] or "").strip() if row and len(row) > 1 else ""
+            name = (row[2] or "").strip() if row and len(row) > 2 else ""
+            raw = stored_fn if stored_fn else (uname if uname else name)
+            return self._first_name_greeting_token(raw)
+        except Exception as e:
+            print(f"CentralDB get_user_first_name_for_user_id: {e}")
+            return ""
+        finally:
+            cur.close()
+
+    @staticmethod
+    def _first_name_greeting_token(raw):
+        s = (raw or "").strip()
+        if not s:
+            return ""
+        token = s.split()[0].strip()
+        if not token:
+            return ""
+        return token[:1].upper() + token[1:].lower() if len(token) > 1 else token.upper()
+
+    def _ensure_users_first_last_name_columns(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(120) DEFAULT NULL")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(120) DEFAULT NULL")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close()
+
+    def set_user_first_last_name(self, user_id, first_name="", last_name=""):
+        """Persist signup first/last on users (username unchanged). At least one non-empty value required; else no-op."""
+        uid = str(user_id or "").strip()
+        if not uid:
+            return False
+        try:
+            uuid.UUID(uid)
+        except (ValueError, TypeError):
+            return False
+        fn = (first_name or "").strip()[:120] or None
+        ln = (last_name or "").strip()[:120] or None
+        if fn is None and ln is None:
+            return True
+        self._ensure_users_first_last_name_columns()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE users SET first_name = %s, last_name = %s, updated_at = NOW() WHERE id = %s::uuid",
+                (fn, ln, uid),
+            )
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB set_user_first_last_name: {e}")
+            return False
+        finally:
+            cur.close()
+
+    def _ensure_users_display_mode_column(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS user_display_mode VARCHAR(32) DEFAULT NULL")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close()
+
+    def get_user_display_mode_for_user_id(self, user_id):
+        if not user_id:
+            return ""
+        self._ensure_users_display_mode_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT user_display_mode FROM users WHERE id = %s::uuid LIMIT 1", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return ""
+            if hasattr(row, "keys"):
+                v = row["user_display_mode"]
+            else:
+                v = row[0]
+            return str(v or "").strip().lower()
+        except Exception as e:
+            print(f"CentralDB get_user_display_mode_for_user_id: {e}")
+            return ""
+        finally:
+            cur.close()
+
+    def set_user_display_mode_by_bot(self, bot_id, api_key, mode):
+        m = (mode or "").strip().lower()
+        if m not in ("standalone", "default"):
+            return False
+        bid = (bot_id or "").strip()
+        key = (api_key or "").strip()
+        if not bid or not key:
+            return False
+        self._ensure_users_display_mode_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE users SET user_display_mode = %s, updated_at = NOW() WHERE bot_id = %s AND api_key = %s",
+                (m, bid, key),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB set_user_display_mode_by_bot: {e}")
+            return False
+        finally:
+            cur.close()
 
     def get_admin_by_id(self, admin_id):
         """Return one admin {id, name, bot_id, api_key} for the given admin_id, or None. Used for event-based alert checks."""
@@ -2500,6 +2661,10 @@ class CentralDB:
         if not user_id:
             return {"ok": False, "error": "link_failed"}
 
+        # Only persist structured names for this flow when signup collected them (new signups). Old rows stay unchanged.
+        if session_fn or session_ln:
+            self.set_user_first_last_name(user_id, session_fn, session_ln)
+
         self._touch_user_password_and_active(user_id, password_hash_session=pw_row)
 
         cur = conn.cursor()
@@ -2513,6 +2678,16 @@ class CentralDB:
             cur.close()
 
         databus_access_code = (admin.get("admin_access_code") or "").strip()
+        greet = ""
+        display_mode = ""
+        try:
+            greet = self.get_user_first_name_for_user_id(user_id) or ""
+        except Exception:
+            pass
+        try:
+            display_mode = self.get_user_display_mode_for_user_id(user_id) or ""
+        except Exception:
+            pass
         return {
             "ok": True,
             "message": "ok",
@@ -2521,6 +2696,8 @@ class CentralDB:
             "admin_name": admin_name,
             "databus_access_code": databus_access_code,
             "account_status": "ACTIVE",
+            "user_first_name": greet,
+            "user_display_mode": display_mode,
         }
 
     def _touch_user_password_and_active(self, user_id, password_hash_session=None):

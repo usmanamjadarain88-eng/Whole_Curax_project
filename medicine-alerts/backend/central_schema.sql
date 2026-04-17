@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS users (
     admin_id UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
     name VARCHAR(255),
     username VARCHAR(200) DEFAULT NULL,
+    first_name VARCHAR(120) DEFAULT NULL,
+    last_name VARCHAR(120) DEFAULT NULL,
+    user_display_mode VARCHAR(32) DEFAULT NULL,
     email VARCHAR(255),
     bot_id VARCHAR(255) NOT NULL,
     api_key VARCHAR(255) NOT NULL,
@@ -55,6 +58,11 @@ CREATE INDEX IF NOT EXISTS idx_users_admin_email ON users(admin_id, email);
 CREATE INDEX IF NOT EXISTS idx_users_account_status_created ON users(account_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_users_pending_cleanup ON users(created_at)
     WHERE account_status IN ('PENDING_EMAIL', 'PENDING_ADMIN', 'PENDING');
+
+-- Existing installs created before first_name/last_name/user_display_mode: add columns (no-op if already present).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(120) DEFAULT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(120) DEFAULT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS user_display_mode VARCHAR(32) DEFAULT NULL;
 
 -- Email-first signup (staging). Existing DBs: run migration_signup_sessions.sql
 CREATE TABLE IF NOT EXISTS signup_sessions (

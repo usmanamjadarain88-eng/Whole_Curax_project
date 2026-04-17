@@ -101,6 +101,7 @@
                             android:paddingTop="8dp"
                             android:paddingBottom="8dp"
                             android:textColor="@color/text_primary"
+                            android:textColorHighlight="@color/sign_in_text_highlight"
                             android:textColorHint="@color/text_secondary"
                             android:textSize="13sp" />
                     </com.google.android.material.textfield.TextInputLayout>
@@ -144,6 +145,7 @@
                             android:paddingTop="8dp"
                             android:paddingBottom="8dp"
                             android:textColor="@color/text_primary"
+                            android:textColorHighlight="@color/sign_in_text_highlight"
                             android:textColorHint="@color/text_secondary"
                             android:textSize="13sp" />
                     </com.google.android.material.textfield.TextInputLayout>

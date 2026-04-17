@@ -123,6 +123,37 @@ class Prefs(context: Context) {
             prefs.edit().putBoolean(KEY_USER_STANDALONE_MODE, value).commit()
         }
 
+    /**
+     * False only after signup link-admin until the mandatory first-home mode bottom sheet completes.
+     * Default true so existing installs are not forced through the sheet.
+     */
+    var userInitialAppModeSheetCompleted: Boolean
+        get() = prefs.getBoolean(KEY_USER_INITIAL_MODE_SHEET, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_USER_INITIAL_MODE_SHEET, value).commit()
+        }
+
+    /** Counts [UserStandaloneActivity] cold starts (savedInstanceState == null) for deferred PIN prompt timing. */
+    var userHomeColdStartCount: Int
+        get() = prefs.getInt(KEY_USER_HOME_COLD_START_COUNT, 0)
+        set(value) {
+            prefs.edit().putInt(KEY_USER_HOME_COLD_START_COUNT, value).apply()
+        }
+
+    /** True after the automatic "Secure your app with PIN?" dialog was shown once from home. */
+    var pinDeferredAutoPromptShown: Boolean
+        get() = prefs.getBoolean(KEY_PIN_DEFERRED_AUTO_PROMPT_SHOWN, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_PIN_DEFERRED_AUTO_PROMPT_SHOWN, value).commit()
+        }
+
+    /** User dismissed the optional PIN reminder banner on the Settings screen. */
+    var pinSettingsBannerDismissed: Boolean
+        get() = prefs.getBoolean(KEY_PIN_SETTINGS_BANNER_DISMISSED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_PIN_SETTINGS_BANNER_DISMISSED, value).apply()
+        }
+
     /** True once standalone has a cached/bootstrap snapshot to display. */
     var userStandaloneDataReady: Boolean
         get() = prefs.getBoolean(KEY_USER_STANDALONE_DATA_READY, false)
@@ -135,6 +166,11 @@ class Prefs(context: Context) {
     var cachedUserDataSnapshotJson: String
         get() = prefs.getString(KEY_CACHED_USER_DATA_JSON, "") ?: ""
         set(value) = prefs.edit().putString(KEY_CACHED_USER_DATA_JSON, value.trim()).apply()
+
+    /** Title greeting for standalone Health hub (first name from signup / server). */
+    var userHubFirstName: String
+        get() = prefs.getString(KEY_USER_HUB_FIRST_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_USER_HUB_FIRST_NAME, value.trim()).apply()
 
     companion object {
         private const val DEFAULT_SERVER_URL = "https://curax-relay.onrender.com"
@@ -160,8 +196,13 @@ class Prefs(context: Context) {
         private const val KEY_ACT_AS_USER_ID = "act_as_user_id"
         private const val KEY_ACT_AS_USER_NAME = "act_as_user_name"
         private const val KEY_USER_STANDALONE_MODE = "user_standalone_mode"
+        private const val KEY_USER_INITIAL_MODE_SHEET = "user_initial_app_mode_sheet_completed"
+        private const val KEY_USER_HOME_COLD_START_COUNT = "user_home_cold_start_count"
+        private const val KEY_PIN_DEFERRED_AUTO_PROMPT_SHOWN = "pin_deferred_auto_prompt_shown"
+        private const val KEY_PIN_SETTINGS_BANNER_DISMISSED = "pin_settings_banner_dismissed"
         private const val KEY_USER_STANDALONE_DATA_READY = "user_standalone_data_ready"
         private const val KEY_CACHED_USER_DATA_JSON = "cached_user_data_snapshot_json"
+        private const val KEY_USER_HUB_FIRST_NAME = "user_hub_first_name"
         private const val KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS = "has_requested_connect_wake_permissions"
         const val KEY_FCM_TOKEN = "fcm_token"
     }

@@ -99,6 +99,10 @@
       "destination": "/api/user_data"
     },
     {
+      "source": "/user/display-mode",
+      "destination": "/api/user_display_mode"
+    },
+    {
       "source": "/user/databus-room",
       "destination": "/api/user_databus_room"
     },

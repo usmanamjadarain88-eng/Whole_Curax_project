@@ -4,7 +4,8 @@ import android.content.Context
 
 /**
  * **Display mode** only: Default vs Standalone (medicine box theme, toolbar label).
- * This is stored in [Prefs.userStandaloneMode] — not the same as **user vs admin role** ([AppRole]).
+ * Stored in [Prefs.userStandaloneMode]; server may override when user data sync includes display mode.
+ * Not the same as **user vs admin role** ([AppRole]).
  */
 object AppModeManager {
 

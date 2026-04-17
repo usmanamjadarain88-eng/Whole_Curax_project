@@ -205,6 +205,11 @@ object UserDataBusClient {
             }
             fetchInFlight = true
         }
+        appContext?.let { ctx ->
+            mainHandler.post {
+                ctx.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_STARTED))
+            }
+        }
         Thread {
             try {
                 val url = "$currentApiBase/user/data?bot_id=${java.net.URLEncoder.encode(currentBotId, "UTF-8")}&api_key=${java.net.URLEncoder.encode(currentApiKey, "UTF-8")}"
@@ -229,6 +234,11 @@ object UserDataBusClient {
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to fetch user data", e)
             } finally {
+                appContext?.let { ctx ->
+                    mainHandler.post {
+                        ctx.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                    }
+                }
                 synchronized(this) {
                     fetchInFlight = false
                     if (pendingFetch) {
@@ -269,6 +279,9 @@ object UserDataBusClient {
             }
             fetchInFlight = true
         }
+        mainHandler.post {
+            context.applicationContext.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_STARTED))
+        }
         Thread {
             try {
                 val url = "$base/user/data?bot_id=${URLEncoder.encode(bid, "UTF-8")}&api_key=${URLEncoder.encode(key, "UTF-8")}"
@@ -290,6 +303,9 @@ object UserDataBusClient {
             } catch (e: Exception) {
                 Log.w(TAG, "Bootstrap fetch user data failed", e)
             } finally {
+                mainHandler.post {
+                    context.applicationContext.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                }
                 synchronized(this) {
                     fetchInFlight = false
                     if (pendingFetch) {
@@ -306,6 +322,19 @@ object UserDataBusClient {
         val prefs = Prefs(ctx)
         val serverTime = data.optString("server_time", "").trim()
         if (serverTime.isNotEmpty()) prefs.lastSyncTime = serverTime
+
+        val ufn = data.optString("user_first_name", "").trim()
+        if (ufn.isNotEmpty()) prefs.userHubFirstName = ufn
+
+        val dm = data.optString("user_display_mode", "").trim().lowercase()
+        if (dm == "standalone" || dm == "default") {
+            val wantStandalone = dm == "standalone"
+            val was = prefs.userStandaloneMode
+            if (wantStandalone != was) {
+                AppModeManager.setStandaloneMode(ctx, wantStandalone)
+                ctx.sendBroadcast(Intent(AlertEvents.ACTION_USER_DISPLAY_MODE_FROM_SERVER))
+            }
+        }
 
         val medicinesArray = data.optJSONArray("medicines") ?: JSONArray()
         val list = mutableListOf<Map<String, Any?>>()

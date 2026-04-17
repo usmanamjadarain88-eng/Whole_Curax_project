@@ -28,6 +28,10 @@ object UserLogoutHelper {
         prefs.actAsUserId = ""
         prefs.actAsUserName = ""
         AppModeManager.setStandaloneMode(app, false)
+        prefs.userInitialAppModeSheetCompleted = true
+        prefs.userHomeColdStartCount = 0
+        prefs.pinDeferredAutoPromptShown = false
+        prefs.pinSettingsBannerDismissed = false
         prefs.userStandaloneDataReady = false
         prefs.cachedUserDataSnapshotJson = ""
         prefs.hasEverConnected = false

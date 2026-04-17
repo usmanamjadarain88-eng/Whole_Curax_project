@@ -80,7 +80,14 @@ class AdminAlertsFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(R.layout.fragment_admin_alerts, container, false)
+    ): View {
+        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+            R.layout.fragment_admin_alerts_standalone
+        } else {
+            R.layout.fragment_admin_alerts
+        }
+        return inflater.inflate(layout, container, false)
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -113,6 +120,7 @@ class AdminAlertsFragment : Fragment() {
         btnAdminSelectionDelete = view.findViewById(R.id.btnAdminSelectionDelete)
 
         adapter = AdminAlertsAdapter(
+            useStandaloneCards = StandaloneUi.isUserStandalone(requireContext()),
             onClick = { item ->
                 startActivity(Intent(requireContext(), AlertDetailActivity::class.java).apply {
                     putExtra(NotificationHelper.EXTRA_ALERT_ID, item.id)

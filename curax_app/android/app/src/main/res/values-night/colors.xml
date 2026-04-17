@@ -39,9 +39,9 @@
     <color name="med_box_stroke">#2CA77F</color>
     <color name="med_box_label">#D7F5EA</color>
     <color name="med_box_text">#FFFFFF</color>
-    <color name="med_box_standalone_bg">#C9A227</color>
-    <color name="med_box_standalone_stroke">#E8C85C</color>
-    <color name="med_box_standalone_text">#1E1606</color>
+    <color name="med_box_standalone_bg">#0F172A</color>
+    <color name="med_box_standalone_stroke">#38BDF8</color>
+    <color name="med_box_standalone_text">#F8FAFC</color>
     <color name="inventory_row_selected_bg">#1A3D2D</color>
     <color name="inventory_row_selected_stroke">#2CA77F</color>
 
@@ -55,4 +55,43 @@
     <color name="sidebar_connect_disconnected">#3B82F6</color>
     <color name="sidebar_connect_connecting">#FB923C</color>
     <color name="sidebar_detail_bg">#0A1F17</color>
+
+    <color name="standalone_alert_sent">#4ADE80</color>
+    <color name="standalone_alert_pending">#FACC15</color>
+    <color name="standalone_alert_missed">#F87171</color>
+    <color name="standalone_log_success">#4ADE80</color>
+    <color name="standalone_log_warning">#FACC15</color>
+    <color name="standalone_log_error">#F87171</color>
+    <color name="standalone_log_info">#22D3EE</color>
+    <color name="standalone_section_account">#C084FC</color>
+    <color name="standalone_section_system">#FB923C</color>
+    <color name="standalone_section_app">#60A5FA</color>
+    <color name="standalone_card_glow_stroke">#2A4D45</color>
+
+    <color name="standalone_shell_grad_start">#070B12</color>
+    <color name="standalone_shell_grad_end">#0F1A2E</color>
+    <color name="standalone_tab_canvas">#070B12</color>
+    <color name="standalone_tab_strip_bg">#111827</color>
+    <color name="standalone_tab_indicator">#38BDF8</color>
+    <color name="standalone_tab_text_selected">#F8FAFC</color>
+    <color name="standalone_tab_text_normal">#94A3B8</color>
+    <color name="standalone_tab_ripple">#3038BDF8</color>
+    <color name="standalone_on_hero">#F8FAFC</color>
+    <color name="standalone_on_hero_muted">#C7D2FE</color>
+    <color name="standalone_inventory_card">#111827</color>
+    <color name="standalone_inventory_row_stroke">#4F46E5</color>
+    <color name="standalone_inventory_strip_normal">#4ADE80</color>
+    <color name="standalone_inventory_strip_low">#FBBF24</color>
+    <color name="standalone_inventory_strip_exp">#F87171</color>
+    <color name="standalone_medicine_chip_normal">#1E1B4B</color>
+    <color name="standalone_medicine_chip_low">#422006</color>
+    <color name="standalone_medicine_chip_exp">#4C0519</color>
+    <color name="standalone_medicine_chip_stroke_normal">#818CF8</color>
+    <color name="standalone_medicine_chip_stroke_low">#FBBF24</color>
+    <color name="standalone_medicine_chip_stroke_exp">#FB7185</color>
+    <color name="standalone_medicine_chip_ripple">#40818CF8</color>
+    <color name="standalone_medicine_chip_dot_tint_normal">#A5B4FC</color>
+    <color name="standalone_medicine_chip_dot_tint_low">#FBBF24</color>
+    <color name="standalone_medicine_chip_dot_tint_exp">#FB7185</color>
+    <color name="standalone_medicine_chip_dot_tint_placeholder">#64748B</color>
 </resources>

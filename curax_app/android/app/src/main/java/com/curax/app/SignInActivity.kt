@@ -5,7 +5,10 @@ import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.app.ActivityOptionsCompat
 import androidx.core.widget.doOnTextChanged
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.messaging.FirebaseMessaging
@@ -211,11 +214,21 @@ class SignInActivity : AppCompatActivity() {
             runOnUiThread {
                 UserDataBusClient.fetchAndApplyUserData(this@SignInActivity, base, botId, apiKey) {
                     runOnUiThread {
-                        CuraxFeedback.successThen(this@SignInActivity, R.string.sign_in_success) {
-                            startActivity(
-                                Intent(this@SignInActivity, PinSetupActivity::class.java)
-                                    .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_USER),
+                        CuraxFeedback.successThen(
+                            this@SignInActivity,
+                            R.string.sign_in_success,
+                            delayMs = 220L,
+                            snackbarDuration = Snackbar.LENGTH_SHORT,
+                        ) {
+                            val home = UserHomeIntent.forSignedInUser(this@SignInActivity).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            }
+                            val opts = ActivityOptionsCompat.makeCustomAnimation(
+                                this@SignInActivity,
+                                android.R.anim.fade_in,
+                                android.R.anim.fade_out,
                             )
+                            ActivityCompat.startActivity(this@SignInActivity, home, opts.toBundle())
                             finish()
                         }
                     }

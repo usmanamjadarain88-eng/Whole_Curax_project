@@ -1,6 +1,10 @@
 package com.curax.app
 
 import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.AdaptiveIconDrawable
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
@@ -62,28 +66,42 @@ object CuraxFeedback {
     }
 
     /**
-     * Shows success Snackbar, then runs [after] after a short delay so the message is visible
-     * before [Activity.finish] or navigation tears down the window.
+     * Shows success Snackbar, then runs [after] after [delayMs] so the message can register
+     * before [Activity.finish] or navigation (use [snackbarDuration] + fade transitions for a smooth handoff).
      */
     fun successThen(
         activity: Activity,
         message: CharSequence,
         delayMs: Long = 580L,
+        snackbarDuration: Int = Snackbar.LENGTH_LONG,
         after: () -> Unit,
     ) {
-        success(activity, message)
-        activity.window.decorView.postDelayed({
-            if (!activity.isFinishing) after()
-        }, delayMs)
+        snackbar(
+            activity,
+            message,
+            R.color.feedback_success_bg,
+            R.color.feedback_on_success,
+            snackbarDuration,
+        )?.apply { animationMode = Snackbar.ANIMATION_MODE_FADE }?.show()
+        if (delayMs <= 0L) {
+            activity.window.decorView.post {
+                if (!activity.isFinishing) after()
+            }
+        } else {
+            activity.window.decorView.postDelayed({
+                if (!activity.isFinishing) after()
+            }, delayMs)
+        }
     }
 
     fun successThen(
         activity: Activity,
         @StringRes resId: Int,
         delayMs: Long = 580L,
+        snackbarDuration: Int = Snackbar.LENGTH_LONG,
         after: () -> Unit,
     ) {
-        successThen(activity, activity.getString(resId), delayMs, after)
+        successThen(activity, activity.getString(resId), delayMs, snackbarDuration, after)
     }
 
     /**
@@ -153,10 +171,29 @@ object CuraxFeedback {
     }
 
     private fun snackbarErrorIcon(activity: Activity): Drawable? {
-        val d = AppCompatResources.getDrawable(activity, R.drawable.ic_launcher_foreground) ?: return null
-        val mut = d.mutate()
         val px = (22 * activity.resources.displayMetrics.density).toInt().coerceAtLeast(1)
-        mut.setBounds(0, 0, px, px)
-        return mut
+        val raw = try {
+            activity.packageManager.getApplicationIcon(activity.applicationInfo)
+        } catch (_: Exception) {
+            null
+        } ?: AppCompatResources.getDrawable(activity, R.drawable.ic_launcher_inset) ?: return null
+        val d = raw.mutate()
+        return when (d) {
+            is AdaptiveIconDrawable -> {
+                try {
+                    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+                    val c = Canvas(bmp)
+                    d.setBounds(0, 0, px, px)
+                    d.draw(c)
+                    BitmapDrawable(activity.resources, bmp)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            else -> {
+                d.setBounds(0, 0, px, px)
+                d
+            }
+        }
     }
 }

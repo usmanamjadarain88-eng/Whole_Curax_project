@@ -12,6 +12,8 @@
     <color name="alert_card_stroke">#CEE0D8</color>
 
     <color name="key_value_bg">#F1F8F4</color>
+    <!-- Sign-in fields: avoid bright yellow paste/selection over filled boxes -->
+    <color name="sign_in_text_highlight">#662E7A5A</color>
     <color name="key_value_stroke">#C8DDD3</color>
 
     <color name="badge_start">#0B5B40</color>
@@ -43,9 +45,9 @@
     <color name="med_box_label">#D4F5E7</color>
     <color name="med_box_text">#FFFFFF</color>
     <!-- User standalone dashboard medicine boxes only (applied in code). -->
-    <color name="med_box_standalone_bg">#D4A84B</color>
-    <color name="med_box_standalone_stroke">#9A7214</color>
-    <color name="med_box_standalone_text">#2B1F08</color>
+    <color name="med_box_standalone_bg">#1E293B</color>
+    <color name="med_box_standalone_stroke">#334155</color>
+    <color name="med_box_standalone_text">#F8FAFC</color>
     <color name="inventory_row_selected_bg">#D0F0E0</color>
     <color name="inventory_row_selected_stroke">#0E7A57</color>
 
@@ -69,4 +71,46 @@
     <color name="sidebar_connect_connecting">#EA580C</color>
     <!-- Unified sidebar detail panel (subtle inset) -->
     <color name="sidebar_detail_bg">#E8F4ED</color>
+
+    <!-- Standalone tab UI (alerts / logs semantic colors) -->
+    <color name="standalone_alert_sent">#22C55E</color>
+    <color name="standalone_alert_pending">#FACC15</color>
+    <color name="standalone_alert_missed">#EF4444</color>
+    <color name="standalone_log_success">#22C55E</color>
+    <color name="standalone_log_warning">#FACC15</color>
+    <color name="standalone_log_error">#EF4444</color>
+    <color name="standalone_log_info">#06B6D4</color>
+    <color name="standalone_section_account">#9333EA</color>
+    <color name="standalone_section_system">#EA580C</color>
+    <color name="standalone_section_app">#2563EB</color>
+    <color name="standalone_card_glow_stroke">#99CBD9</color>
+
+    <!-- Standalone shell / chrome (light) -->
+    <color name="standalone_shell_grad_start">#E8EEFF</color>
+    <color name="standalone_shell_grad_end">#F0FDF4</color>
+    <color name="standalone_tab_canvas">#F8FAFC</color>
+    <color name="standalone_tab_strip_bg">#FFFFFF</color>
+    <color name="standalone_tab_indicator">#2563EB</color>
+    <color name="standalone_tab_text_selected">#0F172A</color>
+    <color name="standalone_tab_text_normal">#64748B</color>
+    <color name="standalone_tab_ripple">#182563EB</color>
+    <color name="standalone_on_hero">#FFFFFF</color>
+    <color name="standalone_on_hero_muted">#E0E7FF</color>
+    <color name="standalone_inventory_card">#FFFFFF</color>
+    <color name="standalone_inventory_row_stroke">#C7D2FE</color>
+    <color name="standalone_inventory_strip_normal">#22C55E</color>
+    <color name="standalone_inventory_strip_low">#F59E0B</color>
+    <color name="standalone_inventory_strip_exp">#EF4444</color>
+    <!-- Medicine chips (original soft grey / status tints) -->
+    <color name="standalone_medicine_chip_normal">#EEF2FF</color>
+    <color name="standalone_medicine_chip_low">#FEF9C3</color>
+    <color name="standalone_medicine_chip_exp">#FFE4E6</color>
+    <color name="standalone_medicine_chip_stroke_normal">#6366F1</color>
+    <color name="standalone_medicine_chip_stroke_low">#D97706</color>
+    <color name="standalone_medicine_chip_stroke_exp">#E11D48</color>
+    <color name="standalone_medicine_chip_ripple">#402563EB</color>
+    <color name="standalone_medicine_chip_dot_tint_normal">#6366F1</color>
+    <color name="standalone_medicine_chip_dot_tint_low">#D97706</color>
+    <color name="standalone_medicine_chip_dot_tint_exp">#E11D48</color>
+    <color name="standalone_medicine_chip_dot_tint_placeholder">#94A3B8</color>
 </resources>

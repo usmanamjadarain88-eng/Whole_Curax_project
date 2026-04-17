@@ -167,7 +167,22 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         prefs.linkedAdminId = adminId
         prefs.linkedAdminName = adminName
         prefs.hasEverConnected = true
+        prefs.userInitialAppModeSheetCompleted = false
         if (fcmToken.isNotEmpty()) prefs.fcmToken = fcmToken
+
+        val fromServer = jo.optString("user_first_name", "").trim()
+        val hubFirst = fromServer.ifBlank { UserNameFormatter.firstNameForHub(SignUpFlowState.nameForLink) }
+        if (hubFirst.isNotEmpty()) prefs.userHubFirstName = hubFirst
+
+        val dm = jo.optString("user_display_mode", "").trim().lowercase()
+        if (dm == "standalone" || dm == "default") {
+            val wantStandalone = dm == "standalone"
+            val was = prefs.userStandaloneMode
+            if (wantStandalone != was) {
+                AppModeManager.setStandaloneMode(this, wantStandalone)
+                sendBroadcast(Intent(AlertEvents.ACTION_USER_DISPLAY_MODE_FROM_SERVER))
+            }
+        }
 
         store.saveUser(email, password, LocalUserStore.ROLE_USER)
         SignUpFlowState.clear()
@@ -195,10 +210,10 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         UserDataBusClient.fetchAndApplyUserData(this, base, botId, apiKey) {
             runOnUiThread {
                 CuraxFeedback.successThen(this, R.string.linked_to_admin_success) {
-                    startActivity(
-                        Intent(this, PinSetupActivity::class.java)
-                            .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_USER),
-                    )
+                    val home = UserHomeIntent.forSignedInUser(this).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    }
+                    startActivity(home)
                     setResult(RESULT_OK)
                     finish()
                 }

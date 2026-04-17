@@ -44,11 +44,18 @@ class AdminLogsFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(R.layout.fragment_admin_logs, container, false)
+    ): View {
+        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+            R.layout.fragment_admin_logs_standalone
+        } else {
+            R.layout.fragment_admin_logs
+        }
+        return inflater.inflate(layout, container, false)
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        logAdapter = LogEntriesAdapter()
+        logAdapter = LogEntriesAdapter(useTimelineLayout = StandaloneUi.isUserStandalone(requireContext()))
         view.findViewById<RecyclerView>(R.id.rvLogEntries).apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = logAdapter

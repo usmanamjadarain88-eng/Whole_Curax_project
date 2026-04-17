@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -13,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
@@ -35,6 +37,20 @@ class AdminSettingsFragment : Fragment() {
 
     private fun isUserApp(): Boolean = AppRole.isUser(requireContext())
 
+    private fun readAppVersionName(): String = try {
+        val pm = requireContext().packageManager
+        val pn = requireContext().packageName
+        val vn = if (Build.VERSION.SDK_INT >= 33) {
+            pm.getPackageInfo(pn, PackageManager.PackageInfoFlags.of(0)).versionName
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(pn, 0).versionName
+        }
+        vn.orEmpty()
+    } catch (_: Exception) {
+        ""
+    }
+
     companion object {
         private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
     }
@@ -43,10 +59,19 @@ class AdminSettingsFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(R.layout.fragment_admin_settings, container, false)
+    ): View {
+        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+            R.layout.fragment_admin_settings_standalone
+        } else {
+            R.layout.fragment_admin_settings
+        }
+        return inflater.inflate(layout, container, false)
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        view.findViewById<TextView>(R.id.tv_standalone_settings_version)?.text =
+            "Version ${readAppVersionName()}"
         refresh()
         fetchSettingsFromServer()
 
