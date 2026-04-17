@@ -147,13 +147,6 @@ class Prefs(context: Context) {
             prefs.edit().putBoolean(KEY_PIN_DEFERRED_AUTO_PROMPT_SHOWN, value).commit()
         }
 
-    /** User dismissed the optional PIN reminder banner on the Settings screen. */
-    var pinSettingsBannerDismissed: Boolean
-        get() = prefs.getBoolean(KEY_PIN_SETTINGS_BANNER_DISMISSED, false)
-        set(value) {
-            prefs.edit().putBoolean(KEY_PIN_SETTINGS_BANNER_DISMISSED, value).apply()
-        }
-
     /** True once standalone has a cached/bootstrap snapshot to display. */
     var userStandaloneDataReady: Boolean
         get() = prefs.getBoolean(KEY_USER_STANDALONE_DATA_READY, false)
@@ -199,7 +192,6 @@ class Prefs(context: Context) {
         private const val KEY_USER_INITIAL_MODE_SHEET = "user_initial_app_mode_sheet_completed"
         private const val KEY_USER_HOME_COLD_START_COUNT = "user_home_cold_start_count"
         private const val KEY_PIN_DEFERRED_AUTO_PROMPT_SHOWN = "pin_deferred_auto_prompt_shown"
-        private const val KEY_PIN_SETTINGS_BANNER_DISMISSED = "pin_settings_banner_dismissed"
         private const val KEY_USER_STANDALONE_DATA_READY = "user_standalone_data_ready"
         private const val KEY_CACHED_USER_DATA_JSON = "cached_user_data_snapshot_json"
         private const val KEY_USER_HUB_FIRST_NAME = "user_hub_first_name"

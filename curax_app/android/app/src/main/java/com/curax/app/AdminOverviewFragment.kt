@@ -77,8 +77,6 @@ class AdminOverviewFragment : Fragment() {
     private var adminPollRunnable: Runnable? = null
     private var adminPollInFlight: Boolean = false
     private val adminPollIntervalMs: Long = 5000L
-    private var healthHubPulseSet: AnimatorSet? = null
-    private val healthHubRippleSets = mutableListOf<AnimatorSet>()
     private var healthHubIndicatorSyncing: Boolean = false
 
     private val dataSyncReceiver = object : BroadcastReceiver() {
@@ -1001,107 +999,23 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun cancelHealthHubStatusAnimations() {
-        healthHubPulseSet?.cancel()
-        healthHubPulseSet = null
-        healthHubRippleSets.forEach { it.cancel() }
-        healthHubRippleSets.clear()
+        view?.findViewById<HealthHubEcgWaveView>(R.id.health_hub_ecg_wave)?.stopAnimation()
     }
 
     private fun setupStandaloneHealthHubStatus(view: View) {
         if (!isUserApp()) return
-        if (view.findViewById<View>(R.id.view_health_hub_pulse_dot) == null) return
+        val ecg = view.findViewById<HealthHubEcgWaveView>(R.id.health_hub_ecg_wave) ?: return
         applyStandaloneHealthHubTitle(view)
-        if (!healthHubIndicatorSyncing) {
-            startHealthHubPulseAnimation(view)
-        }
+        ecg.setCycleDurationMs(if (healthHubIndicatorSyncing) 1300L else 2000L)
+        ecg.startAnimation()
     }
 
     private fun setHealthHubSyncing(view: View, syncing: Boolean) {
-        if (view.findViewById<View>(R.id.view_health_hub_pulse_dot) == null) return
         healthHubIndicatorSyncing = syncing
-        cancelHealthHubStatusAnimations()
-        if (syncing) {
-            startHealthHubRippleAnimation(view)
-        } else {
-            startHealthHubPulseAnimation(view)
-        }
-    }
-
-    private fun startHealthHubPulseAnimation(view: View) {
-        val dot = view.findViewById<View>(R.id.view_health_hub_pulse_dot) ?: return
-        val ra = view.findViewById<View>(R.id.view_health_hub_ripple_a) ?: return
-        val rb = view.findViewById<View>(R.id.view_health_hub_ripple_b) ?: return
-        ra.alpha = 0f
-        rb.alpha = 0f
-        ra.scaleX = 0.4f
-        ra.scaleY = 0.4f
-        rb.scaleX = 0.4f
-        rb.scaleY = 0.4f
-        dot.scaleX = 1f
-        dot.scaleY = 1f
-        dot.alpha = 1f
-        val ease = AccelerateDecelerateInterpolator()
-        val dur = 1350L
-        val sx = ObjectAnimator.ofFloat(dot, View.SCALE_X, 1f, 1.35f, 1f).apply {
-            duration = dur
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = ease
-        }
-        val sy = ObjectAnimator.ofFloat(dot, View.SCALE_Y, 1f, 1.35f, 1f).apply {
-            duration = dur
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = ease
-        }
-        val al = ObjectAnimator.ofFloat(dot, View.ALPHA, 1f, 0.45f, 1f).apply {
-            duration = dur
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = ease
-        }
-        healthHubPulseSet = AnimatorSet().apply {
-            playTogether(sx, sy, al)
-            start()
-        }
-    }
-
-    private fun startHealthHubRippleAnimation(view: View) {
-        val dot = view.findViewById<View>(R.id.view_health_hub_pulse_dot) ?: return
-        val ra = view.findViewById<View>(R.id.view_health_hub_ripple_a) ?: return
-        val rb = view.findViewById<View>(R.id.view_health_hub_ripple_b) ?: return
-        dot.scaleX = 1f
-        dot.scaleY = 1f
-        dot.alpha = 1f
-        fun startRing(v: View, startDelay: Long) {
-            v.alpha = 0.5f
-            v.scaleX = 0.5f
-            v.scaleY = 0.5f
-            val ease = AccelerateDecelerateInterpolator()
-            val dur = 950L
-            val sx = ObjectAnimator.ofFloat(v, View.SCALE_X, 0.5f, 2f).apply {
-                duration = dur
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = ease
-                this.startDelay = startDelay
-            }
-            val sy = ObjectAnimator.ofFloat(v, View.SCALE_Y, 0.5f, 2f).apply {
-                duration = dur
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = ease
-                this.startDelay = startDelay
-            }
-            val al = ObjectAnimator.ofFloat(v, View.ALPHA, 0.5f, 0f).apply {
-                duration = dur
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = ease
-                this.startDelay = startDelay
-            }
-            val set = AnimatorSet().apply {
-                playTogether(sx, sy, al)
-                start()
-            }
-            healthHubRippleSets.add(set)
-        }
-        startRing(ra, 0L)
-        startRing(rb, 475L)
+        val ecg = view.findViewById<HealthHubEcgWaveView>(R.id.health_hub_ecg_wave) ?: return
+        ecg.stopAnimation()
+        ecg.setCycleDurationMs(if (syncing) 1300L else 2000L)
+        ecg.startAnimation()
     }
 
     private fun refreshDashboard(view: View) {

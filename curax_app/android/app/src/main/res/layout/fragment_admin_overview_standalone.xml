@@ -37,6 +37,7 @@
                 android:orientation="vertical"
                 android:padding="22dp">
 
+                <!-- 2:1 split matches summary pills (2 cols + Last sync); ECG right edge lines up with Last sync column -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -46,60 +47,47 @@
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
+                        android:layout_marginHorizontal="3dp"
+                        android:layout_weight="2"
                         android:orientation="vertical"
-                        android:paddingEnd="8dp">
+                        android:paddingEnd="4dp">
 
                         <TextView
                             android:id="@+id/tv_standalone_health_hub_title"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:letterSpacing="0.04"
+                            android:letterSpacing="0.01"
+                            android:lineSpacingExtra="0dp"
                             android:text="@string/standalone_health_hub_fallback_title"
                             android:textColor="@color/standalone_on_hero"
-                            android:textSize="26sp"
+                            android:textSize="20sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:id="@+id/tv_standalone_health_hub_subtitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="3dp"
+                            android:layout_marginTop="2dp"
                             android:text="@string/standalone_health_hub_subtitle"
                             android:textColor="@color/standalone_on_hero_muted"
                             android:textSize="12sp" />
                     </LinearLayout>
 
                     <FrameLayout
-                        android:id="@+id/fl_health_hub_status_anchor"
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:layout_marginTop="8dp"
-                        android:layout_marginEnd="2dp"
-                        android:clipChildren="false">
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="3dp"
+                        android:layout_weight="1"
+                        android:minHeight="30dp">
 
-                        <View
-                            android:id="@+id/view_health_hub_ripple_b"
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
-                            android:layout_gravity="center"
-                            android:alpha="0"
-                            android:background="@drawable/bg_health_hub_ripple_ring" />
-
-                        <View
-                            android:id="@+id/view_health_hub_ripple_a"
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
-                            android:layout_gravity="center"
-                            android:alpha="0"
-                            android:background="@drawable/bg_health_hub_ripple_ring" />
-
-                        <View
-                            android:id="@+id/view_health_hub_pulse_dot"
-                            android:layout_width="10dp"
-                            android:layout_height="10dp"
-                            android:layout_gravity="center"
-                            android:background="@drawable/bg_health_hub_status_dot" />
+                        <com.curax.app.HealthHubEcgWaveView
+                            android:id="@+id/health_hub_ecg_wave"
+                            android:layout_width="52dp"
+                            android:layout_height="28dp"
+                            android:layout_gravity="end|center_vertical"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginEnd="8dp"
+                            android:importantForAccessibility="no" />
                     </FrameLayout>
                 </LinearLayout>
 

@@ -71,8 +71,6 @@
     <string name="pin_deferred_dialog_message">A PIN locks the app when you leave it. You can set one now or skip and add it later in Settings.</string>
     <string name="pin_deferred_set">Set PIN</string>
     <string name="pin_deferred_skip">Skip</string>
-    <string name="pin_settings_banner_title">Set a PIN for extra security</string>
-    <string name="pin_settings_banner_action">Set PIN</string>
     <string name="dismiss">Dismiss</string>
     <!-- Standalone dashboard: avoid repeating “medicines” in hub + snapshot + inventory headers -->
     <string name="standalone_health_hub_metric_label">Planned items</string>

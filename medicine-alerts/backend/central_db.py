@@ -40,8 +40,8 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     """
     import smtplib
     import html as html_mod
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
+    from email.message import EmailMessage
+    from email.policy import SMTP
     from email.utils import formataddr
 
     smtp_user = (os.environ.get("SIGNUP_SMTP_USER") or "").strip()
@@ -63,38 +63,47 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
 
     otp_esc = html_mod.escape((otp_plain or "").strip())
     name_esc = html_mod.escape(from_name)
-    sign_off_plain = f"\n— {from_name}\n"
+    sign_off_plain = f"\n\n— {from_name}\n"
     sign_off_html = (
         "<p style=\"margin-top:20px;color:#555;font-size:13px;\">"
         f"This message was sent by <strong>{name_esc}</strong> for account sign-up.</p>"
     )
+    # Lead with one dense line so inbox previews / plain-text snippets include expiry (not only the code).
     text_body = (
-        f"{from_name}\n\n"
-        f"Your verification code is: {otp_plain}\n\n"
-        "This code expires in 15 minutes. If you did not request this, you can ignore this email."
+        f"Your verification code is: {otp_plain}. This code expires in 15 minutes. "
+        "If you did not request this, you can ignore this email.\n\n"
+        f"{from_name}"
         f"{sign_off_plain}"
     )
+    # Preheader: hidden in HTML clients but improves preview text; body repeats the same facts for accessibility.
+    preheader = (
+        f"Code {otp_plain} — expires in 15 minutes. If you did not request this, ignore this email."
+    )
+    pre_esc = html_mod.escape(preheader)
     html_body = (
+        f"<div style=\"display:none;max-height:0;overflow:hidden;mso-hide:all;\">{pre_esc}</div>"
         f"<p style=\"color:#333;font-size:14px;\"><strong>{name_esc}</strong></p>"
-        "<p>Your verification code is:</p>"
-        f"<p style=\"font-size:24px;font-weight:bold;letter-spacing:4px;\">{otp_esc}</p>"
-        "<p>This code expires in 15 minutes.</p>"
-        "<p>If you did not request this, you can ignore this email.</p>"
+        "<p style=\"font-size:15px;line-height:1.5;\">"
+        "Your verification code is "
+        f"<span style=\"font-size:22px;font-weight:bold;letter-spacing:3px;\">{otp_esc}</span>. "
+        "<strong>This code expires in 15 minutes.</strong> "
+        "If you did not request this, you can ignore this email."
+        "</p>"
         f"{sign_off_html}"
     )
 
-    msg = MIMEMultipart("alternative")
+    msg = EmailMessage(policy=SMTP)
     msg["Subject"] = subject
     msg["From"] = formataddr((from_name, from_addr))
     msg["To"] = to_addr
     if reply_to and "@" in reply_to:
         msg["Reply-To"] = reply_to
-    msg.attach(MIMEText(text_body, "plain", "utf-8"))
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    msg.set_content(text_body, subtype="plain", charset="utf-8")
+    msg.add_alternative(html_body, subtype="html", charset="utf-8")
 
     with smtplib.SMTP_SSL(host, port) as server:
         server.login(smtp_user, smtp_password)
-        server.sendmail(from_addr, [to_addr], msg.as_string())
+        server.send_message(msg)
     return True
 
 

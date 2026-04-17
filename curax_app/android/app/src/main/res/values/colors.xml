@@ -96,6 +96,8 @@
     <color name="standalone_tab_ripple">#182563EB</color>
     <color name="standalone_on_hero">#FFFFFF</color>
     <color name="standalone_on_hero_muted">#E0E7FF</color>
+    <!-- Health hub mini ECG: soft contrast on hero gradient, not neon -->
+    <color name="standalone_health_hub_ecg_line">#B4C2EB</color>
     <color name="standalone_inventory_card">#FFFFFF</color>
     <color name="standalone_inventory_row_stroke">#C7D2FE</color>
     <color name="standalone_inventory_strip_normal">#22C55E</color>
@@ -105,7 +107,8 @@
     <color name="standalone_medicine_chip_normal">#EEF2FF</color>
     <color name="standalone_medicine_chip_low">#FEF9C3</color>
     <color name="standalone_medicine_chip_exp">#FFE4E6</color>
-    <color name="standalone_medicine_chip_stroke_normal">#6366F1</color>
+    <!-- Match adherence trend card stroke (bg_standalone_adherence_chart_well) -->
+    <color name="standalone_medicine_chip_stroke_normal">#C7D2FE</color>
     <color name="standalone_medicine_chip_stroke_low">#D97706</color>
     <color name="standalone_medicine_chip_stroke_exp">#E11D48</color>
     <color name="standalone_medicine_chip_ripple">#402563EB</color>

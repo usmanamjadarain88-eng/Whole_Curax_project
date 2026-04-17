@@ -11,7 +11,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.card.MaterialCardView
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -54,22 +53,6 @@ class SettingsActivity : AppCompatActivity() {
         btnSetPin = findViewById(R.id.btnSetPin)
         btnAutoLock = findViewById(R.id.btnAutoLock)
 
-        val cardPinSecurityBanner = findViewById<MaterialCardView>(R.id.cardPinSecurityBanner)
-        val btnPinBannerAction = findViewById<MaterialButton>(R.id.btnPinBannerAction)
-        val btnPinBannerDismiss = findViewById<MaterialButton>(R.id.btnPinBannerDismiss)
-        fun refreshPinSecurityBanner() {
-            val show = AppRole.isUser(this) && prefs.appPin.isEmpty() && !prefs.pinSettingsBannerDismissed
-            cardPinSecurityBanner.visibility = if (show) View.VISIBLE else View.GONE
-        }
-        refreshPinSecurityBanner()
-        btnPinBannerAction.setOnClickListener {
-            startActivity(Intent(this, SetPinActivity::class.java))
-        }
-        btnPinBannerDismiss.setOnClickListener {
-            prefs.pinSettingsBannerDismissed = true
-            refreshPinSecurityBanner()
-        }
-
         setupConnectionCodeSections()
         btnSetPin.setOnClickListener {
             startActivity(Intent(this, SetPinActivity::class.java))
@@ -88,8 +71,6 @@ class SettingsActivity : AppCompatActivity() {
         val sectionConnectToAdmin = findViewById<android.widget.TextView>(R.id.sectionConnectToAdmin)
         val connectionCodeInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.connectionCodeInputLayout)
         val btnLinkToAdmin = findViewById<MaterialButton>(R.id.btnLinkToAdmin)
-        val tvConnectedToAdmin = findViewById<android.widget.TextView>(R.id.tvConnectedToAdmin)
-
         val isAdmin = localUserStore.role == LocalUserStore.ROLE_ADMIN
         if (isAdmin) {
             btnMyConnectionCode.visibility = android.view.View.VISIBLE
@@ -107,7 +88,6 @@ class SettingsActivity : AppCompatActivity() {
             sectionConnectToAdmin.visibility = android.view.View.GONE
             connectionCodeInputLayout.visibility = android.view.View.GONE
             btnLinkToAdmin.visibility = android.view.View.GONE
-            tvConnectedToAdmin.visibility = android.view.View.GONE
             findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode).visibility = View.GONE
         } else {
             // Users link at sign-up via connection code; no need for Link to admin in Settings.
@@ -116,14 +96,10 @@ class SettingsActivity : AppCompatActivity() {
             connectionCodeInputLayout.visibility = android.view.View.GONE
             btnLinkToAdmin.visibility = android.view.View.GONE
             if (prefs.linkedAdminId.isNotEmpty()) {
-                val adminName = prefs.linkedAdminName
-                tvConnectedToAdmin.text = if (adminName.isNotEmpty()) "Connected to admin: $adminName" else getString(R.string.connected_to_admin)
-                tvConnectedToAdmin.visibility = android.view.View.VISIBLE
                 val btnUserDesktopLink = findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode)
                 btnUserDesktopLink.visibility = View.VISIBLE
                 btnUserDesktopLink.setOnClickListener { showUserDesktopLinkCodeDialog() }
             } else {
-                tvConnectedToAdmin.visibility = android.view.View.GONE
                 findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode).visibility = View.GONE
             }
         }
@@ -317,9 +293,6 @@ class SettingsActivity : AppCompatActivity() {
         btnSetPin.text = if (hasPin) getString(R.string.change_pin) else getString(R.string.set_pin)
         btnAutoLock.text = getAutoLockButtonText(prefs.autoLockSeconds)
         setupConnectionCodeSections()
-        val cardPinSecurityBanner = findViewById<MaterialCardView>(R.id.cardPinSecurityBanner)
-        val showBanner = AppRole.isUser(this) && prefs.appPin.isEmpty() && !prefs.pinSettingsBannerDismissed
-        cardPinSecurityBanner.visibility = if (showBanner) View.VISIBLE else View.GONE
     }
 
     private fun showAutoLockDialog() {

@@ -10,11 +10,15 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Build
 import android.os.IBinder
+import android.os.SystemClock
 import android.os.PowerManager
 import android.provider.Settings
+import android.content.res.ColorStateList
 import android.graphics.Color
+import androidx.core.graphics.ColorUtils
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import java.net.URLEncoder
@@ -40,6 +44,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.MenuItemCompat
 import android.widget.LinearLayout
 import androidx.drawerlayout.widget.DrawerLayout
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -61,6 +66,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         private const val MENU_ORDER_THEME = 2
         private const val MENU_ORDER_MODE = 3
         private const val MENU_ORDER_SETTINGS = 100
+        /** Let the home shell paint before the mandatory mode bottom sheet appears (~1–2s). */
+        private const val DEFERRED_MODE_SHEET_DELAY_MS = 1_800L
+        /** After the user qualifies for the PIN offer, wait briefly so it does not stack on the mode sheet / relaunch. */
+        private const val DEFERRED_PIN_PROMPT_DELAY_MS = 1_200L
     }
 
     private lateinit var prefs: Prefs
@@ -71,9 +80,18 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var overviewFragmentRef: AdminOverviewFragment? = null
     private lateinit var btnConnect: MaterialButton
     private var sidebarConnectShowsConnecting = false
+    /** Avoids relaunch when [onPrepareOptionsMenu] syncs the dev switch from prefs (spurious callbacks). */
+    private var suppressDevStandaloneSwitchCallback = false
+    private var lastDevStandaloneRelaunchAt = 0L
+
     private val devModeSwitchListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
+        if (suppressDevStandaloneSwitchCallback || isFinishing) return@OnCheckedChangeListener
+        if (AppModeManager.isStandaloneMode(this) == isChecked) return@OnCheckedChangeListener
         AppModeManager.setStandaloneMode(this, isChecked)
         UserDisplayModeApi.postDisplayModeAsync(this, isChecked)
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastDevStandaloneRelaunchAt < 450L) return@OnCheckedChangeListener
+        lastDevStandaloneRelaunchAt = now
         relaunchAfterDisplayModeChange()
     }
 
@@ -100,6 +118,8 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var bootstrapFetchRequested = false
     private var mandatoryModeSheetLaunched = false
     private var firstAppModeBottomSheet: BottomSheetDialog? = null
+    private var deferredHomeUiRunnable: Runnable? = null
+    private var pinDeferredPromptRunnable: Runnable? = null
     private var appModeLabelPopup: PopupWindow? = null
     private var displayModeReceiverRegistered = false
     private val displayModeFromServerReceiver = object : BroadcastReceiver() {
@@ -173,7 +193,10 @@ class UserStandaloneActivity : AppCompatActivity() {
                     AppLockState.grantUnlock()
                     prefs.themeMode = newMode
                     AppCompatDelegate.setDefaultNightMode(newMode)
-                    window.decorView.post { recreate() }
+                    // Fade in/out so theme swap feels smoother than an instant cut (same activity tree).
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                    recreate()
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                     true
                 }
                 R.id.action_settings -> {
@@ -267,12 +290,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         updateConnectionUi(false)
         showLoading(!restored)
 
-        window.decorView.post {
-            showMandatoryFirstAppModeSheetIfNeeded()
-            if (prefs.userInitialAppModeSheetCompleted) {
-                maybeOfferPinSecurityDialog()
-            }
-        }
+        scheduleDeferredHomeDialogs()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -305,8 +323,11 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (isDebuggableBuild()) {
             val devSwitchLayout = layoutInflater.inflate(R.layout.toolbar_dev_mode_switch, toolbar, false)
             devSwitchLayout.findViewById<SwitchCompat>(R.id.switchDevStandalone).apply {
+                suppressDevStandaloneSwitchCallback = true
+                setOnCheckedChangeListener(null)
                 isChecked = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
                 setOnCheckedChangeListener(devModeSwitchListener)
+                suppressDevStandaloneSwitchCallback = false
             }
             menu.add(Menu.NONE, R.id.action_dev_test_mode, MENU_ORDER_DEV, "")
                 .setActionView(devSwitchLayout)
@@ -337,9 +358,11 @@ class UserStandaloneActivity : AppCompatActivity() {
             menu.findItem(R.id.action_dev_test_mode)?.actionView
                 ?.findViewById<SwitchCompat>(R.id.switchDevStandalone)
                 ?.let { sw ->
+                    suppressDevStandaloneSwitchCallback = true
                     sw.setOnCheckedChangeListener(null)
                     sw.isChecked = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
                     sw.setOnCheckedChangeListener(devModeSwitchListener)
+                    suppressDevStandaloneSwitchCallback = false
                 }
         }
         findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar).overflowIcon?.setTint(android.graphics.Color.WHITE)
@@ -353,17 +376,56 @@ class UserStandaloneActivity : AppCompatActivity() {
 
     private fun shellDp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    private fun scheduleDeferredHomeDialogs() {
+        deferredHomeUiRunnable?.let { r ->
+            try {
+                window.decorView.removeCallbacks(r)
+            } catch (_: Exception) {
+            }
+        }
+        deferredHomeUiRunnable = Runnable {
+            deferredHomeUiRunnable = null
+            if (isFinishing) return@Runnable
+            if (!prefs.userInitialAppModeSheetCompleted) {
+                showMandatoryFirstAppModeSheetIfNeeded()
+            } else {
+                maybeOfferPinSecurityDialog()
+            }
+        }
+        val delayMs = if (!prefs.userInitialAppModeSheetCompleted) {
+            DEFERRED_MODE_SHEET_DELAY_MS
+        } else {
+            0L
+        }
+        if (delayMs > 0L) {
+            window.decorView.postDelayed(deferredHomeUiRunnable!!, delayMs)
+        } else {
+            window.decorView.post(deferredHomeUiRunnable!!)
+        }
+    }
+
     /** Standalone vs default: shell gradient, tab strip, and pager surface. */
     private fun refreshUserShellChrome() {
         val main = findViewById<LinearLayout>(R.id.userStandaloneMainColumn)
         val tabCard = findViewById<MaterialCardView>(R.id.userStandaloneTabStripCard)
         val pagerCard = findViewById<MaterialCardView>(R.id.userStandalonePagerCard)
+        val tabNavInner = findViewById<View>(R.id.userStandaloneTabNavInner)
         if (StandaloneUi.isUserStandalone(this)) {
             main.setBackgroundResource(R.drawable.bg_standalone_app_shell)
             tabCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.standalone_tab_strip_bg))
+            tabCard.strokeWidth = 0
+            tabCard.strokeColor = Color.TRANSPARENT
+            tabCard.radius = shellDp(20).toFloat()
             pagerCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.standalone_tab_strip_bg))
+            tabNavInner.setBackgroundResource(R.drawable.bg_standalone_tab_nav_container)
             tabLayout.setBackgroundColor(Color.TRANSPARENT)
-            tabLayout.setSelectedTabIndicatorColor(ContextCompat.getColor(this, R.color.standalone_tab_indicator))
+            tabLayout.setSelectedTabIndicator(ContextCompat.getDrawable(this, R.drawable.tab_indicator_standalone))
+            tabLayout.tabIndicatorAnimationMode = TabLayout.INDICATOR_ANIMATION_MODE_ELASTIC
+            tabLayout.isTabIndicatorFullWidth = false
+            tabLayout.setSelectedTabIndicatorHeight(shellDp(3))
+            tabLayout.tabRippleColor = ColorStateList.valueOf(
+                ContextCompat.getColor(this, R.color.standalone_tab_ripple),
+            )
             tabLayout.setTabTextColors(
                 ContextCompat.getColor(this, R.color.standalone_tab_text_normal),
                 ContextCompat.getColor(this, R.color.standalone_tab_text_selected),
@@ -382,9 +444,23 @@ class UserStandaloneActivity : AppCompatActivity() {
         } else {
             main.setBackgroundResource(R.drawable.bg_admin_dashboard_surface)
             tabCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.summary_card))
+            tabCard.strokeWidth = shellDp(1)
+            tabCard.strokeColor = ContextCompat.getColor(this, R.color.summary_stroke)
+            tabCard.radius = shellDp(14).toFloat()
             pagerCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.summary_card))
+            tabNavInner.background = null
             tabLayout.setBackgroundColor(Color.TRANSPARENT)
+            // Admin-style “needle” strip: full-width underline on the summary card, not the standalone pill strip.
+            tabLayout.setSelectedTabIndicator(ContextCompat.getDrawable(this, R.drawable.tab_indicator_default))
+            tabLayout.tabIndicatorAnimationMode = TabLayout.INDICATOR_ANIMATION_MODE_LINEAR
+            tabLayout.isTabIndicatorFullWidth = true
+            tabLayout.setSelectedTabIndicatorHeight(shellDp(3))
             tabLayout.setSelectedTabIndicatorColor(ContextCompat.getColor(this, R.color.button_primary_bg))
+            val ripple = ColorUtils.setAlphaComponent(
+                ContextCompat.getColor(this, R.color.text_secondary),
+                0x33,
+            )
+            tabLayout.tabRippleColor = ColorStateList.valueOf(ripple)
             tabLayout.setTabTextColors(
                 ContextCompat.getColor(this, R.color.text_secondary),
                 ContextCompat.getColor(this, R.color.connection_panel_title),
@@ -570,6 +646,20 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        deferredHomeUiRunnable?.let { r ->
+            try {
+                window.decorView.removeCallbacks(r)
+            } catch (_: Exception) {
+            }
+        }
+        deferredHomeUiRunnable = null
+        pinDeferredPromptRunnable?.let { r ->
+            try {
+                window.decorView.removeCallbacks(r)
+            } catch (_: Exception) {
+            }
+        }
+        pinDeferredPromptRunnable = null
         try {
             firstAppModeBottomSheet?.dismiss()
         } catch (_: Exception) {
@@ -894,10 +984,28 @@ class UserStandaloneActivity : AppCompatActivity() {
             prefs.userInitialAppModeSheetCompleted = true
             UserDisplayModeApi.postDisplayModeAsync(this, standalone)
             sheet.dismiss()
+            // Overview layout is chosen once in onCreateView; without a fresh activity, Dashboard stays on
+            // the wrong XML until a tab switch. Same fix as toolbar mode toggle (relaunchAfterDisplayModeChange).
             window.decorView.post {
-                notifyUserAppModePreferenceChanged()
-                maybeOfferPinSecurityDialog()
+                relaunchAfterDisplayModeChange()
             }
+        }
+        sheet.setOnShowListener {
+            val bottomSheet = sheet.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+                ?: return@setOnShowListener
+            bottomSheet.alpha = 0f
+            val lift = 20f * resources.displayMetrics.density
+            bottomSheet.translationY = lift
+            BottomSheetBehavior.from(bottomSheet).run {
+                skipCollapsed = true
+                state = BottomSheetBehavior.STATE_EXPANDED
+            }
+            bottomSheet.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(320)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
         }
         sheet.show()
     }
@@ -906,21 +1014,34 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (prefs.appPin.isNotEmpty()) return
         if (prefs.pinDeferredAutoPromptShown) return
         if (prefs.userHomeColdStartCount < 2) return
-        val dlg = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.pin_deferred_dialog_title)
-            .setMessage(R.string.pin_deferred_dialog_message)
-            .setNegativeButton(R.string.pin_deferred_skip, null)
-            .setPositiveButton(R.string.pin_deferred_set) { _, _ ->
-                startActivity(
-                    Intent(this, PinSetupActivity::class.java).putExtra(
-                        PinSetupActivity.EXTRA_NEXT_ROLE,
-                        LocalUserStore.ROLE_USER,
-                    ),
-                )
+        pinDeferredPromptRunnable?.let { r ->
+            try {
+                window.decorView.removeCallbacks(r)
+            } catch (_: Exception) {
             }
-            .create()
-        dlg.setOnDismissListener { prefs.pinDeferredAutoPromptShown = true }
-        dlg.show()
+        }
+        pinDeferredPromptRunnable = Runnable {
+            pinDeferredPromptRunnable = null
+            if (isFinishing) return@Runnable
+            if (prefs.appPin.isNotEmpty()) return@Runnable
+            if (prefs.pinDeferredAutoPromptShown) return@Runnable
+            val dlg = MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.pin_deferred_dialog_title)
+                .setMessage(R.string.pin_deferred_dialog_message)
+                .setNegativeButton(R.string.pin_deferred_skip, null)
+                .setPositiveButton(R.string.pin_deferred_set) { _, _ ->
+                    startActivity(
+                        Intent(this, PinSetupActivity::class.java).putExtra(
+                            PinSetupActivity.EXTRA_NEXT_ROLE,
+                            LocalUserStore.ROLE_USER,
+                        ),
+                    )
+                }
+                .create()
+            dlg.setOnDismissListener { prefs.pinDeferredAutoPromptShown = true }
+            dlg.show()
+        }
+        window.decorView.postDelayed(pinDeferredPromptRunnable!!, DEFERRED_PIN_PROMPT_DELAY_MS)
     }
 
     private fun dismissAppModeLabelPopup() {
@@ -1008,8 +1129,9 @@ class UserStandaloneActivity : AppCompatActivity() {
         prefs.lastBackgroundAtMs = 0L
         val i = Intent(this, UserStandaloneActivity::class.java)
         i.putExtra(EXTRA_RELAUNCH_TAB, tab.coerceIn(0, 5))
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         startActivity(i)
-        overridePendingTransition(0, 0)
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         finish()
     }
 

@@ -31,7 +31,6 @@ object UserLogoutHelper {
         prefs.userInitialAppModeSheetCompleted = true
         prefs.userHomeColdStartCount = 0
         prefs.pinDeferredAutoPromptShown = false
-        prefs.pinSettingsBannerDismissed = false
         prefs.userStandaloneDataReady = false
         prefs.cachedUserDataSnapshotJson = ""
         prefs.hasEverConnected = false

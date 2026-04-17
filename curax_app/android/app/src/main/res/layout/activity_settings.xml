@@ -19,49 +19,6 @@
         app:navigationIcon="@android:drawable/ic_menu_revert"
         app:titleTextColor="@android:color/white" />
 
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/cardPinSecurityBanner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="12dp"
-        android:layout_marginTop="8dp"
-        android:visibility="gone"
-        app:cardBackgroundColor="@color/summary_card"
-        app:cardElevation="2dp"
-        app:cardUseCompatPadding="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="12dp">
-
-            <TextView
-                android:id="@+id/tvPinBannerTitle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/pin_settings_banner_title"
-                android:textAppearance="?attr/textAppearanceBody1"
-                android:textColor="@color/text_primary" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnPinBannerAction"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/pin_settings_banner_action" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnPinBannerDismiss"
-                style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/dismiss" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -99,15 +56,11 @@
             android:text="@string/link_to_admin"
             android:textColor="@android:color/white"
             app:backgroundTint="@color/connect_button_bg" />
-        <TextView
-            android:id="@+id/tvConnectedToAdmin"
+        <View
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="@string/connected_to_admin"
-            android:textAppearance="?attr/textAppearanceBody2"
-            android:textColor="@color/text_secondary"
-            android:visibility="gone" />
+            android:layout_height="1dp"
+            android:layout_marginTop="8dp"
+            android:background="@color/summary_stroke" />
 
         <!-- 1) Change PIN first, 2) Desktop linking code second -->
         <com.google.android.material.button.MaterialButton
