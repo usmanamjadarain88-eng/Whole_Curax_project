@@ -188,11 +188,8 @@ class AdminDashboardActivity : AppCompatActivity() {
             } else {
                 CuraxFeedback.info(this, "Registering FCM and connecting to relay…")
                 askNotificationPermission()
-                if (!prefs.hasRequestedConnectWakePermissions) {
-                    ensureFullScreenIntentPermission()
-                    requestBatteryOptimizationExemption()
-                    prefs.hasRequestedConnectWakePermissions = true
-                }
+                ensureFullScreenIntentPermission()
+                requestBatteryOptimizationExemption()
                 connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
             }
         }

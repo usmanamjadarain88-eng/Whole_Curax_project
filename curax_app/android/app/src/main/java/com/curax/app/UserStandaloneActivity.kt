@@ -83,6 +83,8 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var overviewFragmentRef: AdminOverviewFragment? = null
     private lateinit var btnConnect: MaterialButton
     private var sidebarConnectShowsConnecting = false
+    /** After Connect tap, run relay registration only once notification permission dialog returns (Android 13+). */
+    private var pendingRelayConnectAfterNotificationPermission = false
     /** Avoids relaunch when [onPrepareOptionsMenu] syncs the dev switch from prefs (spurious callbacks). */
     private var suppressDevStandaloneSwitchCallback = false
     private var lastDevStandaloneRelaunchAt = 0L
@@ -283,12 +285,17 @@ class UserStandaloneActivity : AppCompatActivity() {
                 CuraxFeedback.info(this, "Disconnected")
             } else if (id.isNotEmpty() && apiKey.isNotEmpty()) {
                 CuraxFeedback.info(this, "Registering FCM and connecting to relay...")
-                askNotificationPermission()
-                if (!prefs.hasRequestedConnectWakePermissions) {
-                    val didAskBattery = requestBatteryOptimizationExemption()
-                    prefs.hasRequestedConnectWakePermissions = didAskBattery
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsChannelReady()) {
+                    pendingRelayConnectAfterNotificationPermission = true
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                        1,
+                    )
+                } else {
+                    pendingRelayConnectAfterNotificationPermission = false
+                    runConnectWakeAndRelayFlow()
                 }
-                connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
             }
         }
 
@@ -318,7 +325,12 @@ class UserStandaloneActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1) {
-            refreshUserSidebar()
+            if (pendingRelayConnectAfterNotificationPermission) {
+                pendingRelayConnectAfterNotificationPermission = false
+                runConnectWakeAndRelayFlow()
+            } else {
+                refreshUserSidebar()
+            }
         }
     }
 
@@ -699,6 +711,15 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    /** Battery-optimization system prompt when still optimizing this app, then relay + FCM. Notification prompt is handled before this runs (or skipped on older Android). */
+    private fun runConnectWakeAndRelayFlow() {
+        val id = prefs.id.trim()
+        val apiKey = prefs.apiKey.trim()
+        if (id.isEmpty() || apiKey.isEmpty()) return
+        requestBatteryOptimizationExemption()
+        connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+    }
+
     private fun requestBatteryOptimizationExemption(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -894,8 +915,11 @@ class UserStandaloneActivity : AppCompatActivity() {
             )
         }
 
-        val fcmOk = prefs.fcmToken.trim().isNotEmpty() && notificationsChannelReady()
-        if (fcmOk) {
+        // Alerts are "active" only when relay is connected (Connect for alerts completed), not merely when FCM token exists.
+        val alertsRelayReady = relayOk &&
+            prefs.fcmToken.trim().isNotEmpty() &&
+            notificationsChannelReady()
+        if (alertsRelayReady) {
             setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
         } else {
             val prefix = "⚪ "
@@ -948,7 +972,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
         tvUserSidebarHealthDetail.setText(healthDetailRes)
 
-        tvUserSidebarAlertsDetail.text = if (fcmOk) {
+        tvUserSidebarAlertsDetail.text = if (alertsRelayReady) {
             getString(R.string.user_sidebar_detail_alerts_active)
         } else {
             getString(R.string.user_sidebar_detail_alerts_inactive)

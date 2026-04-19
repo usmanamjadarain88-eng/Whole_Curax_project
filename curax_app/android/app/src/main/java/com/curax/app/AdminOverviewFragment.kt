@@ -3,36 +3,54 @@ package com.curax.app
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.print.PrintAttributes
+import android.print.PrintManager
 import android.util.TypedValue
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
+import android.view.WindowManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
+import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.curax.app.AdherenceLineChartView
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
+import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
@@ -44,6 +62,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.concurrent.TimeUnit
 import java.util.Calendar
 import java.util.Locale
@@ -78,6 +97,7 @@ class AdminOverviewFragment : Fragment() {
     private var adminPollInFlight: Boolean = false
     private val adminPollIntervalMs: Long = 5000L
     private var healthHubIndicatorSyncing: Boolean = false
+    private var activeHealthHubSheet: BottomSheetDialog? = null
 
     private val dataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -150,13 +170,13 @@ class AdminOverviewFragment : Fragment() {
     private fun setupStandaloneHealthHubPills(view: View) {
         if (!isUserApp() || !StandaloneUi.isUserStandalone(requireContext())) return
         view.findViewById<View>(R.id.health_hub_pill_planned)?.setOnClickListener {
-            startActivity(Intent(requireContext(), StandalonePlannedItemsActivity::class.java))
+            showHealthHubPlannedItemsBottomSheet()
         }
         view.findViewById<View>(R.id.health_hub_pill_alerts)?.setOnClickListener {
-            startActivity(Intent(requireContext(), StandaloneHealthHubAlertsReportActivity::class.java))
+            showHealthHubAlertsBottomSheet()
         }
         view.findViewById<View>(R.id.health_hub_pill_sync)?.setOnClickListener {
-            startActivity(Intent(requireContext(), StandaloneHealthHubSyncHistoryActivity::class.java))
+            showHealthHubSyncHistoryBottomSheet()
         }
     }
 
@@ -342,6 +362,7 @@ class AdminOverviewFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        dismissActiveHealthHubSheet()
         cancelHealthHubStatusAnimations()
         if (alertsReceiverRegistered) {
             try {
@@ -1701,5 +1722,455 @@ class AdminOverviewFragment : Fragment() {
             }
         )
     }
+
+    private fun dismissActiveHealthHubSheet() {
+        try {
+            activeHealthHubSheet?.dismiss()
+        } catch (_: Exception) {
+        }
+        activeHealthHubSheet = null
+    }
+
+    private fun healthHubSheetAnchor(): View? = view?.findViewById(R.id.card_standalone_health_hub)
+
+    /**
+     * Applies fixed height + expanded offset so the sheet stays bottom-anchored. Call again after
+     * large in-sheet visibility changes (e.g. Create plan) so [BottomSheetBehavior] does not shrink the sheet.
+     */
+    private fun applyHealthHubBottomSheetSizing(bottomSheet: View, anchor: View?): Boolean {
+        if (!isAdded) return false
+        bottomSheet.background =
+            ContextCompat.getDrawable(requireContext(), R.drawable.bg_standalone_health_hub_sheet)
+        val parent = bottomSheet.parent as? View ?: return false
+        val ph = parent.height
+        if (ph <= 0) return false
+        val density = resources.displayMetrics.density
+        val gapBelowHubPx = (6 * density).toInt()
+        val extraHeightPx = (48 * density).toInt()
+
+        // Keep sizing stable when the coordinator briefly reports a small height (staged layout /
+        // IME resize). Never shrink the locked sheet height below the tallest parent we've seen.
+        val prevMaxPh = bottomSheet.getTag(R.id.tag_health_hub_sheet_max_parent_h) as? Int ?: 0
+        val rootH = (bottomSheet.rootView?.height ?: 0).coerceAtLeast(ph)
+        val maxPhRecorded = maxOf(prevMaxPh, ph, rootH)
+        bottomSheet.setTag(R.id.tag_health_hub_sheet_max_parent_h, maxPhRecorded)
+        val capForSizing = maxPhRecorded
+
+        val hubRect = Rect()
+        val computed = if (anchor != null && anchor.isShown && anchor.getGlobalVisibleRect(hubRect) && hubRect.bottom > 80) {
+            val pl = IntArray(2)
+            parent.getLocationOnScreen(pl)
+            val parentBottomOnScreen = pl[1] + ph
+            val sheetTopOnScreen = hubRect.bottom + gapBelowHubPx
+            val raw = parentBottomOnScreen - sheetTopOnScreen + extraHeightPx
+            val minH = (232 * density).toInt()
+            raw.coerceIn(minH, capForSizing)
+        } else {
+            (ph * 0.60f).toInt().coerceIn((300 * density).toInt(), capForSizing)
+        }
+        val lockedPrev = bottomSheet.getTag(R.id.tag_health_hub_sheet_locked_height) as? Int
+        val h = maxOf(computed, lockedPrev ?: 0).coerceIn(1, capForSizing)
+        bottomSheet.setTag(R.id.tag_health_hub_sheet_locked_height, h)
+
+        val lp = bottomSheet.layoutParams
+        lp.height = h
+        if (lp is CoordinatorLayout.LayoutParams) {
+            lp.gravity = Gravity.BOTTOM
+        }
+        bottomSheet.layoutParams = lp
+
+        BottomSheetBehavior.from(bottomSheet).apply {
+            isFitToContents = false
+            skipCollapsed = true
+            halfExpandedRatio = 0.999f
+            // Close via X only; no drag handle / swipe-to-dismiss.
+            isDraggable = false
+            isHideable = false
+            peekHeight = h
+            setExpandedOffset((ph - h).coerceAtLeast(0))
+            state = BottomSheetBehavior.STATE_EXPANDED
+        }
+        return true
+    }
+
+    /**
+     * Sizes the sheet from the bottom up to just under the Health Hub card (same for all three).
+     * Uses the bottom sheet parent's screen position so height/offset match [BottomSheetBehavior]
+     * (mixing [DisplayMetrics.heightPixels] with [getGlobalVisibleRect] caused the sheet to sit too low,
+     * e.g. with its top near "Your medicines" instead of under the hub).
+     */
+    private fun configureHealthHubSheetLayout(sheet: BottomSheetDialog, anchor: View?) {
+        sheet.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        sheet.setOnShowListener {
+            val bottomSheet = sheet.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+                ?: return@setOnShowListener
+
+            fun tryApply() {
+                if (!isAdded || !sheet.isShowing) return
+                val parent = bottomSheet.parent as? View ?: return
+                if (parent.height > 0) {
+                    applyHealthHubBottomSheetSizing(bottomSheet, anchor)
+                    return
+                }
+                val vto = parent.viewTreeObserver
+                val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
+                    override fun onGlobalLayout() {
+                        if (!isAdded || !sheet.isShowing || !parent.isAttachedToWindow) {
+                            if (vto.isAlive) vto.removeOnGlobalLayoutListener(this)
+                            return
+                        }
+                        if (parent.height <= 0) return
+                        vto.removeOnGlobalLayoutListener(this)
+                        applyHealthHubBottomSheetSizing(bottomSheet, anchor)
+                    }
+                }
+                vto.addOnGlobalLayoutListener(listener)
+            }
+
+            bottomSheet.post { tryApply() }
+            // Coordinator height can be wrong on the first frame; re-apply after layout settles.
+            bottomSheet.postDelayed({ tryApply() }, 48)
+            bottomSheet.postDelayed({ tryApply() }, 160)
+        }
+    }
+
+    private fun buildHealthHubAlertsReportText(): String {
+        val ctx = requireContext()
+        val meds = AdminDemoData.medicines
+        val apiAlerts = AdminDemoData.getApiAlerts()
+        val local = try {
+            AlertDb(ctx).getAllAlerts()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val now = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val sb = StringBuilder()
+        sb.appendLine("ACTIVE ALERTS REPORT")
+        sb.appendLine("Generated: $now")
+        sb.appendLine()
+        sb.appendLine("SUMMARY")
+        sb.appendLine("• Tracked medicines: ${meds.size}")
+        sb.appendLine("• Care-team alerts (synced): ${apiAlerts.size}")
+        sb.appendLine("• Local inbox messages: ${local.size}")
+        sb.appendLine()
+        sb.appendLine("MEDICINES")
+        if (meds.isEmpty()) {
+            sb.appendLine("(none)")
+        } else {
+            meds.forEachIndexed { i, m ->
+                sb.appendLine("${i + 1}. ${m.name} · ${m.box} · stock ${m.stock} · ${m.status}")
+            }
+        }
+        sb.appendLine()
+        sb.appendLine("CARE-TEAM ALERTS")
+        if (apiAlerts.isEmpty()) {
+            sb.appendLine("(none)")
+        } else {
+            apiAlerts.forEachIndexed { i, a ->
+                val t = SimpleDateFormat("MMM d HH:mm", Locale.getDefault()).format(Date(a.receivedAt))
+                sb.appendLine("${i + 1}. [$t] ${a.type}: ${a.message}")
+            }
+        }
+        sb.appendLine()
+        sb.appendLine("LOCAL INBOX")
+        if (local.isEmpty()) {
+            sb.appendLine("(none)")
+        } else {
+            local.forEachIndexed { i, a ->
+                val t = SimpleDateFormat("MMM d HH:mm", Locale.getDefault()).format(Date(a.receivedAt))
+                sb.appendLine("${i + 1}. [$t] ${a.type}: ${a.message}")
+            }
+        }
+        return sb.toString().trim()
+    }
+
+    private fun htmlEscapeForPrint(s: String): String = buildString(s.length + 16) {
+        for (c in s) {
+            when (c) {
+                '&' -> append("&amp;")
+                '<' -> append("&lt;")
+                '>' -> append("&gt;")
+                '"' -> append("&quot;")
+                else -> append(c)
+            }
+        }
+    }
+
+    private fun printHealthHubAlertsReport(plain: String) {
+        val esc = htmlEscapeForPrint(plain)
+        val html =
+            "<html><head><meta charset=\"utf-8\"/></head><body style=\"margin:16px;font-family:sans-serif;font-size:13px;\"><pre style=\"white-space:pre-wrap;word-wrap:break-word;\">$esc</pre></body></html>"
+        val wv = WebView(requireContext())
+        wv.settings.javaScriptEnabled = false
+        wv.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                val mgr = requireActivity().getSystemService(Context.PRINT_SERVICE) as PrintManager
+                val adapter = view.createPrintDocumentAdapter("CuraxAlertsReport")
+                mgr.print("Curax — Alerts report", adapter, PrintAttributes.Builder().build())
+            }
+        }
+        wv.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+    }
+
+    private fun showHealthHubPlannedItemsBottomSheet() {
+        val ctx = requireContext()
+        dismissActiveHealthHubSheet()
+        val shell = layoutInflater.inflate(R.layout.standalone_health_hub_bottom_sheet, null)
+        shell.findViewById<TextView>(R.id.tv_health_hub_sheet_prompt).setText(R.string.health_hub_sheet_planned_prompt)
+        val btnPrimary = shell.findViewById<MaterialButton>(R.id.btn_sheet_primary)
+        btnPrimary.visibility = View.VISIBLE
+        val btnPrint = shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_print)
+        btnPrint.visibility = View.GONE
+        val flBody = shell.findViewById<FrameLayout>(R.id.fl_health_hub_sheet_body)
+        layoutInflater.inflate(R.layout.sheet_body_planned, flBody, true)
+
+        val cardForm = flBody.findViewById<MaterialCardView>(R.id.cardPlanForm)
+        val tvEmpty = flBody.findViewById<TextView>(R.id.tvPlannedEmpty)
+        val tvListHeader = flBody.findViewById<TextView>(R.id.tv_plan_list_section_header)
+        val llPlanList = flBody.findViewById<LinearLayout>(R.id.llPlanList)
+        val nsv = flBody.findViewById<NestedScrollView>(R.id.nsv_planned_sheet)
+        val etTitle = flBody.findViewById<TextInputEditText>(R.id.etPlanTitle)
+        val etNotes = flBody.findViewById<TextInputEditText>(R.id.etPlanNotes)
+        val btnDate = flBody.findViewById<MaterialButton>(R.id.btnPlanDate)
+        val btnTime = flBody.findViewById<MaterialButton>(R.id.btnPlanTime)
+        val actActivity = flBody.findViewById<MaterialAutoCompleteTextView>(R.id.actPlanActivity)
+        val btnSave = flBody.findViewById<MaterialButton>(R.id.btnSavePlan)
+
+        val sheet = BottomSheetDialog(ctx)
+        activeHealthHubSheet = sheet
+
+        fun reapplyPlannedSheetHeight() {
+            if (!isAdded || !sheet.isShowing) return
+            val bs = sheet.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet) ?: return
+            bs.post { applyHealthHubBottomSheetSizing(bs, healthHubSheetAnchor()) }
+        }
+
+        cardForm.visibility = View.GONE
+        btnPrimary.setOnClickListener {
+            cardForm.visibility = View.VISIBLE
+            nsv.post {
+                nsv.smoothScrollTo(0, 0)
+                reapplyPlannedSheetHeight()
+            }
+        }
+
+        val cal = Calendar.getInstance()
+        var pickedDate = String.format(
+            Locale.US,
+            "%04d-%02d-%02d",
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH) + 1,
+            cal.get(Calendar.DAY_OF_MONTH),
+        )
+        var pickedTime = ""
+        btnDate.text = pickedDate
+        btnTime.text = getString(R.string.plan_pick_time)
+
+        val acts = resources.getStringArray(R.array.plan_activity_types)
+        actActivity.setAdapter(ArrayAdapter(ctx, android.R.layout.simple_list_item_1, acts))
+        actActivity.setText(acts[0], false)
+
+        btnDate.setOnClickListener {
+            DatePickerDialog(
+                ctx,
+                { _, y, m, d ->
+                    pickedDate = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                    btnDate.text = pickedDate
+                },
+                cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH),
+                cal.get(Calendar.DAY_OF_MONTH),
+            ).show()
+        }
+        btnTime.setOnClickListener {
+            TimePickerDialog(
+                ctx,
+                { _, h, min ->
+                    pickedTime = String.format(Locale.US, "%02d:%02d:00", h, min)
+                    btnTime.text = pickedTime.substring(0, 5)
+                },
+                cal.get(Calendar.HOUR_OF_DAY),
+                cal.get(Calendar.MINUTE),
+                true,
+            ).show()
+        }
+
+        fun renderPlanList(plans: List<UserPlanRow>) {
+            llPlanList.removeAllViews()
+            val empty = plans.isEmpty()
+            tvEmpty.visibility = if (empty) View.VISIBLE else View.GONE
+            tvListHeader.visibility = if (empty) View.GONE else View.VISIBLE
+            if (empty) return
+            val inflater = LayoutInflater.from(ctx)
+            for (p in plans) {
+                val card = inflater.inflate(R.layout.item_plan_row, llPlanList, false)
+                card.findViewById<TextView>(R.id.tvPlanTitle).text = p.title
+                val meta = buildString {
+                    append(p.planDate)
+                    if (p.planTime.isNotBlank()) append(" · ").append(p.planTime.take(5))
+                    append(" · ").append(p.activityType)
+                }
+                card.findViewById<TextView>(R.id.tvPlanMeta).text = meta
+                val n = card.findViewById<TextView>(R.id.tvPlanNotes)
+                if (p.notes.isNotBlank()) {
+                    n.visibility = View.VISIBLE
+                    n.text = p.notes
+                }
+                llPlanList.addView(card)
+            }
+        }
+
+        fun reloadPlans() {
+            Thread {
+                val (list, _) = UserPlansApi.fetchPlans(ctx)
+                activity?.runOnUiThread {
+                    renderPlanList(list)
+                    reapplyPlannedSheetHeight()
+                }
+            }.start()
+        }
+
+        fun clearFormAfterSave() {
+            etTitle.text?.clear()
+            etNotes.text?.clear()
+            pickedTime = ""
+            btnTime.text = getString(R.string.plan_pick_time)
+            cardForm.visibility = View.GONE
+            nsv.post { reapplyPlannedSheetHeight() }
+        }
+
+        btnSave.setOnClickListener {
+            val title = etTitle.text?.toString()?.trim().orEmpty()
+            if (title.isEmpty()) {
+                CuraxFeedback.warn(requireActivity(), getString(R.string.plan_field_title))
+                return@setOnClickListener
+            }
+            val notes = etNotes.text?.toString()?.trim().orEmpty()
+            val act = actActivity.text?.toString()?.trim().orEmpty().ifEmpty { "Other" }
+            val timePart = pickedTime.trim()
+            btnSave.isEnabled = false
+            Thread {
+                val (ok, err) = UserPlansApi.createPlan(ctx, title, notes, pickedDate, timePart, act)
+                activity?.runOnUiThread {
+                    btnSave.isEnabled = true
+                    if (ok) {
+                        CuraxFeedback.success(requireActivity(), getString(R.string.plan_saved))
+                        clearFormAfterSave()
+                        reloadPlans()
+                    } else {
+                        CuraxFeedback.warn(
+                            requireActivity(),
+                            getString(R.string.plan_save_failed) + (err?.let { ": $it" } ?: ""),
+                        )
+                    }
+                }
+            }.start()
+        }
+
+        shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_close).setOnClickListener { sheet.dismiss() }
+        // ADJUST_PAN shrinks the dialog’s content height when the IME is shown, which capped our
+        // sheet height at the smaller parent and made the planned sheet “shrink”. Keep full height;
+        // users scroll inside the NestedScrollView to reach fields above the keyboard.
+        sheet.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        sheet.setContentView(shell)
+        configureHealthHubSheetLayout(sheet, healthHubSheetAnchor())
+        sheet.setOnDismissListener {
+            if (activeHealthHubSheet === sheet) activeHealthHubSheet = null
+        }
+        sheet.show()
+        reloadPlans()
+    }
+
+    private fun showHealthHubAlertsBottomSheet() {
+        val ctx = requireContext()
+        dismissActiveHealthHubSheet()
+        val shell = layoutInflater.inflate(R.layout.standalone_health_hub_bottom_sheet, null)
+        shell.findViewById<TextView>(R.id.tv_health_hub_sheet_prompt).setText(R.string.health_hub_sheet_alerts_prompt)
+        shell.findViewById<MaterialButton>(R.id.btn_sheet_primary).visibility = View.GONE
+        val btnPrint = shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_print)
+        btnPrint.visibility = View.VISIBLE
+        val flBody = shell.findViewById<FrameLayout>(R.id.fl_health_hub_sheet_body)
+        layoutInflater.inflate(R.layout.sheet_body_alerts, flBody, true)
+        val reportPlain = buildHealthHubAlertsReportText()
+        flBody.findViewById<TextView>(R.id.tvReportBody).text = reportPlain
+
+        val sheet = BottomSheetDialog(ctx)
+        activeHealthHubSheet = sheet
+        shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_close).setOnClickListener { sheet.dismiss() }
+        btnPrint.setOnClickListener { printHealthHubAlertsReport(reportPlain) }
+        sheet.setContentView(shell)
+        configureHealthHubSheetLayout(sheet, healthHubSheetAnchor())
+        sheet.setOnDismissListener {
+            if (activeHealthHubSheet === sheet) activeHealthHubSheet = null
+        }
+        sheet.show()
+    }
+
+    private fun showHealthHubSyncHistoryBottomSheet() {
+        val ctx = requireContext()
+        dismissActiveHealthHubSheet()
+        val shell = layoutInflater.inflate(R.layout.standalone_health_hub_bottom_sheet, null)
+        shell.findViewById<TextView>(R.id.tv_health_hub_sheet_prompt).setText(R.string.health_hub_sheet_sync_prompt)
+        shell.findViewById<MaterialButton>(R.id.btn_sheet_primary).visibility = View.GONE
+        shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_print).visibility = View.GONE
+        val flBody = shell.findViewById<FrameLayout>(R.id.fl_health_hub_sheet_body)
+        layoutInflater.inflate(R.layout.sheet_body_sync, flBody, true)
+        val rv = flBody.findViewById<RecyclerView>(R.id.rvSyncHistory)
+        val rows = HealthHubHistoryStore.readSyncEvents(ctx)
+        rv.layoutManager = LinearLayoutManager(ctx)
+        rv.adapter = HealthHubSyncSheetAdapter(rows)
+
+        val sheet = BottomSheetDialog(ctx)
+        activeHealthHubSheet = sheet
+        shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_close).setOnClickListener { sheet.dismiss() }
+        sheet.setContentView(shell)
+        configureHealthHubSheetLayout(sheet, healthHubSheetAnchor())
+        sheet.setOnDismissListener {
+            if (activeHealthHubSheet === sheet) activeHealthHubSheet = null
+        }
+        sheet.show()
+    }
+
+    private class HealthHubSyncSheetAdapter(
+        private val items: List<Pair<Long, String>>,
+    ) : RecyclerView.Adapter<HealthHubSyncSheetAdapter.VH>() {
+        private val fmtServer = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).apply {
+            timeZone = java.util.TimeZone.getDefault()
+        }
+        private val fmtOut = SimpleDateFormat("EEE, MMM d yyyy · HH:mm", Locale.getDefault())
+        private val fmtRecorded = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
+        class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val server: TextView = v.findViewById(R.id.tvServerTime)
+            val recorded: TextView = v.findViewById(R.id.tvRecordedAt)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_sync_history_row, parent, false)
+            return VH(v)
+        }
+
+        override fun getItemCount(): Int = items.size.coerceAtLeast(1)
+
+        override fun onBindViewHolder(holder: VH, position: Int) {
+            if (items.isEmpty()) {
+                holder.server.text = holder.itemView.context.getString(R.string.sync_history_empty)
+                holder.recorded.visibility = View.GONE
+                return
+            }
+            holder.recorded.visibility = View.VISIBLE
+            val (at, serverIso) = items[position]
+            val label = try {
+                val normalized = serverIso.replace(' ', 'T').substringBefore('Z').substringBefore('+').take(19)
+                val d = fmtServer.parse(normalized) ?: Date(at)
+                fmtOut.format(d)
+            } catch (_: Exception) {
+                serverIso
+            }
+            holder.server.text = label
+            holder.recorded.text = "Recorded ${fmtRecorded.format(Date(at))}"
+        }
+    }
+
     private fun isUserApp(): Boolean = AppRole.isUser(requireContext())
 }

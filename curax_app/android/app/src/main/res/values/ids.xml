@@ -4,4 +4,6 @@
     <item name="action_toggle_theme" type="id" />
     <item name="action_app_mode" type="id" />
     <item name="action_settings" type="id" />
+    <item name="tag_health_hub_sheet_locked_height" type="id" />
+    <item name="tag_health_hub_sheet_max_parent_h" type="id" />
 </resources>

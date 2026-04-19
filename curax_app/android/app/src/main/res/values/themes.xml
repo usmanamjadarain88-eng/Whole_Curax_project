@@ -43,4 +43,18 @@
     <style name="TextAppearance.Curax.Tab.Selected" parent="TextAppearance.Curax.Tab">
         <item name="android:textStyle">bold</item>
     </style>
+
+    <!-- Compact Health Hub “Create plan” form (bottom sheet) -->
+    <style name="TextAppearance.Curax.PlanFormHint" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <style name="Widget.Curax.TextInputLayout.PlanDense" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
+        <item name="hintTextAppearance">@style/TextAppearance.Curax.PlanFormHint</item>
+    </style>
+
+    <style name="Widget.Curax.TextInputLayout.PlanDenseDropdown" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu">
+        <item name="hintTextAppearance">@style/TextAppearance.Curax.PlanFormHint</item>
+    </style>
 </resources>

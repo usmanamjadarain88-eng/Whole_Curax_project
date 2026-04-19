@@ -267,6 +267,12 @@
     <string name="plan_save_failed">Could not save plan</string>
     <string name="sync_history_empty">No sync events yet. They appear after each successful data sync.</string>
     <string name="plan_list_empty">No saved plans yet. Add one with the form above.</string>
+    <string name="no_plans_yet">No plans</string>
+    <string name="create_plan">Create plan</string>
+    <string name="sheet_close_content_description">Close</string>
+    <string name="health_hub_sheet_planned_prompt">Create your plans here</string>
+    <string name="health_hub_sheet_alerts_prompt">Review alerts and medicines below</string>
+    <string name="health_hub_sheet_sync_prompt">Successful syncs are listed below</string>
 </resources>
 
 

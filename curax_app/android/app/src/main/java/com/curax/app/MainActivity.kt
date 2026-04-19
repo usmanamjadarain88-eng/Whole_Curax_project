@@ -65,6 +65,7 @@ class MainActivity : AppCompatActivity() {
     private var connectionService: AlertConnectionService? = null
     private var securityShineAnimator: ValueAnimator? = null
     private var alertsReceiverRegistered = false
+    private var pendingRelayConnectAfterNotificationPermission = false
 
     private val alertsUpdatedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -199,13 +200,20 @@ class MainActivity : AppCompatActivity() {
                 CuraxFeedback.info(this, "Disconnected")
             } else {
                 CuraxFeedback.info(this, "Registering FCM and connecting to relay…")
-                askNotificationPermission()
-                if (!prefs.hasRequestedConnectWakePermissions) {
-                    val didAskBattery = requestBatteryOptimizationExemption()
-                    // We no longer use full-screen alerts, so no need to prompt for that permission.
-                    prefs.hasRequestedConnectWakePermissions = didAskBattery
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    pendingRelayConnectAfterNotificationPermission = true
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                        1,
+                    )
+                } else {
+                    pendingRelayConnectAfterNotificationPermission = false
+                    runMainConnectWakeAndRelayFlow(id, apiKey)
                 }
-                connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
             }
         }
 
@@ -244,6 +252,22 @@ class MainActivity : AppCompatActivity() {
             checkUserDeletedByAdmin()
         }
         ConnectionManager.requestReconnectRelayNow(this)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1 && pendingRelayConnectAfterNotificationPermission) {
+            pendingRelayConnectAfterNotificationPermission = false
+            val id = prefs.id.trim()
+            val apiKey = prefs.apiKey.trim()
+            if (id.isNotEmpty() && apiKey.isNotEmpty()) {
+                runMainConnectWakeAndRelayFlow(id, apiKey)
+            }
+        }
     }
 
     private fun checkUserDeletedByAdmin() {
@@ -469,6 +493,11 @@ class MainActivity : AppCompatActivity() {
         tvConnectionStatus.text = getString(R.string.connecting)
         tvConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
         bindService(Intent(this, AlertConnectionService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
+    }
+
+    private fun runMainConnectWakeAndRelayFlow(id: String, apiKey: String) {
+        requestBatteryOptimizationExemption()
+        connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
     }
 
     private fun requestBatteryOptimizationExemption(): Boolean {
