@@ -661,7 +661,19 @@ class AdminMedicalRemindersFragment : Fragment() {
     }
 
     private fun saveRemindersToApi(reminders: Map<String, List<Map<String, Any?>>>) {
-        if (isUserApp()) return
+        if (isUserApp()) {
+            if (StandaloneUi.isUserStandalone(requireContext())) {
+                StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
+                StandaloneUserMutationSink.notifyLocalChange(
+                    activity,
+                    requireContext(),
+                    PendingSyncQueueStore.TYPE_REMINDER,
+                    getString(R.string.pending_sync_title_reminder),
+                    getString(R.string.pending_sync_subtitle_not_synced),
+                )
+            }
+            return
+        }
         val prefs = Prefs(requireContext())
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")

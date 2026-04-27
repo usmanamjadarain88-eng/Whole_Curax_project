@@ -165,6 +165,11 @@ class Prefs(context: Context) {
         get() = prefs.getString(KEY_USER_HUB_FIRST_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_USER_HUB_FIRST_NAME, value.trim()).apply()
 
+    /** User avatar as `data:image/jpeg;base64,...` from server + local selection (also under profile_picture in cached JSON). */
+    var userProfilePictureDataUrl: String
+        get() = prefs.getString(KEY_USER_PROFILE_PICTURE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_USER_PROFILE_PICTURE, value).apply()
+
     companion object {
         private const val DEFAULT_SERVER_URL = "https://curax-relay.onrender.com"
         private const val DEFAULT_CENTRAL_API_URL = "https://whole-curax-project.vercel.app"
@@ -195,6 +200,7 @@ class Prefs(context: Context) {
         private const val KEY_USER_STANDALONE_DATA_READY = "user_standalone_data_ready"
         private const val KEY_CACHED_USER_DATA_JSON = "cached_user_data_snapshot_json"
         private const val KEY_USER_HUB_FIRST_NAME = "user_hub_first_name"
+        private const val KEY_USER_PROFILE_PICTURE = "user_profile_picture_data_url"
         private const val KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS = "has_requested_connect_wake_permissions"
         const val KEY_FCM_TOKEN = "fcm_token"
     }

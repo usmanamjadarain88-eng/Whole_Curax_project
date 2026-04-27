@@ -15,6 +15,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.net.Uri
 import androidx.core.graphics.ColorUtils
 import android.text.SpannableString
 import android.text.Spanned
@@ -24,6 +25,7 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
+import java.io.File
 import java.net.URLEncoder
 import java.util.ArrayDeque
 import java.util.concurrent.TimeUnit
@@ -38,13 +40,15 @@ import android.view.MenuItem
 import android.widget.PopupWindow
 import android.graphics.drawable.ColorDrawable
 import android.widget.CompoundButton
-import android.widget.RadioGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.SwitchCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.MenuItemCompat
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -53,6 +57,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.messaging.FirebaseMessaging
+import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import androidx.viewpager2.widget.ViewPager2
@@ -73,7 +78,18 @@ class UserStandaloneActivity : AppCompatActivity() {
         private const val DEFERRED_MODE_SHEET_DELAY_MS = 1_800L
         /** After the user qualifies for the PIN offer, wait briefly so it does not stack on the mode sheet / relaunch. */
         private const val DEFERRED_PIN_PROMPT_DELAY_MS = 1_200L
+        private const val REQ_CAMERA_PROFILE = 19
     }
+
+    private val pickGalleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { runProfileUploadFromUri(it) }
+    }
+
+    private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok && cameraCaptureUri != null) runProfileUploadFromUri(cameraCaptureUri!!)
+    }
+
+    private var cameraCaptureUri: Uri? = null
 
     private lateinit var prefs: Prefs
     private lateinit var drawerLayout: DrawerLayout
@@ -126,6 +142,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var deferredHomeUiRunnable: Runnable? = null
     private var pinDeferredPromptRunnable: Runnable? = null
     private var appModeLabelPopup: PopupWindow? = null
+    private var pendingSyncSwipeTray: PendingSyncSwipeTray? = null
     private var displayModeReceiverRegistered = false
     private val displayModeFromServerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -182,6 +199,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
         // Bootstrap from the last saved standalone snapshot so the screen has data immediately on open.
         val restored = UserDataBusClient.restoreCachedUserData(this)
+        if (StandaloneUi.isUserStandalone(this)) {
+            // Plans live in UserPlansLocalStore; warm from network when possible so cold start matches server.
+            Thread { UserPlansApi.fetchPlans(applicationContext) }.start()
+        }
 
         setContentView(R.layout.activity_user_standalone)
 
@@ -237,10 +258,11 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (extraTab >= 0) {
             intent.removeExtra(EXTRA_RELAUNCH_TAB)
         }
+        val maxTabIndex = userShellTabCount() - 1
         val restoreTab = if (extraTab >= 0) {
-            extraTab.coerceIn(0, 5)
+            extraTab.coerceIn(0, maxTabIndex)
         } else {
-            savedInstanceState?.getInt(STATE_VIEW_PAGER_TAB)?.coerceIn(0, 5) ?: 0
+            savedInstanceState?.getInt(STATE_VIEW_PAGER_TAB)?.coerceIn(0, maxTabIndex) ?: 0
         }
         setupTabs(restoreTab)
         refreshUserShellChrome()
@@ -258,6 +280,9 @@ class UserStandaloneActivity : AppCompatActivity() {
         tvChevronHealth = findViewById(R.id.tvChevronHealth)
         tvChevronAlerts = findViewById(R.id.tvChevronAlerts)
         tvChevronRealtime = findViewById(R.id.tvChevronRealtime)
+
+        findViewById<ImageButton>(R.id.btnUserSidebarProfileAdd)?.setOnClickListener { showProfilePictureSourceDialog() }
+        bindSidebarProfileAvatar()
 
         findViewById<LinearLayout>(R.id.sidebarSectionAdmin).setOnClickListener { toggleSidebarSection(0) }
         findViewById<LinearLayout>(R.id.sidebarSectionHealth).setOnClickListener { toggleSidebarSection(1) }
@@ -302,6 +327,11 @@ class UserStandaloneActivity : AppCompatActivity() {
         updateConnectionUi(false)
         showLoading(!restored)
 
+        pendingSyncSwipeTray = PendingSyncSwipeTray(this)
+        StandaloneUserMutationSink.swipeCardPresenter = { title, subtitle ->
+            pendingSyncSwipeTray?.push(title, subtitle)
+        }
+
         scheduleDeferredHomeDialogs()
     }
 
@@ -316,6 +346,12 @@ class UserStandaloneActivity : AppCompatActivity() {
         super.onResume()
         refreshUserShellChrome()
         refreshUserSidebar()
+        if (StandaloneUi.isUserStandalone(this)) {
+            LocalAlertsController.reschedule(this)
+            DoseAutoMissedMarker.run(this)
+            DoseNudgeController.tickDailyAdherenceIfNeeded(this)
+            PendingSyncCoordinator.requestFlush(this)
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -330,6 +366,12 @@ class UserStandaloneActivity : AppCompatActivity() {
                 runConnectWakeAndRelayFlow()
             } else {
                 refreshUserSidebar()
+            }
+            return
+        }
+        if (requestCode == REQ_CAMERA_PROFILE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                openCameraForProfile()
             }
         }
     }
@@ -522,32 +564,61 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    /** Dose tracking tab exists only in standalone user shell, not default mode. */
+    private fun userShellTabCount(): Int = if (StandaloneUi.isUserStandalone(this)) 7 else 6
+
     private fun setupTabs(restoreTab: Int = 0) {
+        val standalone = StandaloneUi.isUserStandalone(this)
+        val tabCount = userShellTabCount()
         tabMediator?.detach()
         viewPager.adapter = object : androidx.viewpager2.adapter.FragmentStateAdapter(this) {
-            override fun getItemCount(): Int = 6
+            override fun getItemCount(): Int = tabCount
             override fun createFragment(position: Int): androidx.fragment.app.Fragment {
-                return when (position) {
+                return if (standalone) {
+                    when (position) {
+                        0 -> AdminOverviewFragment().also { overviewFragmentRef = it }
+                        1 -> AdminAlertsFragment()
+                        2 -> DoseTrackingFragment()
+                        3 -> AdminMedicalRemindersFragment()
+                        4 -> AdminLogsFragment()
+                        5 -> AdminReportsFragment()
+                        else -> AdminSettingsFragment()
+                    }
+                } else {
+                    when (position) {
                     0 -> AdminOverviewFragment().also { overviewFragmentRef = it }
                     1 -> AdminAlertsFragment()
                     2 -> AdminMedicalRemindersFragment()
                     3 -> AdminLogsFragment()
                     4 -> AdminReportsFragment()
                     else -> AdminSettingsFragment()
+                    }
                 }
             }
         }
         tabMediator = TabLayoutMediator(tabLayout, viewPager) { tab, position ->
-            tab.text = when (position) {
+            tab.text = if (standalone) {
+                when (position) {
+                    0 -> "Dashboard"
+                    1 -> "Alerts"
+                    2 -> getString(R.string.tab_dose_tracking)
+                    3 -> "Reminders"
+                    4 -> "Logs"
+                    5 -> "Reports"
+                    else -> getString(R.string.tab_system_view)
+                }
+            } else {
+                when (position) {
                 0 -> "Dashboard"
                 1 -> "Alerts"
                 2 -> "Reminders"
                 3 -> "Logs"
                 4 -> "Reports"
-                else -> getString(R.string.tab_system_view)
+                    else -> getString(R.string.tab_system_view)
+                }
             }
         }.apply { attach() }
-        viewPager.setCurrentItem(restoreTab.coerceIn(0, 5), false)
+        viewPager.setCurrentItem(restoreTab.coerceIn(0, tabCount - 1), false)
     }
 
     /**
@@ -648,6 +719,9 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        if (StandaloneUi.isUserStandalone(this)) {
+            StandaloneOfflineMirror.persistMergedSnapshot(applicationContext)
+        }
         // Same as admin: stay subscribed in background for real-time sync from admin/desktop.
         UserDataBusClient.setOnUserDataAppliedListener(null)
         if (dataSyncReceiverRegistered) {
@@ -693,7 +767,9 @@ class UserStandaloneActivity : AppCompatActivity() {
         } catch (_: Exception) { }
         if (isFinishing && !isChangingConfigurations) {
             UserDataBusClient.stop()
+            StandaloneUserMutationSink.swipeCardPresenter = null
         }
+        pendingSyncSwipeTray = null
         super.onDestroy()
     }
 
@@ -857,8 +933,88 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    private fun bindSidebarProfileAvatar() {
+        val iv = findViewById<ShapeableImageView>(R.id.ivUserSidebarProfile) ?: return
+        val raw = prefs.userProfilePictureDataUrl.trim()
+        if (raw.isEmpty()) {
+            iv.setImageResource(R.drawable.ic_avatar_placeholder)
+            return
+        }
+        Thread {
+            val bmp = UserProfileImageCodec.bitmapFromDataUrl(raw)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (bmp != null) iv.setImageBitmap(bmp) else iv.setImageResource(R.drawable.ic_avatar_placeholder)
+            }
+        }.start()
+    }
+
+    private fun showProfilePictureSourceDialog() {
+        val items = arrayOf(getString(R.string.user_profile_pick_gallery), getString(R.string.user_profile_pick_camera))
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.user_profile_pick_title)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> pickGalleryLauncher.launch("image/*")
+                    1 -> requestCameraThenCapture()
+                }
+            }
+            .show()
+    }
+
+    private fun requestCameraThenCapture() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQ_CAMERA_PROFILE)
+            return
+        }
+        openCameraForProfile()
+    }
+
+    private fun openCameraForProfile() {
+        val dir = File(cacheDir, "profile_snapshots").apply { mkdirs() }
+        val f = File(dir, "cap_${System.currentTimeMillis()}.jpg")
+        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", f)
+        cameraCaptureUri = uri
+        try {
+            takePictureLauncher.launch(uri)
+        } catch (_: Exception) {
+            CuraxFeedback.warn(this, getString(R.string.user_profile_upload_fail))
+        }
+    }
+
+    private fun runProfileUploadFromUri(uri: Uri) {
+        CuraxFeedback.info(this, getString(R.string.user_profile_uploading))
+        Thread {
+            val bmp = UserProfileImageCodec.loadAndDownscale(this, uri)
+            if (bmp == null) {
+                runOnUiThread { CuraxFeedback.warn(this@UserStandaloneActivity, getString(R.string.user_profile_upload_fail)) }
+                return@Thread
+            }
+            val dataUrl = UserProfileImageCodec.toJpegDataUrl(bmp)
+            if (!bmp.isRecycled) bmp.recycle()
+            val (ok, err) = UserProfilePictureApi.uploadProfilePicture(applicationContext, dataUrl)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (ok) {
+                    prefs.userProfilePictureDataUrl = dataUrl
+                    bindSidebarProfileAvatar()
+                    StandaloneOfflineMirror.persistMergedSnapshot(applicationContext)
+                    CuraxFeedback.success(this, getString(R.string.user_profile_upload_ok))
+                } else {
+                    CuraxFeedback.warn(
+                        this,
+                        getString(R.string.user_profile_upload_fail) + (err?.let { ": $it" } ?: ""),
+                    )
+                }
+            }
+        }.start()
+    }
+
     private fun refreshUserSidebar() {
         if (!::tvUserSidebarAdminStatus.isInitialized) return
+        bindSidebarProfileAvatar()
 
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val botId = prefs.id.trim()
@@ -1005,7 +1161,8 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (prefs.userInitialAppModeSheetCompleted || mandatoryModeSheetLaunched) return
         mandatoryModeSheetLaunched = true
         val sheetView = layoutInflater.inflate(R.layout.bottom_sheet_first_app_mode, null)
-        val rg = sheetView.findViewById<RadioGroup>(R.id.rgFirstAppMode)
+        val cardSmart = sheetView.findViewById<MaterialCardView>(R.id.card_first_mode_smart)
+        val cardPersonal = sheetView.findViewById<MaterialCardView>(R.id.card_first_mode_personal)
         val btnContinue = sheetView.findViewById<MaterialButton>(R.id.btnFirstModeContinue)
         val sheet = BottomSheetDialog(this)
         firstAppModeBottomSheet = sheet
@@ -1019,16 +1176,29 @@ class UserStandaloneActivity : AppCompatActivity() {
                 mandatoryModeSheetLaunched = false
             }
         }
-        rg.setOnCheckedChangeListener { _, _ ->
-            btnContinue.isEnabled = rg.checkedRadioButtonId != View.NO_ID
+        /** false = Smart System (server default), true = Personal Health (server standalone). */
+        var wantStandalone = false
+        fun applyFirstModeCardSelection(smartSelected: Boolean) {
+            wantStandalone = !smartSelected
+            val d = resources.displayMetrics.density
+            val thin = (1f * d).toInt().coerceAtLeast(1)
+            val thick = (2f * d).toInt().coerceAtLeast(thin + 1)
+            val accent = ContextCompat.getColor(this, R.color.connect_button_bg)
+            val muted = ContextCompat.getColor(this, R.color.summary_stroke)
+            cardSmart.strokeWidth = if (smartSelected) thick else thin
+            cardSmart.setStrokeColor(ColorStateList.valueOf(if (smartSelected) accent else muted))
+            cardPersonal.strokeWidth = if (!smartSelected) thick else thin
+            cardPersonal.setStrokeColor(ColorStateList.valueOf(if (!smartSelected) accent else muted))
+            cardSmart.alpha = if (smartSelected) 1f else 0.9f
+            cardPersonal.alpha = if (!smartSelected) 1f else 0.9f
         }
+        applyFirstModeCardSelection(smartSelected = true)
+        cardSmart.setOnClickListener { applyFirstModeCardSelection(smartSelected = true) }
+        cardPersonal.setOnClickListener { applyFirstModeCardSelection(smartSelected = false) }
         btnContinue.setOnClickListener {
-            val checked = rg.checkedRadioButtonId
-            if (checked == View.NO_ID) return@setOnClickListener
-            val standalone = checked == R.id.rbFirstModeStandalone
-            AppModeManager.setStandaloneMode(this, standalone)
+            AppModeManager.setStandaloneMode(this, wantStandalone)
             prefs.userInitialAppModeSheetCompleted = true
-            UserDisplayModeApi.postDisplayModeAsync(this, standalone)
+            UserDisplayModeApi.postDisplayModeAsync(this, wantStandalone)
             sheet.dismiss()
             // Overview layout is chosen once in onCreateView; without a fresh activity, Dashboard stays on
             // the wrong XML until a tab switch. Same fix as toolbar mode toggle (relaunchAfterDisplayModeChange).
@@ -1170,11 +1340,13 @@ class UserStandaloneActivity : AppCompatActivity() {
      */
     fun relaunchAfterDisplayModeChange() {
         val tab = if (::viewPager.isInitialized) viewPager.currentItem else 0
+        val cap = ((if (::viewPager.isInitialized) viewPager.adapter?.itemCount else null)
+            ?: userShellTabCount()) - 1
         AppLockState.grantUnlock(60_000L)
         AppLockState.clearBackgroundTimestamp()
         prefs.lastBackgroundAtMs = 0L
         val i = Intent(this, UserStandaloneActivity::class.java)
-        i.putExtra(EXTRA_RELAUNCH_TAB, tab.coerceIn(0, 5))
+        i.putExtra(EXTRA_RELAUNCH_TAB, tab.coerceIn(0, cap.coerceAtLeast(0)))
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         startActivity(i)
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)

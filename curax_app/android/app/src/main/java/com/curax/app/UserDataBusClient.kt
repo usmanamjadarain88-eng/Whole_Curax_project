@@ -350,6 +350,9 @@ object UserDataBusClient {
         val ufn = data.optString("user_first_name", "").trim()
         if (ufn.isNotEmpty()) prefs.userHubFirstName = ufn
 
+        val pic = data.optString("profile_picture", "").trim()
+        prefs.userProfilePictureDataUrl = pic
+
         val dm = data.optString("user_display_mode", "").trim().lowercase()
         if (dm == "standalone" || dm == "default") {
             val wantStandalone = dm == "standalone"
@@ -379,6 +382,7 @@ object UserDataBusClient {
             list.add(m)
         }
         AdminDemoData.replaceMedicines(AdminDemoData.fromApiMedicines(list))
+        DoseTrackingLocalStore.mergeFromPayloadArray(ctx, data.optJSONArray("dose_log"))
         AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))

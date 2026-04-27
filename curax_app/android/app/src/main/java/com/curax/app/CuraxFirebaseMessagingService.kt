@@ -80,6 +80,8 @@ class CuraxFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
+        // FCM path: admin / server–driven alerts and sync-related pushes only.
+        // Routine medicine times, dose schedules, and Health Hub plan reminders are handled on-device by LocalAlertsController.
         val data = remoteMessage.data
         val type = data["type"] ?: "alert"
         val message = data["message"] ?: remoteMessage.notification?.body ?: "New alert"

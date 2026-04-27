@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Auth / onboarding (launcher → connect to admin): white shell, no change to app-wide green elsewhere -->
+    <color name="auth_onboarding_bg">#FFFFFF</color>
+    <color name="auth_heading">#000000</color>
+    <color name="auth_subtitle">#6C6C6F</color>
+    <color name="auth_field_border">#B5B5B7</color>
+    <color name="auth_field_text">#0A0A0F</color>
+    <color name="auth_password_hint">#CECECF</color>
+    <color name="auth_password_toggle_tint">#CECECF</color>
+    <color name="auth_promo_muted">#37383E</color>
+    <color name="auth_reset_green">#00A218</color>
+    <color name="auth_login_label">#1E1E1E</color>
+
     <color name="toolbar_start">#06402B</color>
     <color name="toolbar_end">#0E7A57</color>
 
@@ -98,6 +110,8 @@
     <color name="standalone_on_hero_muted">#E0E7FF</color>
     <!-- Health hub mini ECG: soft contrast on hero gradient, not neon -->
     <color name="standalone_health_hub_ecg_line">#B4C2EB</color>
+    <!-- ECG line on mint login-gradient hero (readable on #90FF9C–#CEFFD3) -->
+    <color name="standalone_health_hub_ecg_line_on_mint">#1E6B4A</color>
     <color name="standalone_inventory_card">#FFFFFF</color>
     <color name="standalone_inventory_row_stroke">#C7D2FE</color>
     <color name="standalone_inventory_strip_normal">#22C55E</color>

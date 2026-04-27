@@ -522,7 +522,16 @@ def get_admin_connection(body, query, headers):
     return (200, {
         "fcm_token_set": status.get("fcm_token_set", False),
         "connected": status.get("connected", False),
-        "linked_users": [{"id": str(u.get("id", "")), "name": u.get("name"), "email": u.get("email") or "", "bot_id": u.get("bot_id")} for u in users],
+        "linked_users": [
+            {
+                "id": str(u.get("id", "")),
+                "name": u.get("name"),
+                "email": u.get("email") or "",
+                "bot_id": u.get("bot_id"),
+                "profile_picture": (u.get("profile_picture") or "").strip(),
+            }
+            for u in users
+        ],
     })
 def delete_admin_user(user_id, body, query, headers):
     """DELETE /admin/users/<user_id> with JSON { "access_code": "..." }. Only admin can delete a connected user.
@@ -653,6 +662,9 @@ def _normalize_user_data_response(data):
         "user_display_mode": str(data.get("user_display_mode") or "").strip().lower(),
         "user_first_name": str(data.get("user_first_name") or "").strip(),
     }
+    pp = str(data.get("profile_picture") or "").strip()
+    if pp:
+        out["profile_picture"] = pp
     settings_obj = out["alert_settings"] if isinstance(out["alert_settings"], dict) else {}
     medicine_meta = settings_obj.get("medicine_meta") if isinstance(settings_obj.get("medicine_meta"), dict) else {}
     for m in out["medicines"]:
@@ -731,6 +743,74 @@ def user_post_display_mode(body, query, headers):
     return (200, {"ok": True, "user_display_mode": mode})
 
 
+def user_post_profile_picture(body, query, headers):
+    """POST { bot_id, api_key, profile_picture } — data URL or empty string to clear. Synced to admin linked-users list."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    raw = data.get("profile_picture")
+    pic = (raw if isinstance(raw, str) else str(raw or "")).strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required"})
+    ok, err = db.set_user_profile_picture_by_bot(bot_id, api_key, pic)
+    if err == "missing_credentials":
+        return (400, {"message": "bot_id and api_key required"})
+    if err == "too_large":
+        return (400, {"message": "profile_picture too large"})
+    if err == "user_not_found":
+        return (404, {"message": "User not found"})
+    if not ok:
+        return (500, {"message": "Failed to save profile picture", "detail": err or "unknown"})
+    return (200, {"ok": True})
+
+
+def user_standalone_sync(body, query, headers):
+    """POST { bot_id, api_key, client_ms?, medicines?, dose_append?, medical_reminders? } — user app offline-first flush."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required"})
+    info = db.get_user_and_admin_bot_by_user_bot(bot_id, api_key)
+    if not info:
+        return (404, {"message": "User not found"})
+    user_id = info["user_id"]
+    admin_id = info["admin_id"]
+    try:
+        client_ms = int(data.get("client_ms") or 0)
+    except (TypeError, ValueError):
+        client_ms = 0
+    medicines = data.get("medicines")
+    dose_append = data.get("dose_append")
+    if dose_append is None:
+        dose_append = data.get("dose_log_append")
+    medical_reminders = data.get("medical_reminders")
+    if medicines is None:
+        medicines = []
+    if dose_append is None:
+        dose_append = []
+    ok = db.merge_user_standalone_sync_from_app(
+        admin_id,
+        user_id,
+        medicines,
+        dose_append,
+        medical_reminders,
+        client_ms,
+    )
+    if not ok:
+        return (500, {"message": "Failed to merge user data"})
+    ac = (info.get("admin_access_code") or "").strip()
+    if ac:
+        notify_databus(ac)
+    return (200, {"ok": True})
+
+
 def user_plans_get(body, query, headers):
     """GET /user/plans?bot_id=&api_key= — list Health Hub planned items for this user."""
     bot_id = (query.get("bot_id") or "").strip()
@@ -747,7 +827,7 @@ def user_plans_get(body, query, headers):
 
 
 def user_plans_post(body, query, headers):
-    """POST { bot_id, api_key, title, plan_date, notes?, plan_time?, activity_type? } — create a plan."""
+    """POST { bot_id, api_key, title, plan_date, notes?, plan_time?, activity_type?, health_type? } — create a plan."""
     data = body if isinstance(body, dict) else {}
     bot_id = (data.get("bot_id") or "").strip()
     api_key = (data.get("api_key") or "").strip()
@@ -756,6 +836,7 @@ def user_plans_post(body, query, headers):
     plan_date = (data.get("plan_date") or "").strip()
     plan_time = (data.get("plan_time") or "").strip()
     activity_type = (data.get("activity_type") or "other").strip()
+    health_type = (data.get("health_type") or "general").strip()
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
@@ -765,7 +846,9 @@ def user_plans_post(body, query, headers):
         return (400, {"message": "title required"})
     if not plan_date:
         return (400, {"message": "plan_date required (YYYY-MM-DD)"})
-    pid, err = db.create_user_plan_by_bot(bot_id, api_key, title, notes, plan_date, plan_time, activity_type)
+    pid, err = db.create_user_plan_by_bot(
+        bot_id, api_key, title, notes, plan_date, plan_time, activity_type, health_type
+    )
     if err == "user_not_found":
         return (404, {"message": "User not found"})
     if err == "invalid_plan_date":
@@ -773,6 +856,51 @@ def user_plans_post(body, query, headers):
     if pid is None:
         return (500, {"message": "Failed to save plan", "detail": err or "unknown", "hint": "Run: ALTER TABLE users ADD COLUMN IF NOT EXISTS health_hub_plans JSONB NOT NULL DEFAULT '[]'::jsonb;"})
     return (200, {"ok": True, "id": pid})
+
+
+def user_plans_patch(body, query, headers):
+    """PATCH { bot_id, api_key, plan_id, status: pending|done }."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    plan_id = (data.get("plan_id") or "").strip()
+    status = (data.get("status") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not bot_id or not api_key or not plan_id:
+        return (400, {"message": "bot_id, api_key, and plan_id required"})
+    ok, err = db.update_user_plan_by_bot(bot_id, api_key, plan_id, status=status)
+    if err == "user_not_found":
+        return (404, {"message": "User not found"})
+    if err == "plan_not_found":
+        return (404, {"message": "Plan not found"})
+    if err == "invalid_status":
+        return (400, {"message": "status must be pending or done"})
+    if not ok:
+        return (500, {"message": "Failed to update plan", "detail": err or "unknown"})
+    return (200, {"ok": True})
+
+
+def user_plans_delete(body, query, headers):
+    """DELETE body { bot_id, api_key, plan_id }."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    plan_id = (data.get("plan_id") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not bot_id or not api_key or not plan_id:
+        return (400, {"message": "bot_id, api_key, and plan_id required"})
+    ok, err = db.delete_user_plan_by_bot(bot_id, api_key, plan_id)
+    if err == "user_not_found":
+        return (404, {"message": "User not found"})
+    if err == "plan_not_found":
+        return (404, {"message": "Plan not found"})
+    if not ok:
+        return (500, {"message": "Failed to delete plan", "detail": err or "unknown"})
+    return (200, {"ok": True})
 
 
 def user_databus_room(body, query, headers):

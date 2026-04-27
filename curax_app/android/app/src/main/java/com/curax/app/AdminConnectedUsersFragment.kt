@@ -12,6 +12,7 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.imageview.ShapeableImageView
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -143,16 +144,25 @@ class AdminConnectedUsersFragment : Fragment() {
                                 val name = u.optString("name", "").ifEmpty { "Unknown" }
                                 val botId = u.optString("bot_id", "").trim()
                                 val desktopLinked = u.optBoolean("desktop_linked", false)
-                                val tv = android.widget.TextView(requireContext()).apply {
-                                    text = "• $name — Manage desktop" + if (desktopLinked) "  (ID: $botId)" else "  (user must login to desktop first)"
-                                    setTextColor(androidx.core.content.ContextCompat.getColor(requireContext(), R.color.text_primary))
-                                    textSize = 15f
-                                    setPadding(32, 16, 32, 16)
-                                    isClickable = true
-                                    isFocusable = true
-                                    setBackgroundResource(android.R.drawable.list_selector_background)
+                                val row = layoutInflater.inflate(R.layout.item_admin_linked_user_row, listLayout, false)
+                                row.findViewById<android.widget.TextView>(R.id.tvLinkedUserName).text = name
+                                row.findViewById<android.widget.TextView>(R.id.tvLinkedUserSubtitle).text =
+                                    if (desktopLinked) "Tap to manage desktop · $botId"
+                                    else "Desktop not linked — user must sign in on desktop first"
+                                val iv = row.findViewById<ShapeableImageView>(R.id.ivLinkedUserAvatar)
+                                val pic = u.optString("profile_picture", "").trim()
+                                if (pic.isEmpty()) {
+                                    iv.setImageResource(R.drawable.ic_avatar_placeholder)
+                                } else {
+                                    Thread {
+                                        val bmp = UserProfileImageCodec.bitmapFromDataUrl(pic)
+                                        activity?.runOnUiThread {
+                                            if (!isAdded) return@runOnUiThread
+                                            if (bmp != null) iv.setImageBitmap(bmp) else iv.setImageResource(R.drawable.ic_avatar_placeholder)
+                                        }
+                                    }.start()
                                 }
-                                tv.setOnClickListener {
+                                row.setOnClickListener {
                                     if (!desktopLinked) {
                                         AlertDialog.Builder(requireContext())
                                             .setTitle(getString(R.string.user_link_desktop_first_title))
@@ -166,7 +176,6 @@ class AdminConnectedUsersFragment : Fragment() {
                                     p.actAsUserName = name
                                     updateActingAsRow()
                                     CuraxFeedback.info(requireActivity(), "Loading $name's data…")
-                                    // Same as drawer: load user's medicines/reminders from API (broadcast alone left admin's data on screen).
                                     AdminDataBusClient.fetchAdminSnapshotAsync(requireContext()) { result ->
                                         if (!isAdded) return@fetchAdminSnapshotAsync
                                         when (result) {
@@ -193,7 +202,7 @@ class AdminConnectedUsersFragment : Fragment() {
                                         }
                                     }
                                 }
-                                tv.setOnLongClickListener {
+                                row.setOnLongClickListener {
                                     AlertDialog.Builder(requireContext())
                                         .setTitle("Remove user?")
                                         .setMessage("Remove \"$name\"? They will be informed on their app and desktop. Only you can remove users.")
@@ -202,7 +211,7 @@ class AdminConnectedUsersFragment : Fragment() {
                                         .show()
                                     true
                                 }
-                                listLayout?.addView(tv)
+                                listLayout?.addView(row)
                             }
                         }
                         updateActingAsRow()

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import java.util.Locale
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
@@ -15,6 +16,10 @@ class StandaloneMedicineChipAdapter(
     private val computedStatus: (AdminOverviewFragment.InventoryItem) -> String,
     private val onItemClick: (AdminOverviewFragment.InventoryItem) -> Unit,
     private val onPlaceholderClick: () -> Unit,
+    /** When true, empty slots still show the target box id (e.g. B1) for dose tracking. */
+    private val showBoxLabelWhenPlaceholder: Boolean = false,
+    /** When set, placeholder taps invoke this with the row (e.g. select empty B1) instead of [onPlaceholderClick]. */
+    private val onPlaceholderItemClick: ((AdminOverviewFragment.InventoryItem) -> Unit)? = null,
 ) : RecyclerView.Adapter<StandaloneMedicineChipAdapter.VH>() {
 
     companion object {
@@ -27,8 +32,18 @@ class StandaloneMedicineChipAdapter(
 
     private val items = mutableListOf<AdminOverviewFragment.InventoryItem>()
 
+    /** Highlight selected box (dose tracking). */
+    var selectedBoxUpper: String? = null
+        set(value) {
+            field = value?.trim()?.uppercase(Locale.US)
+            notifyDataSetChanged()
+        }
+
     private fun chipStrokePx(ctx: Context): Int =
         (1.5f * ctx.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+
+    private fun selectedStrokePx(ctx: Context): Int =
+        (3f * ctx.resources.displayMetrics.density).toInt().coerceAtLeast(2)
 
     fun submit(list: List<AdminOverviewFragment.InventoryItem>) {
         items.clear()
@@ -60,18 +75,34 @@ class StandaloneMedicineChipAdapter(
             contentRoot.background = null
             if (isPlaceholderItem(item)) {
                 tvName.text = ctx.getString(R.string.standalone_chip_placeholder_name)
-                tvBox.text = ctx.getString(R.string.em_dash)
+                tvBox.text = if (showBoxLabelWhenPlaceholder && item.box.isNotBlank()) {
+                    item.box
+                } else {
+                    ctx.getString(R.string.em_dash)
+                }
                 tvStock.text = ctx.getString(R.string.em_dash)
                 card.alpha = 0.88f
                 card.setCardBackgroundColor(ContextCompat.getColor(ctx, R.color.standalone_medicine_chip_normal))
-                card.strokeColor = ContextCompat.getColor(ctx, R.color.summary_stroke)
-                card.strokeWidth = chipStrokePx(ctx)
+                val slotSelected = selectedBoxUpper != null &&
+                    item.box.trim().uppercase(Locale.US) == selectedBoxUpper
+                card.strokeColor = if (slotSelected) {
+                    ContextCompat.getColor(ctx, R.color.standalone_medicine_chip_stroke_exp)
+                } else {
+                    ContextCompat.getColor(ctx, R.color.summary_stroke)
+                }
+                card.strokeWidth = if (slotSelected) selectedStrokePx(ctx) else chipStrokePx(ctx)
                 ivCornerDot.imageTintList = ColorStateList.valueOf(
                     ContextCompat.getColor(ctx, R.color.standalone_medicine_chip_dot_tint_placeholder),
                 )
                 card.isClickable = true
                 card.isFocusable = true
-                card.setOnClickListener { onPlaceholderClick() }
+                card.setOnClickListener {
+                    if (onPlaceholderItemClick != null) {
+                        onPlaceholderItemClick.invoke(item)
+                    } else {
+                        onPlaceholderClick()
+                    }
+                }
                 return
             }
             card.alpha = 1f
@@ -85,8 +116,13 @@ class StandaloneMedicineChipAdapter(
                 else -> R.color.standalone_medicine_chip_normal to R.color.standalone_medicine_chip_stroke_normal
             }
             card.setCardBackgroundColor(ContextCompat.getColor(ctx, bgStroke.first))
-            card.strokeColor = ContextCompat.getColor(ctx, bgStroke.second)
-            card.strokeWidth = chipStrokePx(ctx)
+            val slotSelected = selectedBoxUpper != null &&
+                item.box.trim().uppercase(Locale.US) == selectedBoxUpper
+            card.strokeColor = ContextCompat.getColor(
+                ctx,
+                if (slotSelected) R.color.standalone_medicine_chip_stroke_exp else bgStroke.second,
+            )
+            card.strokeWidth = if (slotSelected) selectedStrokePx(ctx) else chipStrokePx(ctx)
             val dotTint = when (status) {
                 "Expiring" -> R.color.standalone_medicine_chip_dot_tint_exp
                 "Low" -> R.color.standalone_medicine_chip_dot_tint_low

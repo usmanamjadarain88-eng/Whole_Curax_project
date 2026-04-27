@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="auto_missed_batch_subtitle">
+        <item quantity="one">%d missed dose auto-logged — will sync when online.</item>
+        <item quantity="other">%d missed doses auto-logged — will sync when online.</item>
+    </plurals>
+</resources>

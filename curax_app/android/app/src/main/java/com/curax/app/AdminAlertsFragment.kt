@@ -454,6 +454,9 @@ class AdminAlertsFragment : Fragment() {
 
         adapter.clearSelection()
         refresh()
+        if (AppRole.isUser(requireContext()) && StandaloneUi.isUserStandalone(requireContext())) {
+            StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
+        }
 
         CuraxFeedback.successWithUndo(
             this,
@@ -475,6 +478,9 @@ class AdminAlertsFragment : Fragment() {
             AdminDemoData.appendApiAlerts(apiItems)
         }
         refresh()
+        if (AppRole.isUser(requireContext()) && StandaloneUi.isUserStandalone(requireContext())) {
+            StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
+        }
     }
 
     fun refresh() {

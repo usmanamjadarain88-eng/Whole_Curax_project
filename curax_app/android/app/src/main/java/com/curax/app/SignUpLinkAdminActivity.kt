@@ -6,7 +6,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doOnTextChanged
-import com.google.android.material.button.MaterialButton
+import androidx.appcompat.widget.AppCompatButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.messaging.FirebaseMessaging
 import okhttp3.MediaType.Companion.toMediaType
@@ -27,7 +27,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     private lateinit var store: LocalUserStore
     private lateinit var etAdminConnectionCode: TextInputEditText
     private lateinit var tvLinkSubtitle: TextView
-    private lateinit var btnLinkAdmin: MaterialButton
+    private lateinit var btnLinkAdmin: AppCompatButton
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)

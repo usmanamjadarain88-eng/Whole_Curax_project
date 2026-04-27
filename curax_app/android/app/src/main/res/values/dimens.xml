@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Same top inset for auth headings (Sign in / Sign up register / Sign up step 1). -->
+    <dimen name="auth_screen_title_margin_top">102dp</dimen>
+    <!-- Sign up register: subtitle first line from content top (design px → dp). -->
+    <dimen name="signup_subtitle_margin_top">150dp</dimen>
+    <!-- Sign-up mock: field row height -->
+    <!-- Min inner height; vertical padding keeps hint/cursor inside outline on double-tap -->
+    <dimen name="signup_field_height">42dp</dimen>
+    <dimen name="signup_field_corner">5dp</dimen>
+    <!-- Sign-up register: vertical anchors from content top (equal 60dp steps). -->
+    <dimen name="signup_guide_names">208dp</dimen>
+    <dimen name="signup_guide_email">268dp</dimen>
+    <dimen name="signup_guide_password">328dp</dimen>
+    <dimen name="signup_guide_confirm">388dp</dimen>
+    <dimen name="signup_guide_or_social">458dp</dimen>
+    <dimen name="signup_guide_social">508dp</dimen>
+    <dimen name="signup_guide_marketing">592dp</dimen>
+    <dimen name="signup_guide_terms">624dp</dimen>
+    <dimen name="signup_guide_button">678dp</dimen>
+    <dimen name="signup_footer_margin_top">760dp</dimen>
+</resources>

@@ -34,6 +34,11 @@ object UserLogoutHelper {
         prefs.userStandaloneDataReady = false
         prefs.cachedUserDataSnapshotJson = ""
         prefs.hasEverConnected = false
+        prefs.userProfilePictureDataUrl = ""
+        LocalAlertsController.cancelAll(app)
+        UserPlansLocalStore.clear(app)
+        DoseTrackingLocalStore.clear(app)
+        PendingSyncQueueStore.clear(app)
         AlertDb(app).clearAllAlerts()
         AppLockState.grantUnlock()
         AppLockState.clearBackgroundTimestamp()

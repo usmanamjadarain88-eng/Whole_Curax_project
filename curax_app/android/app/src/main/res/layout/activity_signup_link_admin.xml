@@ -4,41 +4,22 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/surface_bg">
+    android:background="@color/auth_onboarding_bg">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:paddingTop="16dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="0dp"
         android:paddingBottom="16dp">
-
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <!-- Same typography as SignUpActivity tvScreenTitle (Verify PIN) -->
-        <TextView
-            android:id="@+id/tvLinkAdminTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start"
-            android:layout_marginBottom="10dp"
-            android:fontFamily="@font/inter"
-            android:includeFontPadding="false"
-            android:text="@string/connect_to_admin"
-            android:textColor="@color/connection_panel_title"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            tools:text="Connect to admin" />
 
         <ScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fillViewport="false"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
             android:overScrollMode="never">
 
             <LinearLayout
@@ -46,52 +27,77 @@
                 android:layout_height="wrap_content"
                 android:gravity="center_horizontal"
                 android:orientation="vertical"
-                android:paddingBottom="2dp">
+                android:paddingBottom="24dp">
+
+                <TextView
+                    android:id="@+id/tvLinkAdminTitleLine1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start"
+                    android:layout_marginTop="102dp"
+                    android:includeFontPadding="false"
+                    android:letterSpacing="-0.031"
+                    android:text="@string/link_admin_heading_line1"
+                    android:textColor="@color/auth_heading"
+                    android:textSize="32sp"
+                    android:textStyle="bold"
+                    tools:text="Connect to" />
+
+                <TextView
+                    android:id="@+id/tvLinkAdminTitleLine2"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start"
+                    android:includeFontPadding="false"
+                    android:letterSpacing="-0.031"
+                    android:text="@string/link_admin_heading_line2"
+                    android:textColor="@color/auth_heading"
+                    android:textSize="32sp"
+                    android:textStyle="bold"
+                    tools:text="admin" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
-                    android:background="@drawable/bg_auth_panel_flat"
                     android:orientation="vertical"
-                    android:padding="22dp">
+                    android:paddingTop="16dp">
 
-                    <!-- Match verify step: intro (13sp start) + subtitle (13sp, 8dp top) -->
                     <TextView
                         android:id="@+id/tvLinkIntro"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="@font/inter"
                         android:gravity="start"
                         android:text="@string/signup_admin_step_subtitle"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
+                        android:textColor="@color/auth_subtitle"
+                        android:textSize="14sp" />
 
                     <TextView
                         android:id="@+id/tvLinkSubtitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:fontFamily="@font/inter"
                         android:gravity="start"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
+                        android:textColor="@color/auth_subtitle"
+                        android:textSize="14sp"
                         tools:text="Using account: you@example.com" />
 
-                    <!-- Same top spacing as OTP block on verify (14dp) -->
                     <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="343dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        app:boxBackgroundMode="filled"
-                        app:boxBackgroundColor="@color/key_value_bg"
-                        app:boxCornerRadiusBottomEnd="0dp"
-                        app:boxCornerRadiusBottomStart="0dp"
-                        app:boxCornerRadiusTopEnd="0dp"
-                        app:boxCornerRadiusTopStart="0dp"
-                        app:boxStrokeColor="@android:color/transparent"
-                        app:boxStrokeWidth="0dp"
-                        app:boxStrokeWidthFocused="0dp"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="20dp"
+                        android:minHeight="42dp"
+                        app:boxBackgroundColor="@android:color/white"
+                        app:boxBackgroundMode="outline"
+                        app:boxCornerRadiusBottomEnd="10dp"
+                        app:boxCornerRadiusBottomStart="10dp"
+                        app:boxCornerRadiusTopEnd="10dp"
+                        app:boxCornerRadiusTopStart="10dp"
+                        app:boxStrokeColor="@color/auth_outline_stroke"
+                        app:boxStrokeWidth="1dp"
+                        app:boxStrokeWidthFocused="1dp"
+                        app:hintAnimationEnabled="false"
                         app:hintEnabled="false">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -101,12 +107,14 @@
                             android:gravity="center_vertical"
                             android:hint="@string/connection_code_hint"
                             android:inputType="textVisiblePassword"
-                            android:minHeight="56dp"
+                            android:minHeight="42dp"
+                            android:paddingStart="12dp"
                             android:paddingTop="10dp"
+                            android:paddingEnd="12dp"
                             android:paddingBottom="10dp"
-                            android:textColor="@color/text_primary"
-                            android:textColorHint="@color/text_secondary"
-                            android:textSize="15sp" />
+                            android:textColor="@color/auth_field_text"
+                            android:textColorHint="@color/auth_subtitle"
+                            android:textSize="14sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <!-- Same vertical gap as tvResendCountdown marginTop on verify -->
@@ -131,28 +139,27 @@
                         android:textColor="@color/text_secondary"
                         android:textSize="18sp" />
 
-                    <com.google.android.material.button.MaterialButton
+                    <androidx.appcompat.widget.AppCompatButton
                         android:id="@+id/btnLinkAdmin"
-                        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="52dp"
+                        android:layout_width="343dp"
+                        android:layout_height="47dp"
+                        android:layout_gravity="center_horizontal"
                         android:layout_marginTop="22dp"
                         android:alpha="0.45"
+                        android:background="@drawable/bg_auth_login_cta"
                         android:enabled="false"
+                        android:letterSpacing="0"
+                        android:paddingStart="10dp"
+                        android:paddingTop="14dp"
+                        android:paddingEnd="10dp"
+                        android:paddingBottom="14dp"
+                        android:stateListAnimator="@null"
                         android:text="@string/connect"
-                        android:textColor="@color/sign_up_button_text"
-                        android:textSize="15sp"
-                        app:backgroundTint="@color/sign_up_button_background"
-                        app:cornerRadius="0dp"
-                        app:elevation="0dp"
-                        app:rippleColor="@color/sign_up_button_ripple" />
+                        android:textAllCaps="false"
+                        android:textColor="@color/auth_login_label"
+                        android:textSize="16sp" />
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>
-
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
     </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

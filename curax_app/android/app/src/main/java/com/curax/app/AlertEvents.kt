@@ -13,5 +13,7 @@ object AlertEvents {
     const val ACTION_USER_DISPLAY_MODE_FROM_SERVER = "com.curax.app.ACTION_USER_DISPLAY_MODE_FROM_SERVER"
     /** User data-bus WebSocket opened/closed/failed; sidebar should refresh realtime / health lines. */
     const val ACTION_USER_DATABUS_SOCKET_STATE = "com.curax.app.ACTION_USER_DATABUS_SOCKET_STATE"
+    /** Pending outbound standalone sync queue changed (UI / tray). */
+    const val ACTION_PENDING_SYNC_QUEUE_UPDATED = "com.curax.app.ACTION_PENDING_SYNC_QUEUE_UPDATED"
     const val EXTRA_CONNECTED = "connected"
 }

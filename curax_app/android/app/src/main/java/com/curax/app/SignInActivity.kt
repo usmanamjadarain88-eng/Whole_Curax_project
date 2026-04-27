@@ -1,15 +1,26 @@
 package com.curax.app
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Rect
 import android.os.Bundle
+import android.view.View
+import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import androidx.core.app.ActivityOptionsCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import androidx.core.widget.NestedScrollView
 import androidx.core.widget.doOnTextChanged
+import com.google.android.material.textfield.TextInputLayout
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.button.MaterialButton
+import androidx.appcompat.widget.AppCompatButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.messaging.FirebaseMessaging
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,7 +37,9 @@ class SignInActivity : AppCompatActivity() {
     private lateinit var store: LocalUserStore
     private lateinit var etEmail: TextInputEditText
     private lateinit var etPassword: TextInputEditText
-    private lateinit var btnSignIn: MaterialButton
+    private lateinit var btnSignIn: AppCompatButton
+
+    private var imeInsetListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -44,11 +57,21 @@ class SignInActivity : AppCompatActivity() {
         etEmail = findViewById(R.id.etEmail)
         etPassword = findViewById(R.id.etPassword)
         btnSignIn = findViewById(R.id.btnSignIn)
+        applyStableAuthHints()
+        val hintEmail = ContextCompat.getColorStateList(this, R.color.auth_hint_email_muted)
+        val hintPassword = ContextCompat.getColorStateList(this, R.color.auth_hint_password_muted)
+        if (hintEmail != null) {
+            findViewById<TextInputLayout>(R.id.tilEmail).defaultHintTextColor = hintEmail
+        }
+        if (hintPassword != null) {
+            findViewById<TextInputLayout>(R.id.tilPassword).defaultHintTextColor = hintPassword
+        }
+        AuthPasswordToggle.bind(findViewById(R.id.tilPassword), this)
         findViewById<TextView>(R.id.tvSignUpHere).setOnClickListener {
             startActivity(Intent(this, SignUpRegistrationActivity::class.java))
         }
-        findViewById<TextView>(R.id.tvSignUpAdmin).setOnClickListener {
-            startActivity(Intent(this, AdminRegistrationActivity::class.java))
+        findViewById<TextView>(R.id.tvResetPassword).setOnClickListener {
+            showResetPasswordSheet()
         }
 
         fun syncBtn() {
@@ -60,7 +83,83 @@ class SignInActivity : AppCompatActivity() {
         etPassword.doOnTextChanged { _, _, _, _ -> syncBtn() }
         syncBtn()
 
+        val scrollSignIn = findViewById<NestedScrollView>(R.id.scrollSignIn)
+        val scrollContent = scrollSignIn.getChildAt(0)
+        bindImeOverlayBottomPadding(scrollSignIn)
+        bindScrollOnFieldFocus(scrollSignIn, scrollContent, etEmail, etPassword)
+
         btnSignIn.setOnClickListener { onSignInClicked() }
+    }
+
+    override fun onDestroy() {
+        imeInsetListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
+        imeInsetListener = null
+        super.onDestroy()
+    }
+
+    /**
+     * [android:windowSoftInputMode] is adjustNothing: window does not shrink, so the sign-up footer
+     * stays laid out at the bottom while the IME draws on top. We only grow the scroll view's
+     * bottom padding by the keyboard height so the form can scroll above the overlay.
+     */
+    private fun bindImeOverlayBottomPadding(scroll: NestedScrollView) {
+        val decor = window.decorView
+        val baseBottomPad = scroll.paddingBottom
+        imeInsetListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val wi = ViewCompat.getRootWindowInsets(decor)
+            val imeBottom = if (wi != null && wi.isVisible(WindowInsetsCompat.Type.ime())) {
+                var b = wi.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                if (b == 0) {
+                    val r = Rect()
+                    decor.getWindowVisibleDisplayFrame(r)
+                    b = (decor.height - r.bottom).coerceAtLeast(0)
+                }
+                b
+            } else {
+                0
+            }
+            scroll.updatePadding(bottom = baseBottomPad + imeBottom)
+        }
+        decor.viewTreeObserver.addOnGlobalLayoutListener(imeInsetListener)
+    }
+
+    /** Keeps scroll offset from re-laying out fields; scrolls so focused field stays visible above IME. */
+    private fun bindScrollOnFieldFocus(scroll: NestedScrollView, content: View, vararg fields: View) {
+        for (f in fields) {
+            f.setOnFocusChangeListener { v, hasFocus ->
+                if (hasFocus) scrollToShowDescendant(scroll, content, v)
+            }
+        }
+    }
+
+    private fun scrollToShowDescendant(scroll: NestedScrollView, content: View, descendant: View) {
+        scroll.post {
+            var top = 0
+            var v: View? = descendant
+            while (v != null && v !== content) {
+                top += v.top
+                v = v.parent as? View
+            }
+            val pad = (scroll.height * 0.04f).toInt().coerceIn(20, 40)
+            val targetY = (top - pad).coerceAtLeast(0)
+            val maxY = (content.height - scroll.height).coerceAtLeast(0)
+            scroll.scrollTo(0, targetY.coerceAtMost(maxY))
+        }
+    }
+
+    private fun applyStableAuthHints() {
+        ContextCompat.getColorStateList(this, R.color.auth_hint_email_muted)?.let { etEmail.setHintTextColor(it) }
+        ContextCompat.getColorStateList(this, R.color.auth_hint_password_muted)?.let { etPassword.setHintTextColor(it) }
+    }
+
+    private fun showResetPasswordSheet() {
+        val sheet = BottomSheetDialog(this)
+        sheet.setContentView(R.layout.dialog_auth_reset_sheet)
+        sheet.findViewById<AppCompatButton>(R.id.btnSheetSignInAdmin)?.setOnClickListener {
+            sheet.dismiss()
+            startActivity(Intent(this, AdminRegistrationActivity::class.java))
+        }
+        sheet.show()
     }
 
     private fun apiBase(): String = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -139,6 +238,7 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun handleSignInSuccess(email: String, password: String, base: String, jo: JSONObject) {
+        AutofillHelper.commit(this)
         val phase = jo.optString("account_phase", "").trim().lowercase()
         when (phase) {
             "pending_email" -> {

@@ -66,6 +66,10 @@ object NotificationHelper {
             )
 
         val title = when {
+            type.contains("stock", ignoreCase = true) -> "Stock alert"
+            type.contains("expiry", ignoreCase = true) -> "Expiry alert"
+            type.equals("reminder", ignoreCase = true) -> "Reminder"
+            type.equals("plan", ignoreCase = true) -> "Planned item"
             type.contains("medicine", ignoreCase = true) || type == "time" || type == "pre" -> "Medicine reminder"
             type.contains("missed", ignoreCase = true) -> "Missed dose"
             else -> "Curax Alert"

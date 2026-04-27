@@ -103,6 +103,14 @@
       "destination": "/api/user_display_mode"
     },
     {
+      "source": "/user/profile-picture",
+      "destination": "/api/user_profile_picture"
+    },
+    {
+      "source": "/user/standalone-sync",
+      "destination": "/api/user_standalone_sync"
+    },
+    {
       "source": "/user/databus-room",
       "destination": "/api/user_databus_room"
     },
@@ -177,12 +185,6 @@
     {
       "source": "/admin/settings",
       "destination": "/api/admin_alert_settings"
-    }
-  ],
-  "crons": [
-    {
-      "path": "/api/maintenance_cleanup_pending",
-      "schedule": "0 6 * * *"
     }
   ]
 }

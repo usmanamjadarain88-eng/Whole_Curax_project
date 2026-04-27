@@ -1117,7 +1117,8 @@ class CentralDB:
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
             cur.execute(
-                """SELECT u.id AS user_id, u.admin_id, u.name AS user_name, a.bot_id AS admin_bot_id, a.api_key AS admin_api_key
+                """SELECT u.id AS user_id, u.admin_id, u.name AS user_name, a.bot_id AS admin_bot_id, a.api_key AS admin_api_key,
+                          a.admin_access_code AS admin_access_code
                    FROM users u JOIN admins a ON a.id = u.admin_id
                    WHERE u.bot_id = %s AND u.api_key = %s AND u.bot_id != 'dashboard' LIMIT 1""",
                 (bot_id, api_key),
@@ -1132,6 +1133,7 @@ class CentralDB:
                     "user_name": (row["user_name"] or "").strip() or "User",
                     "admin_bot_id": (row["admin_bot_id"] or "").strip(),
                     "admin_api_key": (row["admin_api_key"] or "").strip(),
+                    "admin_access_code": str(row["admin_access_code"] or "").strip(),
                 }
             return {
                 "user_id": str(row[0]),
@@ -1139,6 +1141,7 @@ class CentralDB:
                 "user_name": (row[2] or "").strip() or "User",
                 "admin_bot_id": (row[3] or "").strip(),
                 "admin_api_key": (row[4] or "").strip(),
+                "admin_access_code": (str(row[5]).strip() if len(row) > 5 and row[5] is not None else ""),
             }
         except Exception as e:
             print(f"CentralDB get_user_and_admin_bot_by_user_bot: {e}")
@@ -1350,6 +1353,112 @@ class CentralDB:
             if ts:
                 self.create_dose_log(user_id, medicine_id=None, box_id=box, taken_at=ts, source="desktop")
         return True
+
+    def merge_user_standalone_sync_from_app(
+        self,
+        admin_id,
+        user_id,
+        medicines,
+        dose_append,
+        medical_reminders,
+        client_ms,
+    ):
+        """Merge user-app standalone changes: upsert medicines by box, append dose rows (deduped), merge medical_reminders.
+
+        Latest client payload wins for supplied medicine boxes and reminder categories (timestamp via client_ms for future use).
+        """
+        if not self.user_belongs_to_admin(user_id, admin_id):
+            return False
+        _ = client_ms  # reserved for conflict rules / audit
+        try:
+            if isinstance(medicines, list) and medicines:
+                existing_medicines = self.list_medicines(user_id)
+                by_box = {m.get("box_id"): m for m in existing_medicines if m.get("box_id")}
+                for m in medicines:
+                    if not isinstance(m, dict):
+                        continue
+                    box_id = (m.get("box_id") or "").strip().upper()
+                    if not box_id.startswith("B"):
+                        continue
+                    name = (m.get("name") or "").strip() or "Medicine"
+                    dosage = (m.get("instructions") or m.get("dosage") or str(m.get("dose_per_day") or "")).strip()
+                    exact_time = (m.get("exact_time") or "08:00").strip() or "08:00"
+                    times = m.get("times")
+                    if isinstance(times, list) and times:
+                        tlist = [str(x).strip() for x in times if str(x).strip()]
+                    else:
+                        tlist = [exact_time]
+                    low_stock = 5
+                    if m.get("low_stock") is not None:
+                        try:
+                            low_stock = int(m.get("low_stock"))
+                        except (TypeError, ValueError):
+                            pass
+                    quantity = 0
+                    if m.get("quantity") is not None:
+                        try:
+                            quantity = int(m.get("quantity"))
+                        except (TypeError, ValueError):
+                            pass
+                    existing = by_box.get(box_id)
+                    if existing:
+                        self.update_medicine(
+                            existing.get("id"),
+                            name=name,
+                            box_id=box_id,
+                            dosage=dosage,
+                            times=tlist,
+                            low_stock=low_stock,
+                            quantity=quantity,
+                        )
+                    else:
+                        self.create_medicine(
+                            user_id,
+                            name,
+                            box_id=box_id,
+                            dosage=dosage,
+                            times=tlist,
+                            low_stock=low_stock,
+                            quantity=quantity,
+                        )
+                        existing_medicines = self.list_medicines(user_id)
+                        by_box = {x.get("box_id"): x for x in existing_medicines if x.get("box_id")}
+
+            if isinstance(dose_append, list) and dose_append:
+                recent = self.list_dose_logs(user_id, limit=400)
+                seen = set()
+                for r in recent:
+                    bid = (r.get("box_id") or "").strip()
+                    ts = str(r.get("taken_at") or "")
+                    seen.add(f"{bid}|{ts[:19]}")
+                for entry in dose_append[:200]:
+                    if not isinstance(entry, dict):
+                        continue
+                    ts = entry.get("timestamp") or entry.get("taken_at") or ""
+                    box = (entry.get("box") or entry.get("box_id") or "").strip()
+                    if not ts or not box:
+                        continue
+                    key = f"{box}|{str(ts)[:19]}"
+                    if key in seen:
+                        continue
+                    self.create_dose_log(user_id, medicine_id=None, box_id=box, taken_at=ts, source="app")
+                    seen.add(key)
+
+            if isinstance(medical_reminders, dict) and medical_reminders:
+                settings = self.get_alert_settings(user_id) or {}
+                if not isinstance(settings, dict):
+                    settings = {}
+                old_mr = settings.get("medical_reminders")
+                merged_mr = dict(old_mr) if isinstance(old_mr, dict) else {}
+                for cat in ("appointments", "prescriptions", "lab_tests", "custom"):
+                    if cat in medical_reminders and isinstance(medical_reminders.get(cat), list):
+                        merged_mr[cat] = medical_reminders[cat]
+                settings["medical_reminders"] = merged_mr
+                self.upsert_alert_settings(user_id, settings)
+            return True
+        except Exception as e:
+            print(f"CentralDB merge_user_standalone_sync_from_app: {e}")
+            return False
 
     # ---- Medicines, dose_logs, alert_settings, alerts, get_sync (abbreviated for length - same as pyqt) ----
     def list_medicines(self, user_id, since=None):
@@ -1805,6 +1914,9 @@ class CentralDB:
                 if not isinstance(item, dict):
                     continue
                 pt = item.get("plan_time") or ""
+                st = (item.get("status") or "pending").strip().lower()
+                if st not in ("pending", "done"):
+                    st = "pending"
                 out.append({
                     "id": str(item.get("id") or ""),
                     "title": (item.get("title") or "").strip(),
@@ -1813,6 +1925,9 @@ class CentralDB:
                     "plan_time": str(pt).strip()[:16],
                     "activity_type": (item.get("activity_type") or "other").strip(),
                     "created_at": (item.get("created_at") or "").strip(),
+                    "status": st,
+                    "health_type": (item.get("health_type") or "general").strip()[:40] or "general",
+                    "completed_at": (item.get("completed_at") or "").strip(),
                 })
             out.sort(key=lambda p: (p.get("plan_date") or "", p.get("created_at") or ""), reverse=True)
             return out[:300]
@@ -1822,7 +1937,7 @@ class CentralDB:
         finally:
             cur.close()
 
-    def create_user_plan_by_bot(self, bot_id, api_key, title, notes, plan_date, plan_time, activity_type):
+    def create_user_plan_by_bot(self, bot_id, api_key, title, notes, plan_date, plan_time, activity_type, health_type="general"):
         """
         Append one plan object to users.health_hub_plans (JSON array).
         plan_date must be YYYY-MM-DD. plan_time optional (stored as string).
@@ -1839,6 +1954,7 @@ class CentralDB:
             return None, "invalid_plan_date"
         plan_time = (plan_time or "").strip()[:32]
         act = (activity_type or "other").strip()[:80] or "other"
+        ht = (health_type or "general").strip()[:40] or "general"
         plan_id = str(uuid.uuid4())
         created_at = datetime.now(timezone.utc).isoformat()
         new_obj = {
@@ -1849,6 +1965,9 @@ class CentralDB:
             "plan_time": plan_time,
             "activity_type": act,
             "created_at": created_at,
+            "status": "pending",
+            "health_type": ht,
+            "completed_at": "",
         }
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
@@ -1887,6 +2006,111 @@ class CentralDB:
         finally:
             cur.close()
 
+    def update_user_plan_by_bot(self, bot_id, api_key, plan_id, status=None):
+        """Set plan status to pending|done. Returns (True, None) or (False, error)."""
+        pid = (plan_id or "").strip()
+        if not pid:
+            return False, "plan_id_required"
+        st = (status or "").strip().lower()
+        if st not in ("pending", "done"):
+            return False, "invalid_status"
+        info = self.get_user_and_admin_bot_by_user_bot((bot_id or "").strip(), (api_key or "").strip())
+        if not info:
+            return False, "user_not_found"
+        uid = str(info["user_id"])
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT health_hub_plans FROM users WHERE id = %s::uuid FOR UPDATE",
+                (uid,),
+            )
+            row = cur.fetchone()
+            if not row:
+                conn.rollback()
+                return False, "user_not_found"
+            raw = row["health_hub_plans"] if hasattr(row, "keys") else row[0]
+            arr = self._decode_health_hub_plans_raw(raw)
+            found = False
+            for item in arr:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("id") or "").strip() == pid:
+                    item["status"] = st
+                    item["completed_at"] = (
+                        datetime.now(timezone.utc).isoformat() if st == "done" else ""
+                    )
+                    found = True
+                    break
+            if not found:
+                conn.rollback()
+                return False, "plan_not_found"
+            cur.execute(
+                "UPDATE users SET health_hub_plans = %s::jsonb, updated_at = NOW() WHERE id = %s::uuid",
+                (json.dumps(arr), uid),
+            )
+            conn.commit()
+            return True, None
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB update_user_plan_by_bot: {e}")
+            return False, "db_error"
+        finally:
+            cur.close()
+
+    def delete_user_plan_by_bot(self, bot_id, api_key, plan_id):
+        """Remove plan by id from health_hub_plans. Returns (True, None) or (False, error)."""
+        pid = (plan_id or "").strip()
+        if not pid:
+            return False, "plan_id_required"
+        info = self.get_user_and_admin_bot_by_user_bot((bot_id or "").strip(), (api_key or "").strip())
+        if not info:
+            return False, "user_not_found"
+        uid = str(info["user_id"])
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT health_hub_plans FROM users WHERE id = %s::uuid FOR UPDATE",
+                (uid,),
+            )
+            row = cur.fetchone()
+            if not row:
+                conn.rollback()
+                return False, "user_not_found"
+            raw = row["health_hub_plans"] if hasattr(row, "keys") else row[0]
+            arr = self._decode_health_hub_plans_raw(raw)
+            new_arr = [x for x in arr if not (isinstance(x, dict) and str(x.get("id") or "").strip() == pid)]
+            if len(new_arr) == len(arr):
+                conn.rollback()
+                return False, "plan_not_found"
+            cur.execute(
+                "UPDATE users SET health_hub_plans = %s::jsonb, updated_at = NOW() WHERE id = %s::uuid",
+                (json.dumps(new_arr), uid),
+            )
+            conn.commit()
+            return True, None
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB delete_user_plan_by_bot: {e}")
+            return False, "db_error"
+        finally:
+            cur.close()
+
+    @staticmethod
+    def _decode_health_hub_plans_raw(raw):
+        if raw is None:
+            return []
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode("utf-8", errors="replace")
+        if isinstance(raw, str):
+            arr = json.loads(raw) if raw.strip() else []
+        elif isinstance(raw, list):
+            arr = list(raw)
+        else:
+            arr = json.loads(str(raw)) if str(raw).strip() else []
+        return arr if isinstance(arr, list) else []
+
     def get_sync(self, bot_id, api_key):
         user_id = self.get_user_id_by_bot(bot_id, api_key)
         if not user_id:
@@ -1914,8 +2138,10 @@ class CentralDB:
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
             rows = None
-            variant = 0  # 0=id,name,email,bot,api,created,desktop | 1=no email | 2=no desktop_linked_at
+            variant = 0
+            # 0=full+email+desktop+profile_picture | 1=full no pp | 2=no email | 3=no desktop_linked_at
             for variant, sql in enumerate((
+                "SELECT id, name, email, bot_id, api_key, created_at, desktop_linked_at, profile_picture FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
                 "SELECT id, name, email, bot_id, api_key, created_at, desktop_linked_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
                 "SELECT id, name, bot_id, api_key, created_at, desktop_linked_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
                 "SELECT id, name, bot_id, api_key, created_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
@@ -1932,33 +2158,48 @@ class CentralDB:
             for row in rows:
                 if hasattr(row, "keys"):
                     dlinked = row.get("desktop_linked_at")
-                    em = (row.get("email") or "").strip() if variant == 0 else ""
+                    em = (row.get("email") or "").strip() if variant in (0, 1) else ""
+                    pp = (row.get("profile_picture") or "").strip() if variant == 0 else ""
                     result.append({
                         "id": str(row["id"]), "name": row["name"] or "", "email": em,
                         "bot_id": row["bot_id"] or "", "api_key": row["api_key"] or "",
                         "desktop_linked": dlinked is not None,
+                        "profile_picture": pp,
                     })
                 else:
                     if variant == 0:
+                        em = (row[2] or "").strip() if len(row) > 2 else ""
+                        dlinked = row[6] if len(row) > 6 else None
+                        pp = (row[7] or "").strip() if len(row) > 7 else ""
+                        result.append({
+                            "id": str(row[0]), "name": row[1] or "", "email": em,
+                            "bot_id": row[3] or "", "api_key": row[4] or "",
+                            "desktop_linked": dlinked is not None,
+                            "profile_picture": pp,
+                        })
+                    elif variant == 1:
                         em = (row[2] or "").strip() if len(row) > 2 else ""
                         dlinked = row[6] if len(row) > 6 else None
                         result.append({
                             "id": str(row[0]), "name": row[1] or "", "email": em,
                             "bot_id": row[3] or "", "api_key": row[4] or "",
                             "desktop_linked": dlinked is not None,
+                            "profile_picture": "",
                         })
-                    elif variant == 1:
+                    elif variant == 2:
                         dlinked = row[5] if len(row) > 5 else None
                         result.append({
                             "id": str(row[0]), "name": row[1] or "", "email": "",
                             "bot_id": row[2] or "", "api_key": row[3] or "",
                             "desktop_linked": dlinked is not None,
+                            "profile_picture": "",
                         })
                     else:
                         result.append({
                             "id": str(row[0]), "name": row[1] or "", "email": "",
                             "bot_id": str(row[2] or ""), "api_key": str(row[3] or ""),
                             "desktop_linked": False,
+                            "profile_picture": "",
                         })
             return result
         except Exception as e:
@@ -2095,6 +2336,12 @@ class CentralDB:
             greet = self.get_user_first_name_for_user_id(user_id)
             if greet:
                 out["user_first_name"] = greet
+        except Exception:
+            pass
+        try:
+            pp = self.get_user_profile_picture_for_user_id(user_id)
+            if pp:
+                out["profile_picture"] = pp
         except Exception:
             pass
         return out
@@ -2246,6 +2493,66 @@ class CentralDB:
             conn.rollback()
             print(f"CentralDB set_user_display_mode_by_bot: {e}")
             return False
+        finally:
+            cur.close()
+
+    def _ensure_users_profile_picture_column(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture TEXT")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close()
+
+    def get_user_profile_picture_for_user_id(self, user_id):
+        """Return stored data URL / base64 image string for linked-user avatar, or empty."""
+        uid = str(user_id or "").strip()
+        if not uid:
+            return ""
+        self._ensure_users_profile_picture_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT profile_picture FROM users WHERE id = %s::uuid LIMIT 1", (uid,))
+            row = cur.fetchone()
+            if not row:
+                return ""
+            v = row["profile_picture"] if hasattr(row, "keys") else row[0]
+            return str(v or "").strip()
+        except Exception as e:
+            print(f"CentralDB get_user_profile_picture_for_user_id: {e}")
+            return ""
+        finally:
+            cur.close()
+
+    def set_user_profile_picture_by_bot(self, bot_id, api_key, profile_picture):
+        """Store user avatar (typically data:image/jpeg;base64,...). Empty string clears. Max ~400k chars."""
+        bid = (bot_id or "").strip()
+        key = (api_key or "").strip()
+        if not bid or not key:
+            return False, "missing_credentials"
+        pic = (profile_picture or "").strip()
+        if len(pic) > 400000:
+            return False, "too_large"
+        self._ensure_users_profile_picture_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE users SET profile_picture = %s, updated_at = NOW() WHERE bot_id = %s AND api_key = %s AND bot_id != 'dashboard'",
+                (pic if pic else None, bid, key),
+            )
+            conn.commit()
+            if cur.rowcount <= 0:
+                return False, "user_not_found"
+            return True, None
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB set_user_profile_picture_by_bot: {e}")
+            return False, str(e)
         finally:
             cur.close()
 

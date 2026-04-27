@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed column widths — must match header row in fragment_dose_tracking_standalone.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <TextView
+        android:id="@+id/tvDoseHistTs"
+        android:layout_width="128dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_inventory_cell"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:padding="10dp"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp"
+        tools:text="2026-04-15 09:00" />
+
+    <TextView
+        android:id="@+id/tvDoseHistBox"
+        android:layout_width="44dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_inventory_cell"
+        android:gravity="center"
+        android:padding="10dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp"
+        tools:text="B1" />
+
+    <TextView
+        android:id="@+id/tvDoseHistMed"
+        android:layout_width="140dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_inventory_cell"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:padding="10dp"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        tools:text="Panadol" />
+
+    <TextView
+        android:id="@+id/tvDoseHistDose"
+        android:layout_width="52dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_inventory_cell"
+        android:gravity="center"
+        android:padding="10dp"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        tools:text="2" />
+
+    <TextView
+        android:id="@+id/tvDoseHistRem"
+        android:layout_width="56dp"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_inventory_cell"
+        android:gravity="center"
+        android:padding="10dp"
+        android:textColor="@color/text_primary"
+        android:textSize="12sp"
+        tools:text="54" />
+</LinearLayout>

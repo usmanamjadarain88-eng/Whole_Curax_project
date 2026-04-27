@@ -1,19 +1,25 @@
 package com.curax.app
 
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.webkit.WebSettings
+import android.webkit.WebView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.widget.doOnTextChanged
-import com.google.android.material.button.MaterialButton
+import androidx.appcompat.widget.AppCompatButton
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -28,13 +34,15 @@ class SignUpActivity : AppCompatActivity() {
 
     private lateinit var store: LocalUserStore
     private lateinit var prefs: Prefs
-    private lateinit var tvScreenTitle: TextView
+    private lateinit var tvTitleLine1: TextView
+    private lateinit var tvTitleLine2: TextView
+    private lateinit var tvAuthSubtitle: TextView
     private lateinit var tvSignUpAdmin: TextView
     private lateinit var group1: LinearLayout
     private lateinit var group2: LinearLayout
     private lateinit var etEmail: TextInputEditText
     private lateinit var etPassword: TextInputEditText
-    private lateinit var btnSignUp: MaterialButton
+    private lateinit var btnSignUp: AppCompatButton
     private lateinit var tvVerifySubtitle: TextView
     private lateinit var tvEmailVerifiedBanner: TextView
     private lateinit var otpInputBlock: LinearLayout
@@ -42,7 +50,7 @@ class SignUpActivity : AppCompatActivity() {
     private lateinit var otpDigitViews: List<TextView>
     private lateinit var tvResendCountdown: TextView
     private lateinit var tvResend: TextView
-    private lateinit var btnVerifyOtp: MaterialButton
+    private lateinit var btnVerifyOtp: AppCompatButton
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -106,17 +114,23 @@ class SignUpActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_signup)
+        setupAuthBottomSvg()
         onBackPressedDispatcher.addCallback(this, backCallback)
 
         store = LocalUserStore(this)
         prefs = Prefs(this)
 
-        tvScreenTitle = findViewById(R.id.tvScreenTitle)
+        tvTitleLine1 = findViewById(R.id.tvTitleLine1)
+        tvTitleLine2 = findViewById(R.id.tvTitleLine2)
+        tvAuthSubtitle = findViewById(R.id.tvAuthSubtitle)
         tvSignUpAdmin = findViewById(R.id.tvSignUpAdmin)
         group1 = findViewById(R.id.groupSignUpStep1)
         group2 = findViewById(R.id.groupSignUpStep2)
         etEmail = findViewById(R.id.etEmail)
         etPassword = findViewById(R.id.etPassword)
+        etEmail.setHintTextColor(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.auth_subtitle)))
+        etPassword.setHintTextColor(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.auth_password_hint)))
+        AuthPasswordToggle.bind(findViewById<TextInputLayout>(R.id.tilPasswordStep1), this)
         btnSignUp = findViewById(R.id.btnSignUp)
         tvVerifySubtitle = findViewById(R.id.tvVerifySubtitle)
         tvEmailVerifiedBanner = findViewById(R.id.tvEmailVerifiedBanner)
@@ -176,6 +190,26 @@ class SignUpActivity : AppCompatActivity() {
         } else {
             showStep(Step.ONE)
         }
+    }
+
+    private fun setupAuthBottomSvg() {
+        val wv = findViewById<WebView>(R.id.authBottomSvg) ?: return
+        wv.setBackgroundColor(Color.TRANSPARENT)
+        wv.isClickable = false
+        wv.isFocusable = false
+        wv.isFocusableInTouchMode = false
+        wv.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+        wv.settings.apply {
+            @Suppress("DEPRECATION")
+            allowFileAccess = true
+            cacheMode = WebSettings.LOAD_NO_CACHE
+        }
+        val html =
+            "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>" +
+                "<style>html,body{margin:0;padding:0;background:transparent}</style></head><body>" +
+                "<img src=\"bottom.svg\" width=\"100%\" style=\"display:block;vertical-align:bottom\"/>" +
+                "</body></html>"
+        wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
     }
 
     override fun onDestroy() {
@@ -259,9 +293,18 @@ class SignUpActivity : AppCompatActivity() {
         group1.visibility = if (s == Step.ONE) View.VISIBLE else View.GONE
         group2.visibility = if (s == Step.TWO) View.VISIBLE else View.GONE
         tvSignUpAdmin.visibility = if (s == Step.ONE) View.VISIBLE else View.GONE
-        tvScreenTitle.text = when (s) {
-            Step.ONE -> getString(R.string.auth_heading_sign_up)
-            Step.TWO -> getString(R.string.verify_pin_title)
+        when (s) {
+            Step.ONE -> {
+                tvTitleLine1.text = getString(R.string.sign_up_screen_title)
+                tvTitleLine2.visibility = View.GONE
+                tvAuthSubtitle.visibility = View.VISIBLE
+            }
+            Step.TWO -> {
+                tvTitleLine1.text = getString(R.string.verify_pin_heading_line1)
+                tvTitleLine2.text = getString(R.string.verify_pin_heading_line2)
+                tvTitleLine2.visibility = View.VISIBLE
+                tvAuthSubtitle.visibility = View.GONE
+            }
         }
         backCallback.isEnabled = true
     }
@@ -301,6 +344,9 @@ class SignUpActivity : AppCompatActivity() {
 
     private fun resetStep2UiForOtpEntry() {
         step2ContinueOnly = false
+        tvTitleLine1.text = getString(R.string.verify_pin_heading_line1)
+        tvTitleLine2.text = getString(R.string.verify_pin_heading_line2)
+        tvTitleLine2.visibility = View.VISIBLE
         otpInputBlock.visibility = View.VISIBLE
         tvEmailVerifiedBanner.visibility = View.GONE
         btnVerifyOtp.text = getString(R.string.verify)
@@ -312,7 +358,9 @@ class SignUpActivity : AppCompatActivity() {
     }
 
     private fun applyContinueOnlyStep2Ui() {
-        tvScreenTitle.text = getString(R.string.verify_pin_title)
+        tvTitleLine1.text = getString(R.string.auth_continue_heading_line1)
+        tvTitleLine2.visibility = View.GONE
+        tvAuthSubtitle.visibility = View.GONE
         tvVerifySubtitle.text = getString(R.string.signup_email_verified_continue)
         otpInputBlock.visibility = View.GONE
         tvEmailVerifiedBanner.visibility = View.VISIBLE
@@ -355,6 +403,7 @@ class SignUpActivity : AppCompatActivity() {
                         runOnUiThread {
                             btnSignUp.isEnabled = true
                             if (code == 200) {
+                                AutofillHelper.commit(this@SignUpActivity)
                                 resetStep2UiForOtpEntry()
                                 tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, email)
                                 showStep(Step.TWO)

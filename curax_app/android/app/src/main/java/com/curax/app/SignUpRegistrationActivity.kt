@@ -1,18 +1,52 @@
 package com.curax.app
 
 import android.content.Intent
+import android.graphics.Rect
+import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
+import android.text.method.HideReturnsTransformationMethod
+import android.util.Base64
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
+import android.view.View
+import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
+import android.widget.ImageButton
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatButton
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.core.widget.doOnTextChanged
-import com.google.android.material.button.MaterialButton
+import com.facebook.CallbackManager
+import com.facebook.FacebookCallback
+import com.facebook.FacebookException
+import com.facebook.GraphRequest
+import com.facebook.login.LoginManager
+import com.facebook.login.LoginResult
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
+import com.google.android.gms.common.api.ApiException
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.security.SecureRandom
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class SignUpRegistrationActivity : AppCompatActivity() {
@@ -23,7 +57,32 @@ class SignUpRegistrationActivity : AppCompatActivity() {
     private lateinit var etEmail: TextInputEditText
     private lateinit var etPassword: TextInputEditText
     private lateinit var etConfirmPassword: TextInputEditText
-    private lateinit var btnCreateAccount: MaterialButton
+    private lateinit var btnCreateAccount: AppCompatButton
+    private lateinit var cbTermsAgree: MaterialCheckBox
+    private lateinit var cbMarketingEmails: MaterialCheckBox
+
+    private lateinit var googleSignInClient: GoogleSignInClient
+    private lateinit var facebookCallbackManager: CallbackManager
+
+    private var imeInsetListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+
+    private val googleSignInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val data = result.data ?: return@registerForActivityResult
+        val task = GoogleSignIn.getSignedInAccountFromIntent(data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            onGoogleSignedIn(account)
+        } catch (e: ApiException) {
+            if (e.statusCode == GoogleSignInStatusCodes.SIGN_IN_CANCELLED) return@registerForActivityResult
+            CuraxFeedback.warn(
+                this,
+                getString(R.string.social_google_failed, googleErrorMessage(e)),
+                long = true,
+            )
+        }
+    }
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -37,29 +96,296 @@ class SignUpRegistrationActivity : AppCompatActivity() {
 
         prefs = Prefs(this)
 
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestProfile()
+            .build()
+        googleSignInClient = GoogleSignIn.getClient(this, gso)
+
+        facebookCallbackManager = CallbackManager.Factory.create()
+        LoginManager.getInstance().registerCallback(
+            facebookCallbackManager,
+            object : FacebookCallback<LoginResult> {
+                override fun onSuccess(result: LoginResult) {
+                    val token = result.accessToken
+                    val req = GraphRequest.newMeRequest(token) { json, response ->
+                        runOnUiThread {
+                            LoginManager.getInstance().logOut()
+                            val graphError = response?.error
+                            if (graphError != null) {
+                                CuraxFeedback.warn(
+                                    this@SignUpRegistrationActivity,
+                                    getString(
+                                        R.string.social_facebook_failed,
+                                        graphError.errorMessage ?: "Graph error",
+                                    ),
+                                    long = true,
+                                )
+                                return@runOnUiThread
+                            }
+                            if (json == null) {
+                                CuraxFeedback.warn(
+                                    this@SignUpRegistrationActivity,
+                                    getString(R.string.social_facebook_failed, "No profile"),
+                                    long = true,
+                                )
+                                return@runOnUiThread
+                            }
+                            val email = json.optString("email", "").trim()
+                            var first = json.optString("first_name", "").trim()
+                            var last = json.optString("last_name", "").trim()
+                            if (first.isEmpty() && last.isEmpty()) {
+                                val nameStr = json.optString("name", "").trim()
+                                if (nameStr.isNotEmpty()) {
+                                    val parts = nameStr.split(Regex("\\s+")).filter { it.isNotEmpty() }
+                                    if (parts.isNotEmpty()) first = parts[0]
+                                    if (parts.size > 1) last = parts.drop(1).joinToString(" ")
+                                }
+                            }
+                            if (email.isEmpty() && first.isEmpty() && last.isEmpty()) {
+                                CuraxFeedback.warn(
+                                    this@SignUpRegistrationActivity,
+                                    getString(R.string.social_facebook_failed, "Email or name not shared"),
+                                    long = true,
+                                )
+                                return@runOnUiThread
+                            }
+                            if (email.isEmpty()) {
+                                CuraxFeedback.warn(
+                                    this@SignUpRegistrationActivity,
+                                    getString(R.string.social_email_required_for_signup),
+                                    long = true,
+                                )
+                                return@runOnUiThread
+                            }
+                            completeSignupAfterSocial(email, first, last)
+                        }
+                    }
+                    val params = Bundle()
+                    params.putString("fields", "id,email,first_name,last_name,name")
+                    req.parameters = params
+                    req.executeAsync()
+                }
+
+                override fun onCancel() = Unit
+
+                override fun onError(error: FacebookException) {
+                    CuraxFeedback.warn(
+                        this@SignUpRegistrationActivity,
+                        getString(R.string.social_facebook_failed, error.message ?: "Login error"),
+                        long = true,
+                    )
+                }
+            },
+        )
+
         etFirstName = findViewById(R.id.etFirstName)
         etLastName = findViewById(R.id.etLastName)
         etEmail = findViewById(R.id.etEmail)
         etPassword = findViewById(R.id.etPassword)
         etConfirmPassword = findViewById(R.id.etConfirmPassword)
         btnCreateAccount = findViewById(R.id.btnCreateAccount)
+        cbTermsAgree = findViewById(R.id.cbTermsAgree)
+        cbMarketingEmails = findViewById(R.id.cbMarketingEmails)
+
+        bindTermsDetail(findViewById(R.id.tvTermsDetail))
+        cbMarketingEmails.isChecked = true
+
+        AuthPasswordToggle.bind(findViewById<TextInputLayout>(R.id.tilPasswordSignup), this)
+        AuthPasswordToggle.bind(findViewById<TextInputLayout>(R.id.tilConfirmSignup), this)
+
+        bindImeOverlayBottomPadding(findViewById(R.id.signUpContent))
 
         findViewById<TextView>(R.id.tvSignInHere).setOnClickListener { finish() }
 
-        fun syncBtn() {
-            val ok = listOf(etFirstName, etLastName, etEmail, etPassword, etConfirmPassword).all {
-                it.text?.toString()?.trim().orEmpty().isNotEmpty()
+        findViewById<ImageButton>(R.id.btnGoogleSignup).setOnClickListener {
+            try {
+                googleSignInLauncher.launch(googleSignInClient.signInIntent)
+            } catch (e: Exception) {
+                CuraxFeedback.warn(
+                    this,
+                    getString(R.string.social_google_failed, e.message ?: "error"),
+                    long = true,
+                )
             }
-            btnCreateAccount.isEnabled = ok
         }
-        etFirstName.doOnTextChanged { _, _, _, _ -> syncBtn() }
-        etLastName.doOnTextChanged { _, _, _, _ -> syncBtn() }
-        etEmail.doOnTextChanged { _, _, _, _ -> syncBtn() }
-        etPassword.doOnTextChanged { _, _, _, _ -> syncBtn() }
-        etConfirmPassword.doOnTextChanged { _, _, _, _ -> syncBtn() }
-        syncBtn()
+        findViewById<ImageButton>(R.id.btnFacebookSignup).setOnClickListener {
+            try {
+                LoginManager.getInstance().logInWithReadPermissions(
+                    this@SignUpRegistrationActivity,
+                    listOf("email", "public_profile"),
+                )
+            } catch (e: Exception) {
+                CuraxFeedback.warn(
+                    this,
+                    getString(R.string.social_facebook_failed, e.message ?: "error"),
+                    long = true,
+                )
+            }
+        }
+
+        etFirstName.doOnTextChanged { _, _, _, _ -> refreshCreateButtonState() }
+        etLastName.doOnTextChanged { _, _, _, _ -> refreshCreateButtonState() }
+        etEmail.doOnTextChanged { _, _, _, _ -> refreshCreateButtonState() }
+        etPassword.doOnTextChanged { _, _, _, _ -> refreshCreateButtonState() }
+        etConfirmPassword.doOnTextChanged { _, _, _, _ -> refreshCreateButtonState() }
+        cbTermsAgree.setOnCheckedChangeListener { _, _ -> refreshCreateButtonState() }
+        refreshCreateButtonState()
 
         btnCreateAccount.setOnClickListener { onCreateAccountClicked() }
+    }
+
+    @Suppress("DEPRECATION")
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        facebookCallbackManager.onActivityResult(requestCode, resultCode, data)
+        super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onDestroy() {
+        imeInsetListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
+        imeInsetListener = null
+        super.onDestroy()
+    }
+
+    private fun onGoogleSignedIn(account: GoogleSignInAccount) {
+        try {
+            val email = account.email?.trim().orEmpty()
+            if (email.isEmpty()) {
+                CuraxFeedback.warn(this, getString(R.string.social_email_required_for_signup), long = true)
+                return
+            }
+            completeSignupAfterSocial(email, account.givenName, account.familyName)
+        } finally {
+            googleSignInClient.signOut()
+        }
+    }
+
+    /** Same password for this email in both fields (visible), terms accepted, then /signup/start + OTP. */
+    private fun completeSignupAfterSocial(email: String, first: String?, last: String?) {
+        val (fn, ln) = ensureNamesForSignup(first, last, email)
+        etFirstName.setText(fn)
+        etLastName.setText(ln)
+        etEmail.setText(email.trim())
+
+        val pw = generateRandomSignupPassword()
+        showPasswordAsPlainText(etPassword)
+        showPasswordAsPlainText(etConfirmPassword)
+        etPassword.setText(pw)
+        etConfirmPassword.setText(pw)
+
+        val tilPwd = findViewById<TextInputLayout>(R.id.tilPasswordSignup)
+        val tilConf = findViewById<TextInputLayout>(R.id.tilConfirmSignup)
+        tilPwd.setEndIconDrawable(R.drawable.ic_auth_password_visible)
+        tilConf.setEndIconDrawable(R.drawable.ic_auth_password_visible)
+        tilPwd.setEndIconContentDescription(getString(R.string.cd_hide_password))
+        tilConf.setEndIconContentDescription(getString(R.string.cd_hide_password))
+        val tint = ContextCompat.getColorStateList(this, R.color.auth_password_toggle_tint)
+        tilPwd.setEndIconTintList(tint)
+        tilConf.setEndIconTintList(tint)
+
+        cbTermsAgree.isChecked = true
+        refreshCreateButtonState()
+        CuraxFeedback.info(this, getString(R.string.social_signup_auto_body))
+        btnCreateAccount.post { onCreateAccountClicked() }
+    }
+
+    private fun ensureNamesForSignup(first: String?, last: String?, email: String): Pair<String, String> {
+        var f = first?.trim().orEmpty()
+        var l = last?.trim().orEmpty()
+        val local = email.substringBefore("@").trim().ifEmpty { "user" }
+        if (f.isEmpty()) {
+            f = if (local.isNotEmpty()) {
+                local.substring(0, 1).uppercase(Locale.getDefault()) + local.substring(1)
+            } else {
+                "User"
+            }
+        }
+        if (l.isEmpty()) {
+            l = "User"
+        }
+        return f to l
+    }
+
+    private fun generateRandomSignupPassword(): String {
+        val random = SecureRandom()
+        val bytes = ByteArray(24)
+        random.nextBytes(bytes)
+        return Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP).trimEnd('=')
+    }
+
+    private fun showPasswordAsPlainText(et: TextInputEditText) {
+        et.transformationMethod = HideReturnsTransformationMethod.getInstance()
+        et.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+    }
+
+    private fun refreshCreateButtonState() {
+        val fieldsOk = listOf(etFirstName, etLastName, etEmail, etPassword, etConfirmPassword).all {
+            it.text?.toString()?.trim().orEmpty().isNotEmpty()
+        }
+        btnCreateAccount.isEnabled = fieldsOk && cbTermsAgree.isChecked
+    }
+
+    private fun googleErrorMessage(e: ApiException): String {
+        val m = e.message?.trim()?.takeIf { it.isNotEmpty() }
+        return m ?: getString(R.string.social_google_status_code, e.statusCode)
+    }
+
+    private fun bindTermsDetail(tv: TextView) {
+        val prefix = getString(R.string.sign_up_terms_prefix)
+        val privacy = getString(R.string.sign_up_terms_privacy)
+        val full = prefix + privacy
+        val ss = SpannableString(full)
+        val start = prefix.length
+        val end = full.length
+        ss.setSpan(
+            object : ClickableSpan() {
+                override fun onClick(widget: View) {
+                    try {
+                        startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.privacy_policy_url))),
+                        )
+                    } catch (_: Exception) {
+                        CuraxFeedback.warn(this@SignUpRegistrationActivity, getString(R.string.privacy_open_failed))
+                    }
+                }
+
+                override fun updateDrawState(ds: TextPaint) {
+                    super.updateDrawState(ds)
+                    ds.isUnderlineText = true
+                    ds.color = ContextCompat.getColor(this@SignUpRegistrationActivity, R.color.auth_heading)
+                }
+            },
+            start,
+            end,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        tv.text = ss
+        tv.movementMethod = LinkMovementMethod.getInstance()
+    }
+
+    private fun bindImeOverlayBottomPadding(content: View) {
+        val decor = window.decorView
+        val baseBottomPad = content.paddingBottom
+        imeInsetListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val wi = ViewCompat.getRootWindowInsets(decor)
+            // Only pad when IME is actually shown. Rect fallback when keyboard closed was
+            // inflating bottom padding on some layout passes (double-tap / selection), causing
+            // a temporary bottom "cut" until insets settled seconds later.
+            val imeBottom = if (wi != null && wi.isVisible(WindowInsetsCompat.Type.ime())) {
+                var b = wi.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                if (b == 0) {
+                    val r = Rect()
+                    decor.getWindowVisibleDisplayFrame(r)
+                    b = (decor.height - r.bottom).coerceAtLeast(0)
+                }
+                b
+            } else {
+                0
+            }
+            content.updatePadding(bottom = baseBottomPad + imeBottom)
+        }
+        decor.viewTreeObserver.addOnGlobalLayoutListener(imeInsetListener)
     }
 
     private fun apiBase(): String = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -84,6 +410,10 @@ class SignUpRegistrationActivity : AppCompatActivity() {
     }
 
     private fun onCreateAccountClicked() {
+        if (!cbTermsAgree.isChecked) {
+            CuraxFeedback.warn(this, getString(R.string.sign_up_terms_required))
+            return
+        }
         val first = etFirstName.text?.toString()?.trim().orEmpty()
         val last = etLastName.text?.toString()?.trim().orEmpty()
         val email = etEmail.text?.toString()?.trim().orEmpty()
@@ -112,7 +442,7 @@ class SignUpRegistrationActivity : AppCompatActivity() {
             return
         }
         hideKeyboard()
-        val label = getString(R.string.create_account_button)
+        val label = getString(R.string.sign_up_button)
         btnCreateAccount.isEnabled = false
         btnCreateAccount.text = getString(R.string.please_wait)
         val displayName = "$first $last".trim()
@@ -129,12 +459,13 @@ class SignUpRegistrationActivity : AppCompatActivity() {
                     btnCreateAccount.isEnabled = true
                     btnCreateAccount.text = label
                     if (code == 200) {
+                        AutofillHelper.commit(this@SignUpRegistrationActivity)
                         startActivity(
                             Intent(this@SignUpRegistrationActivity, SignUpActivity::class.java)
                                 .putExtra(SignUpActivity.EXTRA_START_AT_OTP, true)
                                 .putExtra(SignUpActivity.EXTRA_EMAIL, email)
                                 .putExtra(SignUpActivity.EXTRA_PASSWORD, password)
-                                .putExtra(SignUpActivity.EXTRA_DISPLAY_NAME, displayName)
+                                .putExtra(SignUpActivity.EXTRA_DISPLAY_NAME, displayName),
                         )
                         finish()
                     } else {
