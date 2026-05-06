@@ -39,4 +39,26 @@ internal object SignUpFlowState {
 
     fun isReady(): Boolean =
         email.isNotBlank() && password.isNotBlank() && botId.isNotBlank() && apiKey.isNotBlank()
+
+    fun persistWipToPrefs(prefs: Prefs) {
+        if (!isReady()) return
+        prefs.signupWipEmail = email
+        prefs.signupWipPassword = password
+        prefs.signupWipBotId = botId
+        prefs.signupWipApiKey = apiKey
+        prefs.signupWipNameForLink = nameForLink
+    }
+
+    /** Restore after process death; returns true if all fields were present in prefs. */
+    fun restoreWipFromPrefs(prefs: Prefs): Boolean {
+        if (!prefs.hasSignupWipLink()) return false
+        set(
+            prefs.signupWipEmail,
+            prefs.signupWipPassword,
+            prefs.signupWipBotId,
+            prefs.signupWipApiKey,
+            nameForLink = prefs.signupWipNameForLink,
+        )
+        return isReady()
+    }
 }

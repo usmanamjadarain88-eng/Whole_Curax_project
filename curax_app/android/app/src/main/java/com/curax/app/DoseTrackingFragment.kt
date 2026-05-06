@@ -1,5 +1,6 @@
 package com.curax.app
 
+import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -12,25 +13,70 @@ import android.view.ViewGroup
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
 /**
- * Standalone dose tracking for boxes B1–B3: same chip style as dashboard, mark dose in the active
- * alert window, history table, and local alert suppression for the rest of that day.
+ * Dose tracking: **Personal Health** uses B1–B3 chips + standalone canvas; **Smart System (default)** uses
+ * the same 6-box dashboard grid (B1–B6) and BLE `LED_ON`/`LED_OFF` like desktop when a box is selected.
  */
 class DoseTrackingFragment : Fragment() {
 
-    private val doseSlots = listOf("B1", "B2", "B3")
+    private fun doseSlotsForMode(): List<String> {
+        val ctx = context ?: return listOf("B1", "B2", "B3")
+        return if (StandaloneUi.isUserStandalone(ctx)) {
+            listOf("B1", "B2", "B3")
+        } else {
+            listOf("B1", "B2", "B3", "B4", "B5", "B6")
+        }
+    }
+
+    private fun doseSlotSet(): Set<String> =
+        doseSlotsForMode().map { it.uppercase(Locale.US) }.toSet()
+
+    private fun doseBoxBinding(box: String): Triple<Int, Int, Int>? =
+        when (box.uppercase(Locale.US)) {
+            "B1" -> Triple(R.id.dose_card_b1, R.id.tv_dose_b1_name, R.id.tv_dose_b1_qty)
+            "B2" -> Triple(R.id.dose_card_b2, R.id.tv_dose_b2_name, R.id.tv_dose_b2_qty)
+            "B3" -> Triple(R.id.dose_card_b3, R.id.tv_dose_b3_name, R.id.tv_dose_b3_qty)
+            "B4" -> Triple(R.id.dose_card_b4, R.id.tv_dose_b4_name, R.id.tv_dose_b4_qty)
+            "B5" -> Triple(R.id.dose_card_b5, R.id.tv_dose_b5_name, R.id.tv_dose_b5_qty)
+            "B6" -> Triple(R.id.dose_card_b6, R.id.tv_dose_b6_name, R.id.tv_dose_b6_qty)
+            else -> null
+        }
+
     private var doseSelectedBoxUpper: String? = null
     private var historyAdapter: DoseHistoryRowsAdapter? = null
     private var selectedMedicine: AdminDemoData.Medicine? = null
+
+    /** Last box we lit on ESP32 (default mode BLE only). */
+    private var lastEsp32LedBox: String? = null
+
+    private val blePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        if (res.resultCode == Activity.RESULT_OK) {
+            val addr = res.data?.getStringExtra(Esp32BlePickerActivity.EXTRA_MAC) ?: return@registerForActivityResult
+            val name = res.data?.getStringExtra(Esp32BlePickerActivity.EXTRA_NAME).orEmpty()
+            CuraxEsp32BleLink.connect(requireContext(), addr, name)
+        }
+    }
+
+    private var bleStateReceiverRegistered = false
+    private val bleStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == CuraxEsp32BleLink.ACTION_CONNECTION_STATE) {
+                view?.post { refreshBleStatusUi() }
+            }
+        }
+    }
 
     private val syncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -45,11 +91,23 @@ class DoseTrackingFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?,
-    ): View = inflater.inflate(R.layout.fragment_dose_tracking_standalone, container, false)
+    ): View {
+        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+            R.layout.fragment_dose_tracking_standalone
+        } else {
+            R.layout.fragment_dose_tracking_default
+        }
+        return inflater.inflate(layout, container, false)
+    }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        view.findViewById<HorizontalScrollView>(R.id.hsvDoseTrackingMedicineChips)
-            ?.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = true)
+        super.onViewCreated(view, savedInstanceState)
+        if (StandaloneUi.isUserStandalone(requireContext())) {
+            view.findViewById<HorizontalScrollView>(R.id.hsvDoseTrackingMedicineChips)
+                ?.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = true)
+        } else {
+            bindDoseBoxGrid(view)
+        }
 
         view.findViewById<MaterialButton>(R.id.btnMarkDoseTaken).setOnClickListener {
             onMarkDoseClicked(view)
@@ -61,7 +119,134 @@ class DoseTrackingFragment : Fragment() {
         rvHist.adapter = historyAdapter
         rvHist.isNestedScrollingEnabled = false
 
+        bindBleBridge(view)
+        refreshBleStatusUi()
         refreshAll()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (bleBridgeEnabled()) {
+            CuraxEsp32BleLink.init(requireContext())
+            CuraxEsp32BleLink.connectSavedDevice(requireContext())
+        }
+        refreshBleStatusUi()
+        if (view != null) {
+            refreshAll()
+        }
+    }
+
+    override fun onPause() {
+        if (bleBridgeEnabled()) {
+            CuraxEsp32BleLink.sendLedAllOff()
+            lastEsp32LedBox = null
+        }
+        super.onPause()
+    }
+
+    private fun bleBridgeEnabled(): Boolean {
+        val ctx = context ?: return false
+        return !StandaloneUi.isUserStandalone(ctx)
+    }
+
+    private fun bindBleBridge(view: View) {
+        val card = view.findViewById<View>(R.id.cardDoseBleBridge) ?: return
+        val ctx = context ?: return
+        if (StandaloneUi.isUserStandalone(ctx)) {
+            card.visibility = View.GONE
+            return
+        }
+        card.visibility = View.VISIBLE
+        view.findViewById<MaterialButton>(R.id.btnDoseBleConnect).setOnClickListener {
+            blePickerLauncher.launch(Intent(requireContext(), Esp32BlePickerActivity::class.java))
+        }
+        view.findViewById<MaterialButton>(R.id.btnDoseBleDisconnect).setOnClickListener {
+            CuraxEsp32BleLink.disconnect()
+            refreshBleStatusUi()
+        }
+    }
+
+    private fun refreshBleStatusUi() {
+        val v = view ?: return
+        val tv = v.findViewById<TextView>(R.id.tvDoseBleStatus) ?: return
+        if (!bleBridgeEnabled()) return
+        if (CuraxEsp32BleLink.isConnected()) {
+            val name = CuraxEsp32BleLink.connectedDeviceName().ifEmpty {
+                Prefs(requireContext()).esp32BleDeviceAddress
+            }
+            tv.text = getString(R.string.dose_ble_status_connected, name.ifEmpty { "ESP32" })
+        } else {
+            tv.text = getString(R.string.dose_ble_status_disconnected)
+        }
+    }
+
+    /** Mirror desktop: selecting a chip turns that box LED on (and turns previous off). */
+    private fun pushEsp32LedForBox(boxUpper: String?) {
+        if (!bleBridgeEnabled()) return
+        val b = boxUpper?.trim()?.uppercase(Locale.US)?.takeIf { it in doseSlotSet() }
+            ?: run {
+                lastEsp32LedBox?.let { CuraxEsp32BleLink.sendLedOff(it) }
+                lastEsp32LedBox = null
+                return
+            }
+        lastEsp32LedBox?.let { prev ->
+            if (prev != b) CuraxEsp32BleLink.sendLedOff(prev)
+        }
+        CuraxEsp32BleLink.sendLedOn(b)
+        lastEsp32LedBox = b
+    }
+
+    private fun bindDoseBoxGrid(view: View) {
+        for (box in doseSlotsForMode()) {
+            val ids = doseBoxBinding(box) ?: continue
+            view.findViewById<MaterialCardView>(ids.first)?.setOnClickListener {
+                val m = AdminDemoData.medicines.find { it.box.equals(box, ignoreCase = true) }
+                if (m != null && m.stock > 0) {
+                    selectedMedicine = m
+                    doseSelectedBoxUpper = m.box.trim().uppercase(Locale.US)
+                } else {
+                    selectedMedicine = null
+                    doseSelectedBoxUpper = box.trim().uppercase(Locale.US)
+                }
+                rebuildDoseUi(view)
+                updateMarkButtonState(view)
+                pushEsp32LedForBox(doseSelectedBoxUpper)
+            }
+        }
+    }
+
+    private fun rebuildDoseBoxGrid(v: View) {
+        val ctx = requireContext()
+        val primaryStroke = ContextCompat.getColor(ctx, R.color.button_primary_bg)
+        val normalStroke = ContextCompat.getColor(ctx, R.color.med_box_stroke)
+        val d = resources.displayMetrics.density
+        val strokeSel = (3f * d).toInt().coerceAtLeast(2)
+        val strokeNorm = (2f * d).toInt().coerceAtLeast(2)
+        for (box in doseSlotsForMode()) {
+            val triple = doseBoxBinding(box) ?: continue
+            val card = v.findViewById<MaterialCardView>(triple.first) ?: continue
+            val nameTv = v.findViewById<TextView>(triple.second) ?: continue
+            val qtyTv = v.findViewById<TextView>(triple.third) ?: continue
+            val m = AdminDemoData.medicines.find { it.box.equals(box, ignoreCase = true) }
+            if (m != null && m.name.isNotBlank()) {
+                nameTv.text = m.name
+                qtyTv.text = getString(R.string.dose_box_qty_left, m.stock)
+            } else {
+                nameTv.text = getString(R.string.dose_box_empty_label)
+                qtyTv.text = ""
+            }
+            val sel = doseSelectedBoxUpper == box.uppercase(Locale.US)
+            card.strokeWidth = if (sel) strokeSel else strokeNorm
+            card.strokeColor = if (sel) primaryStroke else normalStroke
+        }
+    }
+
+    private fun rebuildDoseUi(v: View) {
+        if (StandaloneUi.isUserStandalone(requireContext())) {
+            rebuildDoseChips(v)
+        } else {
+            rebuildDoseBoxGrid(v)
+        }
     }
 
     private fun rebuildDoseChips(v: View) {
@@ -70,7 +255,7 @@ class DoseTrackingFragment : Fragment() {
         populateStandaloneMedicineChipRow(
             container = ll,
             inflater = inflater,
-            items = buildThreeSlots(),
+            items = buildSlotsForUi(),
             computedStatus = { chipStatus(it) },
             selectedBoxUpper = doseSelectedBoxUpper,
             onItemClick = { item ->
@@ -82,16 +267,18 @@ class DoseTrackingFragment : Fragment() {
                     selectedMedicine = null
                     doseSelectedBoxUpper = item.box.trim().takeIf { it.isNotEmpty() }?.uppercase(Locale.US)
                 }
-                rebuildDoseChips(v)
+                rebuildDoseUi(v)
                 updateMarkButtonState(v)
+                pushEsp32LedForBox(doseSelectedBoxUpper)
             },
             onPlaceholderClick = {},
             showBoxLabelWhenPlaceholder = true,
             onPlaceholderItemClick = { item ->
                 selectedMedicine = null
                 doseSelectedBoxUpper = item.box.trim().takeIf { it.isNotEmpty() }?.uppercase(Locale.US)
-                rebuildDoseChips(v)
+                rebuildDoseUi(v)
                 updateMarkButtonState(v)
+                pushEsp32LedForBox(doseSelectedBoxUpper)
             },
         )
     }
@@ -107,6 +294,15 @@ class DoseTrackingFragment : Fragment() {
             }
             syncReceiverRegistered = true
         }
+        if (bleBridgeEnabled() && !bleStateReceiverRegistered) {
+            val bf = IntentFilter(CuraxEsp32BleLink.ACTION_CONNECTION_STATE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                requireContext().registerReceiver(bleStateReceiver, bf, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                requireContext().registerReceiver(bleStateReceiver, bf)
+            }
+            bleStateReceiverRegistered = true
+        }
     }
 
     override fun onStop() {
@@ -116,6 +312,13 @@ class DoseTrackingFragment : Fragment() {
             } catch (_: Exception) {
             }
             syncReceiverRegistered = false
+        }
+        if (bleStateReceiverRegistered) {
+            try {
+                requireContext().unregisterReceiver(bleStateReceiver)
+            } catch (_: Exception) {
+            }
+            bleStateReceiverRegistered = false
         }
         super.onStop()
     }
@@ -128,9 +331,12 @@ class DoseTrackingFragment : Fragment() {
         }
         selectedMedicine = still
         doseSelectedBoxUpper = selectedMedicine?.box?.trim()?.ifEmpty { null }?.uppercase(Locale.US)
-        rebuildDoseChips(v)
+        rebuildDoseUi(v)
         historyAdapter?.submit(DoseTrackingLocalStore.readLog(requireContext()))
         updateMarkButtonState(v)
+        if (bleBridgeEnabled()) {
+            pushEsp32LedForBox(doseSelectedBoxUpper)
+        }
     }
 
     private fun buildPlaceholderForSlot(slot: String, pad: Int): AdminOverviewFragment.InventoryItem =
@@ -159,10 +365,10 @@ class DoseTrackingFragment : Fragment() {
             addedAt = System.currentTimeMillis(),
         )
 
-    private fun buildThreeSlots(): List<AdminOverviewFragment.InventoryItem> {
+    private fun buildSlotsForUi(): List<AdminOverviewFragment.InventoryItem> {
         val list = mutableListOf<AdminOverviewFragment.InventoryItem>()
         var salt = 0
-        for (slot in doseSlots) {
+        for (slot in doseSlotsForMode()) {
             val m = AdminDemoData.medicines.find { it.box.equals(slot, ignoreCase = true) }
             if (m != null) {
                 list.add(medicineToInventory(m, salt++))
@@ -273,6 +479,11 @@ class DoseTrackingFragment : Fragment() {
                     getString(R.string.pending_sync_title_dose),
                     getString(R.string.pending_sync_subtitle_not_synced),
                 )
+                if (bleBridgeEnabled()) {
+                    val bx = m.box.trim().uppercase(Locale.US)
+                    CuraxEsp32BleLink.sendLedOff(bx)
+                    lastEsp32LedBox = null
+                }
                 val msg = if (phase == DoseIntakeClassifier.SlotPhase.ON_TIME) {
                     getString(R.string.dose_tracking_saved_on_time)
                 } else {

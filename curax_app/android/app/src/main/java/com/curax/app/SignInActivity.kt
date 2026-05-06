@@ -54,6 +54,11 @@ class SignInActivity : AppCompatActivity() {
         prefs = Prefs(this)
         store = LocalUserStore(this)
 
+        intent.getStringExtra(EXTRA_SESSION_INVALIDATED_MESSAGE)?.trim()?.takeIf { it.isNotEmpty() }?.let { msg ->
+            CuraxFeedback.warn(this, msg, long = true)
+            intent.removeExtra(EXTRA_SESSION_INVALIDATED_MESSAGE)
+        }
+
         etEmail = findViewById(R.id.etEmail)
         etPassword = findViewById(R.id.etPassword)
         btnSignIn = findViewById(R.id.btnSignIn)
@@ -255,6 +260,7 @@ class SignInActivity : AppCompatActivity() {
                 val botId = UUID.randomUUID().toString().take(8)
                 val apiKey = UUID.randomUUID().toString().replace("-", "").take(16)
                 SignUpFlowState.set(email, password, botId, apiKey, nameForLink = email)
+                SignUpFlowState.persistWipToPrefs(prefs)
                 startActivity(Intent(this, SignUpLinkAdminActivity::class.java))
             }
             "active" -> {
@@ -287,6 +293,7 @@ class SignInActivity : AppCompatActivity() {
         prefs.hasEverConnected = true
         store.saveUser(email, password, LocalUserStore.ROLE_USER)
         SignUpFlowState.clear()
+        prefs.clearSignupWipLink()
 
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
@@ -312,32 +319,51 @@ class SignInActivity : AppCompatActivity() {
                 }.start()
             }
             runOnUiThread {
-                UserDataBusClient.fetchAndApplyUserData(this@SignInActivity, base, botId, apiKey) {
-                    runOnUiThread {
-                        CuraxFeedback.successThen(
-                            this@SignInActivity,
-                            R.string.sign_in_success,
-                            delayMs = 220L,
-                            snackbarDuration = Snackbar.LENGTH_SHORT,
-                        ) {
-                            val home = UserHomeIntent.forSignedInUser(this@SignInActivity).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                            }
-                            val opts = ActivityOptionsCompat.makeCustomAnimation(
+                UserDataBusClient.fetchAndApplyUserData(
+                    this@SignInActivity,
+                    base,
+                    botId,
+                    apiKey,
+                    onSuccess = {
+                        runOnUiThread {
+                            CuraxFeedback.successThen(
                                 this@SignInActivity,
-                                android.R.anim.fade_in,
-                                android.R.anim.fade_out,
-                            )
-                            ActivityCompat.startActivity(this@SignInActivity, home, opts.toBundle())
-                            finish()
+                                R.string.sign_in_success,
+                                delayMs = 220L,
+                                snackbarDuration = Snackbar.LENGTH_SHORT,
+                            ) {
+                                val home = UserHomeIntent.forSignedInUser(this@SignInActivity).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                }
+                                val opts = ActivityOptionsCompat.makeCustomAnimation(
+                                    this@SignInActivity,
+                                    android.R.anim.fade_in,
+                                    android.R.anim.fade_out,
+                                )
+                                ActivityCompat.startActivity(this@SignInActivity, home, opts.toBundle())
+                                finish()
+                            }
                         }
-                    }
-                }
+                    },
+                    onAuthRejected = { msg ->
+                        runOnUiThread {
+                            UserLogoutHelper.clearLocalSession(this@SignInActivity)
+                            CuraxFeedback.warn(
+                                this@SignInActivity,
+                                msg.ifBlank { getString(R.string.account_removed_by_admin) },
+                                long = true,
+                            )
+                        }
+                    },
+                )
             }
         }
     }
 
     companion object {
+        /** Set when returning from UserDataBusClient after server rejects bot_id/api_key (deleted user, etc.). */
+        const val EXTRA_SESSION_INVALIDATED_MESSAGE = "extra_session_invalidated_message"
+
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }
 }

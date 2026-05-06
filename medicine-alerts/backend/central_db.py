@@ -69,15 +69,40 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
         "If you did not request this, you can ignore this email.\n\n"
         f"— {from_name}\n"
     )
-    # Single HTML body: no hidden preheader (some clients show it as a second copy of the same text).
+    # Table-based layout for predictable rendering across email clients.
     html_body = (
-        "<p style=\"font-family:sans-serif;font-size:15px;line-height:1.6;color:#333;\">"
-        "Your verification code is "
-        f"<span style=\"font-size:22px;font-weight:bold;letter-spacing:3px;\">{otp_esc}</span>. "
-        "<strong>This code expires in 15 minutes.</strong> "
-        "If you did not request this, you can ignore this email."
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="margin:0;padding:24px 12px;background:#f4f5f7;">'
+        '<tr><td align="center">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        'style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;'
+        'border:1px solid #e6e7eb;">'
+        '<tr><td style="padding:24px 28px 8px 28px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
+        '<div style="font-size:13px;font-weight:600;letter-spacing:0.06em;color:#00a218;">CURAX</div>'
+        '<div style="font-size:20px;font-weight:700;color:#111827;margin-top:12px;line-height:1.3;">'
+        "Verify your email"
+        "</div>"
+        '<div style="font-size:14px;color:#6b7280;margin-top:8px;line-height:1.55;">'
+        "Use the code below to finish creating your account. It expires in "
+        "<strong style=\"color:#374151;\">15 minutes</strong>."
+        "</div>"
+        "</td></tr>"
+        '<tr><td style="padding:8px 28px 24px 28px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
+        '<div style="background:#f9fafb;border:1px dashed #d1d5db;border-radius:10px;padding:18px 16px;'
+        'text-align:center;">'
+        '<div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">'
+        "Your code"
+        "</div>"
+        f'<div style="font-size:28px;font-weight:700;letter-spacing:6px;color:#111827;margin-top:10px;">'
+        f"{otp_esc}</div>"
+        "</div>"
+        '<p style="font-size:13px;color:#9ca3af;margin:18px 0 0 0;line-height:1.5;">'
+        "If you didn’t request this email, you can safely ignore it."
         "</p>"
-        f"<p style=\"font-family:sans-serif;font-size:13px;color:#666;margin-top:20px;\">— {name_esc}</p>"
+        f'<p style="font-size:12px;color:#9ca3af;margin:20px 0 0 0;">— {name_esc}</p>'
+        "</td></tr>"
+        "</table>"
+        "</td></tr></table>"
     )
 
     msg = EmailMessage(policy=SMTP)
@@ -3121,14 +3146,41 @@ class CentralDB:
         finally:
             cur.close()
 
-    def signup_flow_link_admin(self, email, connection_code, bot_id, api_key, name=None, fcm_token=None):
-        """After PENDING_ADMIN: same as connect-to-admin + delete signup_sessions + set users ACTIVE/password if columns exist."""
-        email_n = self._normalize_signup_email(email)
-        bot_id = (bot_id or "").strip()
-        api_key = (api_key or "").strip()
-        connection_code = (connection_code or "").strip()
-        if not email_n or not connection_code or not bot_id or not api_key:
-            return {"ok": False, "error": "missing_fields"}
+    def _ensure_user_admin_link_requests_table(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS user_admin_link_requests (
+                    id UUID PRIMARY KEY,
+                    email_normalized TEXT NOT NULL,
+                    admin_id UUID NOT NULL,
+                    user_bot_id TEXT NOT NULL,
+                    user_api_key TEXT NOT NULL,
+                    display_name TEXT,
+                    fcm_token TEXT,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_user_admin_link_req_pending
+                ON user_admin_link_requests (email_normalized, user_bot_id, user_api_key)
+                WHERE status = 'pending'
+                """
+            )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB _ensure_user_admin_link_requests_table: {e}")
+        finally:
+            cur.close()
+
+    def _signup_load_pending_admin_session(self, email_n):
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
@@ -3163,81 +3215,432 @@ class CentralDB:
                 session_fn = (srow.get("fn") or "").strip()
                 session_ln = (srow.get("ln") or "").strip()
             conn.rollback()
+            return {"ok": True, "password_hash": pw_row, "fn": session_fn, "ln": session_ln}
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            err = str(e).lower()
+            if "signup_sessions" in err or "does not exist" in err:
+                return {"ok": False, "error": "signup_not_configured"}
+            print(f"CentralDB _signup_load_pending_admin_session: {e}")
+            return {"ok": False, "error": "database_error"}
         finally:
             cur.close()
 
-        admin = self.get_admin_by_connection_code(connection_code)
-        if not admin:
-            return {"ok": False, "error": "invalid_connection_code"}
+    def _signup_post_link_response_dict(self, user_id, admin):
+        """Shared JSON shape for linked user (signup link-admin + directory accept)."""
         admin_id = admin.get("id")
         admin_name = admin.get("name") or ""
-
-        combined = re.sub(r"\s+", " ", f"{session_fn} {session_ln}").strip()
-        display_name = combined if (session_fn or session_ln) else ((name or "").strip() or email_n)
-        user_uname = combined if (session_fn or session_ln) else None
-
-        user_id = self.upsert_user_from_bot(
-            bot_id,
-            api_key,
-            admin_id,
-            name=display_name,
-            email=email_n,
-            fcm_token=fcm_token,
-            username=user_uname,
-        )
-        if not user_id:
-            return {"ok": False, "error": "link_failed"}
-
-        # Only persist structured names for this flow when signup collected them (new signups). Old rows stay unchanged.
-        if session_fn or session_ln:
-            self.set_user_first_last_name(user_id, session_fn, session_ln)
-
-        self._touch_user_password_and_active(user_id, password_hash_session=pw_row)
-
-        cur = conn.cursor()
-        try:
-            cur.execute("DELETE FROM signup_sessions WHERE email_normalized = %s", (email_n,))
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            print(f"CentralDB signup_flow_link_admin cleanup session: {e}")
-        finally:
-            cur.close()
-
         databus_access_code = (admin.get("admin_access_code") or "").strip()
+        connection_code = (admin.get("connection_code") or "").strip()
+        uid_str = str(user_id)
         greet = ""
         full_name = ""
         username_display = ""
         display_mode = ""
         try:
-            greet = self.get_user_first_name_for_user_id(user_id) or ""
+            greet = self.get_user_first_name_for_user_id(uid_str) or ""
         except Exception:
             pass
         try:
-            full_name = self.get_user_full_display_name_for_user_id(user_id) or ""
+            full_name = self.get_user_full_display_name_for_user_id(uid_str) or ""
         except Exception:
             pass
         try:
-            username_display = self.get_user_username_for_user_id(user_id) or ""
+            username_display = self.get_user_username_for_user_id(uid_str) or ""
         except Exception:
             pass
         try:
-            display_mode = self.get_user_display_mode_for_user_id(user_id) or ""
+            display_mode = self.get_user_display_mode_for_user_id(uid_str) or ""
         except Exception:
             pass
         return {
             "ok": True,
             "message": "ok",
             "admin_id": admin_id,
-            "user_id": user_id,
+            "user_id": uid_str,
             "admin_name": admin_name,
             "databus_access_code": databus_access_code,
+            "connection_code": connection_code,
             "account_status": "ACTIVE",
             "user_first_name": greet,
             "user_full_name": full_name,
             "user_username": username_display,
             "user_display_mode": display_mode,
         }
+
+    def _signup_linked_payload_for_device(self, email_n, bot_id, api_key):
+        """If this device is already linked for this signup email, return link-shaped dict (no ok/message keys)."""
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT u.id AS user_id, u.admin_id::text AS admin_id,
+                       COALESCE(a.name, '') AS admin_name,
+                       COALESCE(a.admin_access_code, '') AS databus_access_code,
+                       COALESCE(a.connection_code, '') AS connection_code,
+                       COALESCE(u.account_status, 'ACTIVE') AS account_status
+                FROM users u
+                INNER JOIN admins a ON a.id = u.admin_id
+                WHERE u.bot_id = %s AND u.api_key = %s
+                  AND LOWER(TRIM(COALESCE(u.email, ''))) = %s
+                  AND COALESCE(u.bot_id, '') IS DISTINCT FROM 'dashboard'
+                ORDER BY u.updated_at DESC NULLS LAST, u.created_at DESC NULLS LAST
+                LIMIT 1
+                """,
+                (bot_id, api_key, email_n),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            st = str(row.get("account_status") or "ACTIVE").strip().upper()
+            if st in ("PENDING_EMAIL", "PENDING_ADMIN", "PENDING"):
+                return None
+            user_id = row.get("user_id")
+            admin_stub = {
+                "id": row.get("admin_id"),
+                "name": row.get("admin_name"),
+                "admin_access_code": row.get("databus_access_code"),
+                "connection_code": row.get("connection_code"),
+            }
+            d = self._signup_post_link_response_dict(user_id, admin_stub)
+            d.pop("ok", None)
+            d.pop("message", None)
+            return d
+        except Exception as e:
+            print(f"CentralDB _signup_linked_payload_for_device: {e}")
+            return None
+        finally:
+            cur.close()
+
+    def _signup_finalize_link_to_admin(self, email_n, admin, bot_id, api_key, display_name, fcm_token, pw_row, session_fn, session_ln):
+        admin_id = admin.get("id")
+        combined = re.sub(r"\s+", " ", f"{session_fn} {session_ln}").strip()
+        actual_display = combined if (session_fn or session_ln) else ((display_name or "").strip() or email_n)
+        user_uname = combined if (session_fn or session_ln) else None
+        user_id = self.upsert_user_from_bot(
+            bot_id,
+            api_key,
+            admin_id,
+            name=actual_display,
+            email=email_n,
+            fcm_token=fcm_token,
+            username=user_uname,
+        )
+        if not user_id:
+            return {"ok": False, "error": "link_failed"}
+        if session_fn or session_ln:
+            self.set_user_first_last_name(user_id, session_fn, session_ln)
+        self._touch_user_password_and_active(user_id, password_hash_session=pw_row)
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("DELETE FROM signup_sessions WHERE email_normalized = %s", (email_n,))
+            try:
+                self._ensure_user_admin_link_requests_table()
+                cur.execute(
+                    "DELETE FROM user_admin_link_requests WHERE email_normalized = %s AND user_bot_id = %s AND user_api_key = %s",
+                    (email_n, bot_id, api_key),
+                )
+            except Exception as e2:
+                print(f"CentralDB _signup_finalize_link_to_admin cleanup requests: {e2}")
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB _signup_finalize_link_to_admin cleanup session: {e}")
+        finally:
+            cur.close()
+        return self._signup_post_link_response_dict(user_id, admin)
+
+    def signup_flow_link_admin(self, email, connection_code, bot_id, api_key, name=None, fcm_token=None):
+        """After PENDING_ADMIN: connect via admin connection code + delete signup_sessions + set users ACTIVE."""
+        email_n = self._normalize_signup_email(email)
+        bot_id = (bot_id or "").strip()
+        api_key = (api_key or "").strip()
+        connection_code = (connection_code or "").strip()
+        if not email_n or not connection_code or not bot_id or not api_key:
+            return {"ok": False, "error": "missing_fields"}
+        sess = self._signup_load_pending_admin_session(email_n)
+        if not sess.get("ok"):
+            return sess
+        admin = self.get_admin_by_connection_code(connection_code)
+        if not admin:
+            return {"ok": False, "error": "invalid_connection_code"}
+        combined = re.sub(r"\s+", " ", f"{sess['fn']} {sess['ln']}").strip()
+        display_name = combined if (sess["fn"] or sess["ln"]) else ((name or "").strip() or email_n)
+        return self._signup_finalize_link_to_admin(
+            email_n,
+            admin,
+            bot_id,
+            api_key,
+            display_name,
+            fcm_token,
+            sess["password_hash"],
+            sess["fn"],
+            sess["ln"],
+        )
+
+    def list_admins_for_signup_directory(self):
+        """Public-safe list for signup UI: id + name only (capped)."""
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT id::text AS id, COALESCE(name, '') AS name
+                FROM admins
+                ORDER BY LOWER(COALESCE(NULLIF(TRIM(name), ''), NULLIF(TRIM(email), ''), id::text)) ASC
+                LIMIT 100
+                """
+            )
+            rows = cur.fetchall() or []
+            out = []
+            for row in rows:
+                if hasattr(row, "get"):
+                    out.append({"id": str(row.get("id") or ""), "name": str(row.get("name") or "").strip()})
+                else:
+                    out.append({"id": str(row[0]), "name": str(row[1] or "").strip()})
+            return out
+        except Exception as e:
+            print(f"CentralDB list_admins_for_signup_directory: {e}")
+            return []
+        finally:
+            cur.close()
+
+    def get_admin_for_user_directory_link(self, admin_id_str):
+        """Admin row for linking by UUID (choose-admin flow); same shape as get_admin_by_connection_code."""
+        aid = (admin_id_str or "").strip()
+        try:
+            uuid.UUID(aid)
+        except (ValueError, TypeError):
+            return None
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT id, name, connection_code, admin_access_code FROM admins WHERE id = %s::uuid LIMIT 1",
+                (aid,),
+            )
+            row = cur.fetchone()
+            if row and hasattr(row, "keys"):
+                return {
+                    "id": str(row["id"]),
+                    "name": row["name"],
+                    "connection_code": row["connection_code"],
+                    "admin_access_code": (row.get("admin_access_code") or "").strip(),
+                }
+            if row:
+                return {
+                    "id": str(row[0]),
+                    "name": row[1],
+                    "connection_code": row[2],
+                    "admin_access_code": (row[3] or "").strip() if len(row) > 3 else "",
+                }
+            return None
+        except Exception as e:
+            print(f"CentralDB get_admin_for_user_directory_link: {e}")
+            return None
+        finally:
+            cur.close()
+
+    def signup_submit_admin_link_request(self, email, admin_id, bot_id, api_key, name=None, fcm_token=None):
+        """PENDING_ADMIN user submits a request for a chosen admin; admin accepts via dashboard later."""
+        email_n = self._normalize_signup_email(email)
+        bot_id = (bot_id or "").strip()
+        api_key = (api_key or "").strip()
+        aid = (admin_id or "").strip()
+        if not email_n or not bot_id or not api_key or not aid:
+            return {"ok": False, "error": "missing_fields"}
+        sess = self._signup_load_pending_admin_session(email_n)
+        if not sess.get("ok"):
+            return sess
+        admin = self.get_admin_for_user_directory_link(aid)
+        if not admin:
+            return {"ok": False, "error": "invalid_admin"}
+        self._ensure_user_admin_link_requests_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                DELETE FROM user_admin_link_requests
+                WHERE email_normalized = %s AND user_bot_id = %s AND user_api_key = %s AND status = 'pending'
+                """,
+                (email_n, bot_id, api_key),
+            )
+            rid = str(uuid.uuid4())
+            dn = (name or "").strip()[:200] or None
+            ft = (fcm_token or "").strip() or None
+            cur.execute(
+                """
+                INSERT INTO user_admin_link_requests (
+                    id, email_normalized, admin_id, user_bot_id, user_api_key, display_name, fcm_token, status
+                ) VALUES (%s::uuid, %s, %s::uuid, %s, %s, %s, %s, 'pending')
+                """,
+                (rid, email_n, aid, bot_id, api_key, dn, ft),
+            )
+            conn.commit()
+            return {"ok": True, "message": "request_created", "request_id": rid, "admin_name": admin.get("name") or ""}
+        except Exception as e:
+            conn.rollback()
+            err = str(e).lower()
+            if "user_admin_link_requests" in err or "does not exist" in err:
+                return {"ok": False, "error": "signup_not_configured"}
+            print(f"CentralDB signup_submit_admin_link_request: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+
+    def signup_get_link_request_status(self, email, bot_id, api_key):
+        """Poll: accepted (linked), pending (waiting on admin), or no_pending_request."""
+        email_n = self._normalize_signup_email(email)
+        bot_id = (bot_id or "").strip()
+        api_key = (api_key or "").strip()
+        if not email_n or not bot_id or not api_key:
+            return {"ok": False, "error": "missing_fields"}
+        linked = self._signup_linked_payload_for_device(email_n, bot_id, api_key)
+        if linked:
+            out = {"ok": True, "status": "accepted"}
+            out.update(linked)
+            return out
+        sess = self._signup_load_pending_admin_session(email_n)
+        if not sess.get("ok"):
+            err = sess.get("error") or "error"
+            if err == "session_not_found":
+                return {"ok": False, "error": "session_not_found"}
+            if err == "wrong_state":
+                return {"ok": False, "error": "wrong_state", "account_status": sess.get("account_status")}
+            return {"ok": False, "error": err}
+        self._ensure_user_admin_link_requests_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT r.id::text AS request_id, r.admin_id::text AS admin_id, COALESCE(a.name, '') AS admin_name
+                FROM user_admin_link_requests r
+                INNER JOIN admins a ON a.id = r.admin_id
+                WHERE r.email_normalized = %s AND r.user_bot_id = %s AND r.user_api_key = %s AND r.status = 'pending'
+                LIMIT 1
+                """,
+                (email_n, bot_id, api_key),
+            )
+            row = cur.fetchone()
+            if row:
+                return {
+                    "ok": True,
+                    "status": "pending",
+                    "request_id": row.get("request_id"),
+                    "admin_id": row.get("admin_id"),
+                    "admin_name": row.get("admin_name") or "",
+                }
+            return {"ok": True, "status": "no_pending_request"}
+        except Exception as e:
+            print(f"CentralDB signup_get_link_request_status: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+
+    def admin_list_pending_user_link_requests(self, access_code):
+        """Admin dashboard: pending signup link requests for this access_code's admin."""
+        admin = self.get_admin_by_access_code(access_code)
+        if not admin:
+            return {"ok": False, "error": "invalid_access_code", "requests": []}
+        admin_id = admin.get("id")
+        self._ensure_user_admin_link_requests_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT r.id::text AS request_id, r.email_normalized AS email,
+                       COALESCE(r.display_name, '') AS display_name,
+                       r.created_at
+                FROM user_admin_link_requests r
+                WHERE r.admin_id = %s::uuid AND r.status = 'pending'
+                ORDER BY r.created_at ASC
+                """,
+                (admin_id,),
+            )
+            rows = cur.fetchall() or []
+            req_list = []
+            for row in rows:
+                if hasattr(row, "get"):
+                    ca = row.get("created_at")
+                    req_list.append({
+                        "request_id": row.get("request_id"),
+                        "email": row.get("email"),
+                        "display_name": row.get("display_name") or "",
+                        "created_at": ca.isoformat() if ca else "",
+                    })
+            return {"ok": True, "requests": req_list}
+        except Exception as e:
+            print(f"CentralDB admin_list_pending_user_link_requests: {e}")
+            return {"ok": False, "error": "database_error", "requests": []}
+        finally:
+            cur.close()
+
+    def admin_accept_user_link_request(self, access_code, request_id):
+        """Grant pending directory link request (same DB effect as signup link-admin)."""
+        admin = self.get_admin_by_access_code(access_code)
+        if not admin:
+            return {"ok": False, "error": "invalid_access_code"}
+        admin_id = admin.get("id")
+        rid = (request_id or "").strip()
+        try:
+            uuid.UUID(rid)
+        except (ValueError, TypeError):
+            return {"ok": False, "error": "invalid_request_id"}
+        self._ensure_user_admin_link_requests_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        row = None
+        try:
+            cur.execute(
+                """
+                SELECT email_normalized, user_bot_id, user_api_key,
+                       COALESCE(display_name, '') AS display_name, COALESCE(fcm_token, '') AS fcm_token
+                FROM user_admin_link_requests
+                WHERE id = %s::uuid AND admin_id = %s::uuid AND status = 'pending'
+                LIMIT 1
+                """,
+                (rid, admin_id),
+            )
+            row = cur.fetchone()
+        except Exception as e:
+            print(f"CentralDB admin_accept_user_link_request fetch: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+        if not row:
+            return {"ok": False, "error": "request_not_found"}
+        email_n = row["email_normalized"]
+        bot_id = row["user_bot_id"]
+        api_key = row["user_api_key"]
+        disp = str((row.get("display_name") or "")).strip()
+        fcm = str((row.get("fcm_token") or "")).strip()
+
+        sess = self._signup_load_pending_admin_session(email_n)
+        if not sess.get("ok"):
+            out = {"ok": False, "error": sess.get("error") or "error"}
+            if sess.get("account_status") is not None:
+                out["account_status"] = sess.get("account_status")
+            return out
+
+        return self._signup_finalize_link_to_admin(
+            email_n,
+            admin,
+            bot_id,
+            api_key,
+            disp or None,
+            fcm or None,
+            sess["password_hash"],
+            sess["fn"],
+            sess["ln"],
+        )
 
     def _touch_user_password_and_active(self, user_id, password_hash_session=None):
         conn = self._ensure_conn()

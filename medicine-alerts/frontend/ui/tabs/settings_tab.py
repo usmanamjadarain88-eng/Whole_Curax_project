@@ -524,7 +524,7 @@ class SettingsTab(QWidget):
             pass
 
     def _refresh_admin_ui(self, db=None):
-        """Update admin status label and Admin Login/Logout button; when linked to admin (user view) hide admin form and login."""
+        """Admin workstation only — mobile app owns user/link flows; always show admin credentials UI."""
         if not hasattr(self, "admin_status_label") or not hasattr(self, "admin_action_btn"):
             return
         if db is None:
@@ -533,54 +533,12 @@ class SettingsTab(QWidget):
             except Exception:
                 return
         has_admin = db.has_admin_credentials() if hasattr(db, "has_admin_credentials") else False
-        desktop_linked = db.get_desktop_linked_admin() if hasattr(db, "get_desktop_linked_admin") else None
-
-        if desktop_linked:
-            # User view only: show "You are linked to [name]", hide admin form
-            name = desktop_linked.get("desktop_linked_admin_name", "Admin")
-            if hasattr(self, "linked_to_admin_group"):
-                self.linked_to_admin_group.setVisible(True)
-                self.linked_to_admin_label.setText(f"You are linked to {name}. User view only. Admin login is not available.")
-            if hasattr(self, "link_to_admin_only_group"):
-                self.link_to_admin_only_group.setVisible(False)
-            self.admin_status_label.setVisible(False)
-            self.admin_action_btn.setVisible(False)
-            # Hide become-admin form and admin actions
-            for w in (getattr(self, "admin_name", None), getattr(self, "admin_id", None), getattr(self, "admin_email", None),
-                      getattr(self, "admin_phone", None), getattr(self, "admin_password", None),
-                      getattr(self, "setup_admin_btn", None), getattr(self, "delete_admin_btn", None),
-                      getattr(self, "test_alert_btn", None), getattr(self, "admin_codes_container", None)):
-                if w is not None:
-                    w.setVisible(False)
-            return
-
-        linked = db.get_linked_user() if hasattr(db, "get_linked_user") else None
-        if linked and not desktop_linked:
-            # User linked this desktop (Settings) but not yet linked to admin: show only "Link to admin"
-            if hasattr(self, "linked_to_admin_group"):
-                self.linked_to_admin_group.setVisible(False)
-            if hasattr(self, "link_to_admin_only_group"):
-                self.link_to_admin_only_group.setVisible(True)
-            self.admin_status_label.setVisible(True)
-            self.admin_status_label.setText("Enter your admin's Connection Code below to finish linking.")
-            self.admin_status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 9pt;")
-            self.admin_action_btn.setVisible(False)
-            for w in (getattr(self, "admin_name", None), getattr(self, "admin_id", None), getattr(self, "admin_email", None),
-                      getattr(self, "admin_phone", None), getattr(self, "admin_password", None),
-                      getattr(self, "setup_admin_btn", None), getattr(self, "delete_admin_btn", None),
-                      getattr(self, "test_alert_btn", None), getattr(self, "admin_codes_container", None)):
-                if w is not None:
-                    w.setVisible(False)
-            return
-
-        # Not linked: show admin UI (Create admin form or Update + My codes when device is admin-specific)
         if hasattr(self, "linked_to_admin_group"):
             self.linked_to_admin_group.setVisible(False)
         if hasattr(self, "link_to_admin_only_group"):
             self.link_to_admin_only_group.setVisible(False)
         self.admin_status_label.setVisible(True)
         # When device has admin (admin-specific), no Login/Logout button
-        has_admin = db.has_admin_credentials() if hasattr(db, "has_admin_credentials") else False
         self.admin_action_btn.setVisible(not has_admin)
         for w in (getattr(self, "admin_name", None), getattr(self, "admin_id", None), getattr(self, "admin_email", None),
                   getattr(self, "admin_phone", None), getattr(self, "admin_password", None),
@@ -693,14 +651,9 @@ class SettingsTab(QWidget):
         # "Link this desktop to you" = for users who start in user view (no admin on this PC).
         # If admin credentials already exist here, hide it — admin machine does not need this block.
         if hasattr(self, "link_desktop_group"):
-            linked = db.get_linked_user() if hasattr(db, "get_linked_user") else None
-            desktop_linked = db.get_desktop_linked_admin() if hasattr(db, "get_desktop_linked_admin") else None
-            has_admin = db.has_admin_credentials() if hasattr(db, "has_admin_credentials") else False
-            show_link = linked is None and desktop_linked is None and not has_admin
-            self.link_desktop_group.setVisible(show_link)
+            self.link_desktop_group.setVisible(False)
         if hasattr(self, "linked_desktop_done_group"):
-            desktop_linked = db.get_desktop_linked_admin() if hasattr(db, "get_desktop_linked_admin") else None
-            self.linked_desktop_done_group.setVisible(desktop_linked is not None)
+            self.linked_desktop_done_group.setVisible(False)
 
         gmail = getattr(self.controller, "gmail_config", {})
         self.gmail_sender.setText(gmail.get("sender_email", ""))

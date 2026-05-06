@@ -261,6 +261,151 @@ def signup_link_admin(body, query, headers):
         "user_id": r.get("user_id"),
         "admin_name": r.get("admin_name"),
         "databus_access_code": r.get("databus_access_code"),
+        "connection_code": r.get("connection_code") or "",
+        "account_status": r.get("account_status", "ACTIVE"),
+        "user_first_name": r.get("user_first_name") or "",
+        "user_full_name": r.get("user_full_name") or "",
+        "user_username": r.get("user_username") or "",
+        "user_display_mode": r.get("user_display_mode") or "",
+    })
+def signup_list_admins_directory(body, query, headers):
+    """GET — public id+name list for choose-your-admin during signup (capped on server)."""
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured", "admins": []})
+    admins = db.list_admins_for_signup_directory()
+    return (200, {"admins": admins})
+def signup_request_admin_link(body, query, headers):
+    """POST { email, admin_id, bot_id, api_key, name?, fcm_token? } — queue link request for that admin."""
+    data = body
+    email = (data.get("email") or "").strip()
+    admin_id = (data.get("admin_id") or "").strip()
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    name = (data.get("name") or "").strip()
+    fcm_token = (data.get("fcm_token") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.signup_submit_admin_link_request(
+        email, admin_id, bot_id, api_key, name=name or None, fcm_token=fcm_token or None
+    )
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err == "invalid_admin":
+            code = 404
+        if err == "session_not_found":
+            code = 404
+        if err == "wrong_state":
+            code = 409
+        if err == "signup_not_configured":
+            code = 503
+        payload = {"message": err}
+        if r.get("account_status") is not None:
+            payload["account_status"] = r.get("account_status")
+        return (code, payload)
+    return (200, {
+        "message": r.get("message", "ok"),
+        "request_id": r.get("request_id"),
+        "admin_name": r.get("admin_name") or "",
+    })
+def signup_link_request_status(body, query, headers):
+    """GET ?email=&bot_id=&api_key= — pending | accepted | no_pending_request."""
+    email = (query.get("email") or "").strip()
+    bot_id = (query.get("bot_id") or "").strip()
+    api_key = (query.get("api_key") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.signup_get_link_request_status(email, bot_id, api_key)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err == "session_not_found":
+            code = 404
+        if err == "wrong_state":
+            code = 409
+        payload = {"message": err}
+        if r.get("account_status") is not None:
+            payload["account_status"] = r.get("account_status")
+        return (code, payload)
+    if r.get("status") == "accepted":
+        ac = (r.get("databus_access_code") or "").strip()
+        if ac:
+            notify_databus(ac)
+        return (200, {
+            "status": "accepted",
+            "admin_id": r.get("admin_id"),
+            "user_id": r.get("user_id"),
+            "admin_name": r.get("admin_name"),
+            "databus_access_code": r.get("databus_access_code"),
+            "connection_code": r.get("connection_code") or "",
+            "account_status": r.get("account_status", "ACTIVE"),
+            "user_first_name": r.get("user_first_name") or "",
+            "user_full_name": r.get("user_full_name") or "",
+            "user_username": r.get("user_username") or "",
+            "user_display_mode": r.get("user_display_mode") or "",
+        })
+    out = {"status": r.get("status")}
+    if r.get("request_id"):
+        out["request_id"] = r.get("request_id")
+    if r.get("admin_id"):
+        out["admin_id"] = r.get("admin_id")
+    out["admin_name"] = r.get("admin_name") or ""
+    return (200, out)
+def admin_pending_user_link_requests(body, query, headers):
+    """GET ?access_code= — pending signup link requests for this admin (for dashboard UI)."""
+    access_code = (query.get("access_code") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured", "requests": []})
+    if not access_code:
+        return (400, {"message": "access_code required", "requests": []})
+    r = db.admin_list_pending_user_link_requests(access_code)
+    if not r.get("ok"):
+        if r.get("error") == "invalid_access_code":
+            return (404, {"message": "invalid_access_code", "requests": []})
+        return (500, {"message": r.get("error"), "requests": []})
+    return (200, {"requests": r.get("requests") or []})
+def admin_accept_user_link_request(body, query, headers):
+    """POST { access_code, request_id } — accept a pending directory link (same effect as user entering connection code)."""
+    data = body
+    access_code = (data.get("access_code") or "").strip()
+    request_id = (data.get("request_id") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not access_code or not request_id:
+        return (400, {"message": "access_code and request_id required"})
+    r = db.admin_accept_user_link_request(access_code, request_id)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err == "invalid_access_code":
+            code = 404
+        if err == "request_not_found":
+            code = 404
+        if err == "invalid_request_id":
+            code = 400
+        if err in ("session_not_found", "wrong_state"):
+            code = 409
+        if err == "link_failed":
+            code = 500
+        payload = {"message": err}
+        if r.get("account_status") is not None:
+            payload["account_status"] = r.get("account_status")
+        return (code, payload)
+    ac = (r.get("databus_access_code") or "").strip()
+    if ac:
+        notify_databus(ac)
+    return (200, {
+        "message": "ok",
+        "admin_id": r.get("admin_id"),
+        "user_id": r.get("user_id"),
+        "admin_name": r.get("admin_name"),
+        "databus_access_code": r.get("databus_access_code"),
+        "connection_code": r.get("connection_code") or "",
         "account_status": r.get("account_status", "ACTIVE"),
         "user_first_name": r.get("user_first_name") or "",
         "user_full_name": r.get("user_full_name") or "",

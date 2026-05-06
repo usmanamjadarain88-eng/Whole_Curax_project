@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatButton
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -45,7 +46,7 @@ class SetPinActivity : AppCompatActivity() {
             CuraxFeedback.successThen(this, R.string.pin_removed) { finish() }
         }
 
-        findViewById<MaterialButton>(R.id.btnSavePin).setOnClickListener {
+        findViewById<AppCompatButton>(R.id.btnSavePin).setOnClickListener {
             val pin = etPin.text?.toString()?.trim().orEmpty()
             val confirm = etPinConfirm.text?.toString()?.trim().orEmpty()
 

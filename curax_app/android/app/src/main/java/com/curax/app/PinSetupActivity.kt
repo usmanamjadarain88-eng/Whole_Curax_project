@@ -3,6 +3,7 @@ package com.curax.app
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatButton
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 
@@ -18,7 +19,7 @@ class PinSetupActivity : AppCompatActivity() {
 
         val etPin = findViewById<TextInputEditText>(R.id.etPin)
         val etConfirmPin = findViewById<TextInputEditText>(R.id.etConfirmPin)
-        val btnSavePin = findViewById<MaterialButton>(R.id.btnSavePin)
+        val btnSavePin = findViewById<AppCompatButton>(R.id.btnSavePin)
         val btnSkip = findViewById<MaterialButton>(R.id.btnSkipPin)
 
         btnSavePin.setOnClickListener {

@@ -16,6 +16,7 @@ object UserLogoutHelper {
         SignUpFlowState.clear()
         LocalUserStore(app).clearUser()
         val prefs = Prefs(app)
+        prefs.clearSignupWipLink()
         prefs.id = ""
         prefs.apiKey = ""
         prefs.fcmToken = ""
@@ -35,6 +36,7 @@ object UserLogoutHelper {
         prefs.cachedUserDataSnapshotJson = ""
         prefs.hasEverConnected = false
         prefs.userProfilePictureDataUrl = ""
+        prefs.esp32CachedDevicePin = ""
         LocalAlertsController.cancelAll(app)
         UserPlansLocalStore.clear(app)
         DoseTrackingLocalStore.clear(app)

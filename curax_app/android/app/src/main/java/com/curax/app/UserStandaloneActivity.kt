@@ -8,7 +8,9 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.content.res.ColorStateList
@@ -111,6 +113,20 @@ class UserStandaloneActivity : AppCompatActivity() {
     private lateinit var tvChevronAlerts: TextView
     private lateinit var tvChevronRealtime: TextView
     private lateinit var tvUserSidebarFullName: TextView
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var ambientPreviewTickSeq = 0
+    private val ambientSidebarPreviewRunnable = object : Runnable {
+        override fun run() {
+            if (isFinishing || StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return
+            ambientPreviewTickSeq += 1
+            val f = AmbientDemoReadout.format(this@UserStandaloneActivity, ambientPreviewTickSeq)
+            findViewById<TextView>(R.id.tvSidebarAmbientTemp1)?.text = f.tempZone1
+            findViewById<TextView>(R.id.tvSidebarAmbientTemp2)?.text = f.tempZone2
+            findViewById<TextView>(R.id.tvSidebarAmbientHumidity)?.text = f.humidity
+            findViewById<TextView>(R.id.tvSidebarAmbientUpdated)?.text = f.updatedLine
+            mainHandler.postDelayed(this, 2000L)
+        }
+    }
     private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
     private var connectionService: AlertConnectionService? = null
@@ -316,6 +332,10 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<MaterialCardView>(R.id.cardUserSidebarAmbient)?.setOnClickListener {
+            startActivity(Intent(this, UserAmbientMonitorActivity::class.java))
+        }
+
         updateConnectionUi(false)
         showLoading(!restored)
 
@@ -467,11 +487,12 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         } else {
             main.setBackgroundResource(R.drawable.bg_admin_dashboard_surface)
-            tabCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.summary_card))
+            val shellBg = ContextCompat.getColor(this, R.color.surface_bg)
+            tabCard.setCardBackgroundColor(shellBg)
             tabCard.strokeWidth = shellDp(1)
             tabCard.strokeColor = ContextCompat.getColor(this, R.color.summary_stroke)
             tabCard.radius = shellDp(14).toFloat()
-            pagerCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.summary_card))
+            pagerCard.setCardBackgroundColor(shellBg)
             tabNavInner.background = null
             tabLayout.setBackgroundColor(Color.TRANSPARENT)
             // Admin-style “needle” strip: full-width underline on the summary card, not the standalone pill strip.
@@ -504,6 +525,13 @@ class UserStandaloneActivity : AppCompatActivity() {
         tabCard.requestLayout()
         pagerCard.requestLayout()
         syncSidebarConnectButtonStyleWithRelayState()
+        applySidebarAmbientVisibility()
+    }
+
+    /** Default (Smart System) mode: hardware ambient entry above Connect; hidden in Personal Health standalone. */
+    private fun applySidebarAmbientVisibility() {
+        val card = findViewById<View>(R.id.cardUserSidebarAmbient) ?: return
+        card.visibility = if (StandaloneUi.isUserStandalone(this)) View.GONE else View.VISIBLE
     }
 
     /** Sidebar Connect: Default mode = medicine-box green; Standalone = same gradient as Health hub hero. */
@@ -529,8 +557,8 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
-    /** Dose tracking tab exists only in standalone user shell, not default mode. */
-    private fun userShellTabCount(): Int = if (StandaloneUi.isUserStandalone(this)) 7 else 6
+    /** Standalone: 7 tabs (includes Dose). Default (Smart System): 8 tabs (Dose + T Adjustment + ambient sidebar). */
+    private fun userShellTabCount(): Int = if (StandaloneUi.isUserStandalone(this)) 7 else 8
 
     private fun setupTabs(restoreTab: Int = 0) {
         val standalone = StandaloneUi.isUserStandalone(this)
@@ -551,12 +579,14 @@ class UserStandaloneActivity : AppCompatActivity() {
                     }
                 } else {
                     when (position) {
-                    0 -> AdminOverviewFragment().also { overviewFragmentRef = it }
-                    1 -> AdminAlertsFragment()
-                    2 -> AdminMedicalRemindersFragment()
-                    3 -> AdminLogsFragment()
-                    4 -> AdminReportsFragment()
-                    else -> AdminSettingsFragment()
+                        0 -> AdminOverviewFragment().also { overviewFragmentRef = it }
+                        1 -> AdminAlertsFragment()
+                        2 -> DoseTrackingFragment()
+                        3 -> AdminMedicalRemindersFragment()
+                        4 -> UserTempAdjustmentFragment()
+                        5 -> AdminLogsFragment()
+                        6 -> AdminReportsFragment()
+                        else -> AdminSettingsFragment()
                     }
                 }
             }
@@ -574,11 +604,13 @@ class UserStandaloneActivity : AppCompatActivity() {
                 }
             } else {
                 when (position) {
-                0 -> "Dashboard"
-                1 -> "Alerts"
-                2 -> "Reminders"
-                3 -> "Logs"
-                4 -> "Reports"
+                    0 -> "Dashboard"
+                    1 -> "Alerts"
+                    2 -> getString(R.string.tab_dose_tracking)
+                    3 -> "Reminders"
+                    4 -> getString(R.string.tab_temp_adjustment)
+                    5 -> "Logs"
+                    6 -> "Reports"
                     else -> getString(R.string.tab_system_view)
                 }
             }
@@ -681,9 +713,21 @@ class UserStandaloneActivity : AppCompatActivity() {
         ConnectionManager.requestReconnectRelayNow(this)
         window.decorView.postDelayed({ refreshUserSidebar() }, 900L)
         window.decorView.postDelayed({ refreshUserSidebar() }, 2800L)
+        startAmbientSidebarPreviewIfNeeded()
+    }
+
+    private fun startAmbientSidebarPreviewIfNeeded() {
+        mainHandler.removeCallbacks(ambientSidebarPreviewRunnable)
+        if (StandaloneUi.isUserStandalone(this)) return
+        mainHandler.post(ambientSidebarPreviewRunnable)
+    }
+
+    private fun stopAmbientSidebarPreview() {
+        mainHandler.removeCallbacks(ambientSidebarPreviewRunnable)
     }
 
     override fun onStop() {
+        stopAmbientSidebarPreview()
         if (StandaloneUi.isUserStandalone(this)) {
             StandaloneOfflineMirror.persistMergedSnapshot(applicationContext)
         }
@@ -1201,9 +1245,13 @@ class UserStandaloneActivity : AppCompatActivity() {
             return
         }
         // One-time startup refresh: keeps the screen accurate without polling or tab-switch fetches.
-        UserDataBusClient.fetchAndApplyUserData(this, base, botId, apiKey) {
-            showLoading(false)
-        }
+        UserDataBusClient.fetchAndApplyUserData(
+            this,
+            base,
+            botId,
+            apiKey,
+            onSuccess = { showLoading(false) },
+        )
     }
 
     private fun showMandatoryFirstAppModeSheetIfNeeded() {

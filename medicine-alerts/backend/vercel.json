@@ -43,6 +43,18 @@
       "destination": "/api/signup_link_admin"
     },
     {
+      "source": "/signup/admins-directory",
+      "destination": "/api/signup_admins_directory"
+    },
+    {
+      "source": "/signup/request-admin-link",
+      "destination": "/api/signup_request_admin_link"
+    },
+    {
+      "source": "/signup/link-request-status",
+      "destination": "/api/signup_link_request_status"
+    },
+    {
       "source": "/signup/sign-in",
       "destination": "/api/signup_sign_in"
     },
@@ -73,6 +85,14 @@
     {
       "source": "/admin/linked-users",
       "destination": "/api/admin_linked_users"
+    },
+    {
+      "source": "/admin/pending-user-link-requests",
+      "destination": "/api/admin_pending_user_link_requests"
+    },
+    {
+      "source": "/admin/accept-user-link-request",
+      "destination": "/api/admin_accept_user_link_request"
     },
     {
       "source": "/admin/fcm-token",

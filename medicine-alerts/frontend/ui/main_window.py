@@ -45,7 +45,6 @@ from ui.tabs.add_medicine_tab import AddMedicineTab
 from ui.tabs.dose_tracking_tab import DoseTrackingTab
 from ui.tabs.medical_reminders_tab import MedicalRemindersTab
 from ui.tabs.alerts_tab import AlertsTab
-from ui.tabs.temp_adjustment_tab import TempAdjustmentTab
 from ui.tabs.settings_tab import SettingsTab
 from auth.pin_dialog import PinDialog
 
@@ -2314,6 +2313,7 @@ class MainWindow(QMainWindow):
         self.user_setup_btn.setMinimumHeight(30)
         self.user_setup_btn.setStyleSheet(_ft_btn_style)
         self.user_setup_btn.clicked.connect(self._on_user_setup_clicked)
+        self.user_setup_btn.setVisible(False)
         first_time_layout.addWidget(self.user_setup_btn)
         self.admin_setup_btn = QPushButton("⚙️ Admin Setup")
         self.admin_setup_btn.setMinimumHeight(30)
@@ -2622,7 +2622,6 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(DoseTrackingTab(controller, self, parent=self.tabs), "Dose Tracking")
         self.tabs.addTab(MedicalRemindersTab(controller, self, parent=self.tabs), "Medical Reminders")
         self.tabs.addTab(AlertsTab(controller, self, parent=self.tabs), "Alerts")
-        self.tabs.addTab(TempAdjustmentTab(controller, self, parent=self.tabs), "T Adjustment")
         self.tabs.addTab(SettingsTab(controller, self, parent=self.tabs), "Settings")
         self._alerts_tab_index = 4
         self._add_medicine_tab_index = 1
@@ -3237,18 +3236,14 @@ class MainWindow(QMainWindow):
             pass
 
     def _update_alerts_tab_visibility(self, linked=None):
+        """Admin workstation: always show main tabs (user mirror removed from desktop)."""
         if not hasattr(self, "tabs") or not hasattr(self, "_alerts_tab_index"):
             return
         try:
-            db = self.controller.get_db()
-            if linked is None:
-                linked = db.get_linked_user() if hasattr(db, "get_linked_user") else None
-            desktop_linked = db.get_desktop_linked_admin() if hasattr(db, "get_desktop_linked_admin") else None
-            is_user = bool(linked or desktop_linked)
             for idx in [self._alerts_tab_index, getattr(self, "_add_medicine_tab_index", None), getattr(self, "_medical_reminders_tab_index", None)]:
                 if idx is not None:
                     try:
-                        self.tabs.setTabVisible(idx, not is_user)
+                        self.tabs.setTabVisible(idx, True)
                     except Exception:
                         pass
         except Exception:
@@ -3387,8 +3382,8 @@ class MainWindow(QMainWindow):
             return
         self.controller.authenticated = True
         self.controller.authenticated_changed.emit(True)
-        self.tabs.setCurrentIndex(6)
-        settings_widget = self.tabs.widget(6)
+        self.tabs.setCurrentIndex(5)
+        settings_widget = self.tabs.widget(5)
         if hasattr(settings_widget, "show_admin_panel_with_hint"):
             settings_widget.show_admin_panel_with_hint()
 
@@ -3550,7 +3545,7 @@ class MainWindow(QMainWindow):
         def on_open_settings():
             self.controller.authenticated = True
             self.controller.authenticated_changed.emit(True)
-            self.tabs.setCurrentIndex(6)
+            self.tabs.setCurrentIndex(5)
             dlg.accept()
 
         next_btn.clicked.connect(on_next)

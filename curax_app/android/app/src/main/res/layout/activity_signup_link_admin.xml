@@ -78,6 +78,7 @@
                     tools:text="Using account: you@example.com" />
 
                 <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/tilAdminConnectionCode"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal"
@@ -111,6 +112,33 @@
                         android:textColorHint="@color/auth_subtitle"
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                <TextView
+                    android:id="@+id/tvChooseAdmin"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center"
+                    android:paddingVertical="10dp"
+                    android:text="@string/signup_choose_admin_link"
+                    android:textColor="@color/auth_reset_green"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPendingStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:gravity="center"
+                    android:textColor="@color/auth_subtitle"
+                    android:textSize="14sp"
+                    android:visibility="gone"
+                    tools:text="Waiting for Dr. Smith to accept your request…"
+                    tools:visibility="visible" />
 
                 <Space
                     android:layout_width="match_parent"

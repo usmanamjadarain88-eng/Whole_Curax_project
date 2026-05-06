@@ -14,6 +14,7 @@ import android.widget.CheckBox
 import android.widget.CompoundButton
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
 import okhttp3.MediaType.Companion.toMediaType
@@ -103,6 +104,7 @@ class AdminSettingsFragment : Fragment() {
                 view.findViewById<CompoundButton>(R.id.cb_plan_15_before)?.setOnCheckedChangeListener(linkedPlanPersist)
                 view.findViewById<CompoundButton>(R.id.cb_plan_exact)?.setOnCheckedChangeListener(linkedPlanPersist)
                 disableInputs(view, userEditableIds)
+                bindEsp32DevicePasswordSection(view)
             }
         } else {
             view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.setOnClickListener {
@@ -147,6 +149,9 @@ class AdminSettingsFragment : Fragment() {
             return
         }
         fetchSettingsFromServer()
+        if (!StandaloneUi.isUserStandalone(requireContext())) {
+            view?.let { refreshEsp32BleHint(it) }
+        }
     }
 
     private fun fetchSettingsFromServer() {
@@ -215,7 +220,52 @@ class AdminSettingsFragment : Fragment() {
         R.id.cb_plan_exact,
         R.id.switch_gmail_alerts,
         R.id.et_gmail_recipients,
+        R.id.etEsp32PwdCurrent,
+        R.id.etEsp32PwdNew,
+        R.id.etEsp32PwdConfirm,
     )
+
+    private fun refreshEsp32BleHint(root: View) {
+        val tv = root.findViewById<TextView>(R.id.tvEsp32BleHint) ?: return
+        tv.text = if (CuraxEsp32BleLink.isConnected()) {
+            val name = CuraxEsp32BleLink.connectedDeviceName().ifBlank { "device" }
+            "Connected to $name. PIN change uses BLE (same as desktop USB)."
+        } else {
+            "Not connected. Open Dose tracking and connect to your ESP32 first."
+        }
+    }
+
+    private fun bindEsp32DevicePasswordSection(view: View) {
+        view.findViewById<View>(R.id.cardEsp32DevicePassword)?.visibility = View.VISIBLE
+        CuraxEsp32BleLink.init(requireContext())
+        refreshEsp32BleHint(view)
+        view.findViewById<MaterialButton>(R.id.btnEsp32ApplyPassword)?.setOnClickListener {
+            val curEt = view.findViewById<EditText>(R.id.etEsp32PwdCurrent)
+            val newEt = view.findViewById<EditText>(R.id.etEsp32PwdNew)
+            val cfmEt = view.findViewById<EditText>(R.id.etEsp32PwdConfirm)
+            val cur = curEt?.text?.toString()?.filter { it.isDigit() } ?: ""
+            val neu = newEt?.text?.toString()?.filter { it.isDigit() } ?: ""
+            val cfm = cfmEt?.text?.toString()?.filter { it.isDigit() } ?: ""
+            if (neu != cfm) {
+                Toast.makeText(requireContext(), "New PIN and confirmation do not match", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (!CuraxEsp32BleLink.isConnected()) {
+                Toast.makeText(requireContext(), "Connect to the device from Dose tracking first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            CuraxEsp32BleLink.requestSetPassword(cur, neu) { ok, msg ->
+                if (!isAdded) return@requestSetPassword
+                Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                if (ok) {
+                    Prefs(requireContext()).esp32CachedDevicePin = neu
+                    curEt?.text?.clear()
+                    newEt?.text?.clear()
+                    cfmEt?.text?.clear()
+                }
+            }
+        }
+    }
 
     /** Linked user: persist Health Hub plan phases locally and sync full `alert_settings` (merged from store) to the server. */
     private fun persistLinkedPlanAlertsFromUi() {

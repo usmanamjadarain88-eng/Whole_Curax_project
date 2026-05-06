@@ -171,15 +171,7 @@ class AppController(QObject):
         return self._db
 
     def is_user_view(self):
-        """True if this desktop is linked to an admin (user view only). User can view but not edit admin-specific data."""
-        try:
-            db = self.get_db()
-            if hasattr(db, "get_desktop_linked_admin") and db.get_desktop_linked_admin():
-                return True
-            if hasattr(db, "get_linked_user") and db.get_linked_user():
-                return True
-        except Exception:
-            pass
+        """Desktop is admin-only; end-user flows run on the mobile app (default mode)."""
         return False
 
     def _init_central_db(self):

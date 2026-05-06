@@ -52,6 +52,43 @@ object UserDataBusClient {
     /** True when transport is up (WebSocket onOpen or Ably channel attached). */
     private var socketConnected = false
 
+    private val terminalAuthLock = Any()
+
+    private fun parseUserDataErrorMessage(bodyStr: String): String =
+        try {
+            JSONObject(bodyStr.ifBlank { "{}" }).optString("message", "").trim()
+        } catch (_: Exception) {
+            ""
+        }
+
+    private fun isTerminalUserDataAuthFailure(code: Int): Boolean =
+        code == 401 || code == 404 || code == 410
+
+    /**
+     * Server rejected bot_id/api_key (user deleted, wrong key, etc.). Either invoke [explicitReject]
+     * (sign-in / link flows) or clear local session and open sign-in (standalone / socket fetch).
+     */
+    private fun handleTerminalAuthFailure(ctx: Context?, bodyStr: String, explicitReject: ((String) -> Unit)?) {
+        val msg = parseUserDataErrorMessage(bodyStr)
+        mainHandler.post {
+            if (explicitReject != null) {
+                explicitReject.invoke(msg)
+                return@post
+            }
+            val app = ctx?.applicationContext ?: return@post
+            synchronized(terminalAuthLock) {
+                val p = Prefs(app)
+                if (p.id.isEmpty() && p.apiKey.isEmpty()) return@post
+                UserLogoutHelper.clearLocalSession(app)
+            }
+            val i = Intent(app, SignInActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                putExtra(SignInActivity.EXTRA_SESSION_INVALIDATED_MESSAGE, msg)
+            }
+            app.startActivity(i)
+        }
+    }
+
     private val apiFallbackRunnable = Runnable {
         if (isSocketConnected()) return@Runnable
         val ctx = appContext ?: return@Runnable
@@ -60,7 +97,7 @@ object UserDataBusClient {
         val bid = p.id.trim()
         val key = p.apiKey.trim()
         if (base.isEmpty() || bid.isEmpty() || key.isEmpty()) return@Runnable
-        fetchAndApplyUserData(ctx, base, bid, key, null)
+        fetchAndApplyUserData(ctx, base, bid, key)
     }
     @Volatile
     private var onUserDataApplied: (() -> Unit)? = null
@@ -329,21 +366,23 @@ object UserDataBusClient {
             try {
                 val url = "$currentApiBase/user/data?bot_id=${java.net.URLEncoder.encode(currentBotId, "UTF-8")}&api_key=${java.net.URLEncoder.encode(currentApiKey, "UTF-8")}"
                 snapshotHttp.newCall(Request.Builder().url(url).get().build()).execute().use { res ->
-                    if (res.isSuccessful) {
-                        val body = res.body?.string() ?: "{}"
-                        val data = JSONObject(body)
-                        val ctx = appContext
-                        if (ctx != null) {
-                            mainHandler.post {
-                                applyUserPayload(ctx, data)
-                                persistUserSnapshot(ctx, data)
-                                onUserDataApplied?.invoke()
-                                ctx.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                    val bodyStr = res.body?.string().orEmpty()
+                    when {
+                        res.isSuccessful -> {
+                            val data = JSONObject(bodyStr.ifBlank { "{}" })
+                            appContext?.let { ctx ->
+                                mainHandler.post {
+                                    applyUserPayload(ctx, data)
+                                    persistUserSnapshot(ctx, data)
+                                    onUserDataApplied?.invoke()
+                                    ctx.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                                }
                             }
                         }
-                        Unit
-                    } else {
-                        Log.w(TAG, "user/data fetch failed: HTTP ${res.code}")
+                        isTerminalUserDataAuthFailure(res.code) ->
+                            handleTerminalAuthFailure(appContext, bodyStr, null)
+                        else ->
+                            Log.w(TAG, "user/data fetch failed: HTTP ${res.code}")
                     }
                 }
             } catch (e: Exception) {
@@ -375,18 +414,13 @@ object UserDataBusClient {
         apiBase: String,
         botId: String,
         apiKey: String,
-        onComplete: (() -> Unit)? = null
+        onSuccess: (() -> Unit)? = null,
+        onAuthRejected: ((String) -> Unit)? = null,
     ) {
         val base = apiBase.trim().removeSuffix("/")
         val bid = botId.trim()
         val key = apiKey.trim()
         if (base.isEmpty() || bid.isEmpty() || key.isEmpty()) return
-        var completionCalled = false
-        fun completeOnce() {
-            if (completionCalled) return
-            completionCalled = true
-            onComplete?.invoke()
-        }
         synchronized(this) {
             if (fetchInFlight) {
                 return
@@ -400,18 +434,22 @@ object UserDataBusClient {
             try {
                 val url = "$base/user/data?bot_id=${URLEncoder.encode(bid, "UTF-8")}&api_key=${URLEncoder.encode(key, "UTF-8")}"
                 snapshotHttp.newCall(Request.Builder().url(url).get().build()).execute().use { res ->
-                    if (res.isSuccessful) {
-                        val body = res.body?.string() ?: "{}"
-                        val data = JSONObject(body)
-                        mainHandler.post {
-                            applyUserPayload(context.applicationContext, data)
-                            persistUserSnapshot(context.applicationContext, data)
-                            onUserDataApplied?.invoke()
-                            context.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
-                            completeOnce()
+                    val bodyStr = res.body?.string().orEmpty()
+                    when {
+                        res.isSuccessful -> {
+                            val data = JSONObject(bodyStr.ifBlank { "{}" })
+                            mainHandler.post {
+                                applyUserPayload(context.applicationContext, data)
+                                persistUserSnapshot(context.applicationContext, data)
+                                onUserDataApplied?.invoke()
+                                context.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                                onSuccess?.invoke()
+                            }
                         }
-                    } else {
-                        Log.w(TAG, "Bootstrap user/data fetch failed: HTTP ${res.code}")
+                        isTerminalUserDataAuthFailure(res.code) ->
+                            handleTerminalAuthFailure(context.applicationContext, bodyStr, onAuthRejected)
+                        else ->
+                            Log.w(TAG, "Bootstrap user/data fetch failed: HTTP ${res.code}")
                     }
                 }
             } catch (e: Exception) {
@@ -427,7 +465,6 @@ object UserDataBusClient {
                         mainHandler.post { triggerFetch() }
                     }
                 }
-                mainHandler.post { completeOnce() }
             }
         }.start()
     }

@@ -403,6 +403,67 @@ class Prefs(context: Context) {
             prefs.edit().putInt(KEY_STANDALONE_LOCAL_ALERT_SNOOZE_MIN, value.coerceIn(1, 120)).apply()
         }
 
+    /** True after first Connect tap when we asked for battery + full-screen intent (so we don't ask again). */
+    var hasRequestedConnectWakePermissions: Boolean
+        get() = prefs.getBoolean(KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS, false)
+        set(value) = prefs.edit().putBoolean(KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS, value).apply()
+
+    /** Last paired ESP32 for Nordic UART (dose LED / temp commands) in default user mode. */
+    var esp32BleDeviceAddress: String
+        get() = prefs.getString(KEY_ESP32_BLE_ADDR, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_ESP32_BLE_ADDR, value.trim()).apply()
+
+    var esp32BleDeviceName: String
+        get() = prefs.getString(KEY_ESP32_BLE_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_ESP32_BLE_NAME, value.trim()).apply()
+
+    /** Last device PIN after successful SET_PASSWORD over BLE (digits only); convenience only. */
+    var esp32CachedDevicePin: String
+        get() = prefs.getString(KEY_ESP32_CACHED_PIN, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_ESP32_CACHED_PIN, value.filter { it.isDigit() }).apply()
+
+    /**
+     * In-memory-only [SignUpFlowState] is lost when the process dies. Persist email verified → link-admin
+     * credentials so Continue / cold resume still work.
+     */
+    var signupWipEmail: String
+        get() = prefs.getString(KEY_SIGNUP_WIP_EMAIL, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SIGNUP_WIP_EMAIL, value.trim()).apply()
+
+    var signupWipPassword: String
+        get() = prefs.getString(KEY_SIGNUP_WIP_PASSWORD, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SIGNUP_WIP_PASSWORD, value).apply()
+
+    var signupWipBotId: String
+        get() = prefs.getString(KEY_SIGNUP_WIP_BOT_ID, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SIGNUP_WIP_BOT_ID, value.trim()).apply()
+
+    var signupWipApiKey: String
+        get() = prefs.getString(KEY_SIGNUP_WIP_API_KEY, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SIGNUP_WIP_API_KEY, value.trim()).apply()
+
+    var signupWipNameForLink: String
+        get() = prefs.getString(KEY_SIGNUP_WIP_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SIGNUP_WIP_NAME, value.trim()).apply()
+
+    fun hasSignupWipLink(): Boolean {
+        val e = signupWipEmail.trim()
+        val p = signupWipPassword
+        val b = signupWipBotId.trim()
+        val k = signupWipApiKey.trim()
+        return e.isNotEmpty() && p.isNotEmpty() && b.isNotEmpty() && k.isNotEmpty()
+    }
+
+    fun clearSignupWipLink() {
+        prefs.edit()
+            .remove(KEY_SIGNUP_WIP_EMAIL)
+            .remove(KEY_SIGNUP_WIP_PASSWORD)
+            .remove(KEY_SIGNUP_WIP_BOT_ID)
+            .remove(KEY_SIGNUP_WIP_API_KEY)
+            .remove(KEY_SIGNUP_WIP_NAME)
+            .apply()
+    }
+
     companion object {
         private const val DEFAULT_SERVER_URL = "https://curax-relay.onrender.com"
         private const val DEFAULT_CENTRAL_API_URL = "https://whole-curax-project.vercel.app"
@@ -446,11 +507,14 @@ class Prefs(context: Context) {
         private const val KEY_STANDALONE_LOCAL_ALERT_VIBRATE = "standalone_local_alert_vibrate"
         private const val KEY_STANDALONE_LOCAL_ALERT_SNOOZE_MIN = "standalone_local_alert_snooze_min"
         private const val KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS = "has_requested_connect_wake_permissions"
+        private const val KEY_ESP32_BLE_ADDR = "esp32_ble_device_address"
+        private const val KEY_ESP32_BLE_NAME = "esp32_ble_device_name"
+        private const val KEY_ESP32_CACHED_PIN = "esp32_cached_device_pin"
+        private const val KEY_SIGNUP_WIP_EMAIL = "signup_wip_email"
+        private const val KEY_SIGNUP_WIP_PASSWORD = "signup_wip_password"
+        private const val KEY_SIGNUP_WIP_BOT_ID = "signup_wip_bot_id"
+        private const val KEY_SIGNUP_WIP_API_KEY = "signup_wip_api_key"
+        private const val KEY_SIGNUP_WIP_NAME = "signup_wip_name_for_link"
         const val KEY_FCM_TOKEN = "fcm_token"
     }
-
-    /** True after first Connect tap when we asked for battery + full-screen intent (so we don't ask again). */
-    var hasRequestedConnectWakePermissions: Boolean
-        get() = prefs.getBoolean(KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS, false)
-        set(value) = prefs.edit().putBoolean(KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS, value).apply()
 }

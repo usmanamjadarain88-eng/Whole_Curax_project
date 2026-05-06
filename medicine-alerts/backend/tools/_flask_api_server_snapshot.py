@@ -318,6 +318,7 @@ def signup_link_admin():
         "user_id": r.get("user_id"),
         "admin_name": r.get("admin_name"),
         "databus_access_code": r.get("databus_access_code"),
+        "connection_code": r.get("connection_code") or "",
         "account_status": r.get("account_status", "ACTIVE"),
         "user_first_name": r.get("user_first_name") or "",
         "user_full_name": r.get("user_full_name") or "",

@@ -84,9 +84,22 @@ class SignUpActivity : AppCompatActivity() {
     private val verifyClickListener = View.OnClickListener { onVerifyOtpClicked() }
     private val continueClickListener = View.OnClickListener {
         hideKeyboard()
-        if (SignUpFlowState.isReady()) {
-            linkAdminLauncher.launch(Intent(this, SignUpLinkAdminActivity::class.java))
+        if (!SignUpFlowState.isReady()) {
+            if (!SignUpFlowState.restoreWipFromPrefs(prefs)) {
+                CuraxFeedback.warn(this, getString(R.string.signup_session_expired_reverify), long = true)
+                prefs.clearSignupWipLink()
+                SignUpFlowState.clear()
+                step2ContinueOnly = false
+                resetStep2UiForOtpEntry()
+                if (pendingEmail.isNotBlank()) {
+                    tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, pendingEmail)
+                }
+                btnVerifyOtp.isEnabled = etOtp.text?.length == 6
+                return@OnClickListener
+            }
         }
+        SignUpFlowState.persistWipToPrefs(prefs)
+        linkAdminLauncher.launch(Intent(this, SignUpLinkAdminActivity::class.java))
     }
 
     private val backCallback = object : OnBackPressedCallback(true) {
@@ -100,11 +113,13 @@ class SignUpActivity : AppCompatActivity() {
                     cancelResendTimer()
                     if (otpEntryMode) {
                         SignUpFlowState.clear()
+                        prefs.clearSignupWipLink()
                         resetStep2UiForOtpEntry()
                         finish()
                     } else {
                         resetStep2UiForOtpEntry()
                         SignUpFlowState.clear()
+                        prefs.clearSignupWipLink()
                         showStep(Step.ONE)
                     }
                 }
@@ -173,25 +188,85 @@ class SignUpActivity : AppCompatActivity() {
         otpEntryMode = intent.getBooleanExtra(EXTRA_START_AT_OTP, false)
         pendingDisplayName = intent.getStringExtra(EXTRA_DISPLAY_NAME).orEmpty()
 
-        updateOtpDashDisplay("")
-        if (otpEntryMode) {
-            pendingEmail = intent.getStringExtra(EXTRA_EMAIL).orEmpty()
-            pendingPassword = intent.getStringExtra(EXTRA_PASSWORD).orEmpty()
-            tvSignUpAdmin.visibility = View.GONE
-            resetStep2UiForOtpEntry()
-            tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, pendingEmail)
-            showStep(Step.TWO)
-            // Sign-in + pending_email: /signup/sign-in does not send OTP; must call /signup/start here.
-            // Registration path already called /signup/start before this screen.
-            if (intent.getBooleanExtra(EXTRA_FROM_SIGNIN_PENDING_EMAIL, false)) {
-                requestOtpEmailAfterSignInPending()
-            } else {
-                startResendCooldown()
-                etOtp.post { focusOtpField() }
+        savedInstanceState?.let { b ->
+            step2ContinueOnly = b.getBoolean(STATE_STEP2_CONTINUE_ONLY, false)
+            pendingEmail = b.getString(STATE_PENDING_EMAIL).orEmpty()
+            pendingPassword = b.getString(STATE_PENDING_PASSWORD).orEmpty()
+            pendingDisplayName = b.getString(STATE_PENDING_DISPLAY_NAME).orEmpty().ifBlank { pendingDisplayName }
+            botIdForLink = b.getString(STATE_BOT_ID_FOR_LINK).orEmpty()
+            apiKeyForLink = b.getString(STATE_API_KEY_FOR_LINK).orEmpty()
+            // Only restore OTP mode from state when intent did not start at OTP (e.g. rotation).
+            if (!intent.getBooleanExtra(EXTRA_START_AT_OTP, false)) {
+                otpEntryMode = b.getBoolean(STATE_OTP_ENTRY_MODE, false)
             }
-        } else {
-            showStep(Step.ONE)
         }
+
+        updateOtpDashDisplay("")
+        when {
+            otpEntryMode -> {
+                pendingEmail = intent.getStringExtra(EXTRA_EMAIL).orEmpty().ifBlank { pendingEmail }
+                pendingPassword = intent.getStringExtra(EXTRA_PASSWORD).orEmpty().ifBlank { pendingPassword }
+                pendingDisplayName = intent.getStringExtra(EXTRA_DISPLAY_NAME).orEmpty().ifBlank { pendingDisplayName }
+                if (pendingEmail.isNotBlank() && prefs.signupWipEmail.isNotBlank() &&
+                    prefs.signupWipEmail.trim().lowercase() != pendingEmail.lowercase()
+                ) {
+                    prefs.clearSignupWipLink()
+                    SignUpFlowState.clear()
+                }
+                tvSignUpAdmin.visibility = View.GONE
+                resetStep2UiForOtpEntry()
+                tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, pendingEmail)
+                showStep(Step.TWO)
+                if (intent.getBooleanExtra(EXTRA_FROM_SIGNIN_PENDING_EMAIL, false)) {
+                    requestOtpEmailAfterSignInPending()
+                } else {
+                    startResendCooldown()
+                    etOtp.post { focusOtpField() }
+                }
+            }
+            savedInstanceState != null && step2ContinueOnly -> {
+                if (!SignUpFlowState.isReady()) {
+                    SignUpFlowState.restoreWipFromPrefs(prefs)
+                }
+                if (SignUpFlowState.isReady()) {
+                    applyContinueOnlyStep2Ui()
+                    showStep(Step.TWO)
+                } else {
+                    step2ContinueOnly = false
+                    prefs.clearSignupWipLink()
+                    showStep(Step.ONE)
+                }
+            }
+            savedInstanceState == null && prefs.hasSignupWipLink() &&
+                SignUpFlowState.restoreWipFromPrefs(prefs) -> {
+                pendingEmail = SignUpFlowState.email
+                pendingPassword = SignUpFlowState.password
+                pendingDisplayName = SignUpFlowState.nameForLink.ifBlank { pendingEmail }
+                botIdForLink = SignUpFlowState.botId
+                apiKeyForLink = SignUpFlowState.apiKey
+                step2ContinueOnly = true
+                applyContinueOnlyStep2Ui()
+                showStep(Step.TWO)
+                btnVerifyOtp.post {
+                    if (!isFinishing) {
+                        SignUpFlowState.persistWipToPrefs(prefs)
+                        linkAdminLauncher.launch(Intent(this@SignUpActivity, SignUpLinkAdminActivity::class.java))
+                    }
+                }
+            }
+            else -> showStep(Step.ONE)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_STEP2_CONTINUE_ONLY, step2ContinueOnly)
+        outState.putBoolean(STATE_OTP_ENTRY_MODE, otpEntryMode)
+        outState.putString(STATE_PENDING_EMAIL, pendingEmail)
+        outState.putString(STATE_PENDING_PASSWORD, pendingPassword)
+        outState.putString(STATE_PENDING_DISPLAY_NAME, pendingDisplayName)
+        outState.putString(STATE_BOT_ID_FOR_LINK, botIdForLink)
+        outState.putString(STATE_API_KEY_FOR_LINK, apiKeyForLink)
     }
 
     private fun setupAuthBottomSvg() {
@@ -394,6 +469,11 @@ class SignUpActivity : AppCompatActivity() {
                     CuraxFeedback.warn(this, getString(R.string.set_api_url_for_codes), long = true)
                     return
                 }
+                if (prefs.signupWipEmail.isNotBlank() &&
+                    prefs.signupWipEmail.trim().lowercase() != email.lowercase()
+                ) {
+                    prefs.clearSignupWipLink()
+                }
                 pendingEmail = email
                 pendingPassword = password
                 pendingDisplayName = email
@@ -509,6 +589,7 @@ class SignUpActivity : AppCompatActivity() {
                             apiKeyForLink,
                             nameForLink = linkName,
                         )
+                        SignUpFlowState.persistWipToPrefs(prefs)
                         linkAdminLauncher.launch(Intent(this, SignUpLinkAdminActivity::class.java))
                     } else {
                         CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
@@ -533,6 +614,14 @@ class SignUpActivity : AppCompatActivity() {
         const val EXTRA_EMAIL = "pending_email"
         const val EXTRA_PASSWORD = "pending_password"
         const val EXTRA_DISPLAY_NAME = "display_name"
+
+        private const val STATE_STEP2_CONTINUE_ONLY = "signup_step2_continue_only"
+        private const val STATE_OTP_ENTRY_MODE = "signup_otp_entry_mode"
+        private const val STATE_PENDING_EMAIL = "signup_pending_email"
+        private const val STATE_PENDING_PASSWORD = "signup_pending_password"
+        private const val STATE_PENDING_DISPLAY_NAME = "signup_pending_display_name"
+        private const val STATE_BOT_ID_FOR_LINK = "signup_bot_id_for_link"
+        private const val STATE_API_KEY_FOR_LINK = "signup_api_key_for_link"
 
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }
