@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.Curax" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:statusBarColor">@color/toolbar_start</item>
         <item name="android:navigationBarColor">@color/toolbar_start</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="28">shortEdges</item>
         <item name="colorPrimary">@color/toolbar_start</item>
         <item name="colorPrimaryVariant">@color/toolbar_end</item>
         <item name="colorSecondary">@color/badge_end</item>
@@ -17,6 +18,7 @@
         <item name="android:navigationBarColor">@color/auth_onboarding_bg</item>
         <item name="android:statusBarColor">@color/auth_onboarding_bg</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="28">shortEdges</item>
     </style>
 
     <!-- User standalone toolbar: theme, mode, overflow — same slot size, one row -->
@@ -62,6 +64,14 @@
 
     <style name="Widget.Curax.TextInputLayout.PlanDense" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
         <item name="hintTextAppearance">@style/TextAppearance.Curax.PlanFormHint</item>
+    </style>
+
+    <!-- Standalone System / alert screens: hint + stroke visible in light and dark -->
+    <style name="Widget.Curax.TextInputLayout.OutlinedStandalone" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">
+        <item name="hintTextColor">@color/text_secondary</item>
+        <item name="android:textColorHint">@color/text_secondary</item>
+        <item name="boxStrokeColor">@color/til_box_stroke</item>
+        <item name="boxStrokeWidth">1dp</item>
     </style>
 
     <style name="Widget.Curax.TextInputLayout.PlanDenseDropdown" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense.ExposedDropdownMenu">

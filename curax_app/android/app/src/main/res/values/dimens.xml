@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Same top inset for auth headings (Sign in / Sign up register / Sign up step 1). -->
-    <dimen name="auth_screen_title_margin_top">102dp</dimen>
+    <!-- Auth headings: responsive top inset (was 102dp — caused clipping on short phones). -->
+    <dimen name="auth_screen_title_margin_top">64dp</dimen>
+    <!-- Decorative bottom WebView / asset strip on sign-up (keep modest so form stays visible). -->
+    <dimen name="auth_bottom_decoration_height">120dp</dimen>
     <!-- Sign up register: subtitle first line from content top (design px → dp). -->
     <dimen name="signup_subtitle_margin_top">150dp</dimen>
     <!-- Sign-up mock: field row height -->
@@ -19,4 +21,10 @@
     <dimen name="signup_guide_terms">624dp</dimen>
     <dimen name="signup_guide_button">678dp</dimen>
     <dimen name="signup_footer_margin_top">760dp</dimen>
+    <!-- Health hub insight strip: one title line + one subtitle line per card. -->
+    <dimen name="health_hub_insight_card_width">158dp</dimen>
+    <!-- Content column: stock snapshot card inner padding matches this gutter. -->
+    <dimen name="standalone_dashboard_content_padding">12dp</dimen>
+    <dimen name="standalone_sound_card_stroke">1dp</dimen>
+    <dimen name="standalone_sound_card_stroke_selected">2dp</dimen>
 </resources>

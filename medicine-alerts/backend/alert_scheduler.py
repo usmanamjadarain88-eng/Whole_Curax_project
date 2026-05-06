@@ -231,6 +231,8 @@ class BackendAlertScheduler:
 
     def _send_gmail(self, gmail_config, subject, body):
         try:
+            if gmail_config.get("gmail_alerts_enabled") is False:
+                return
             sender_email = (gmail_config.get("sender_email") or "").strip()
             sender_password = (gmail_config.get("sender_password") or "").strip()
             if not sender_email or not sender_password:

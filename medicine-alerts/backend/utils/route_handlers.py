@@ -263,6 +263,8 @@ def signup_link_admin(body, query, headers):
         "databus_access_code": r.get("databus_access_code"),
         "account_status": r.get("account_status", "ACTIVE"),
         "user_first_name": r.get("user_first_name") or "",
+        "user_full_name": r.get("user_full_name") or "",
+        "user_username": r.get("user_username") or "",
         "user_display_mode": r.get("user_display_mode") or "",
     })
 def user_account_status(body, query, headers):
@@ -661,6 +663,8 @@ def _normalize_user_data_response(data):
         "incremental": bool(data.get("incremental")),
         "user_display_mode": str(data.get("user_display_mode") or "").strip().lower(),
         "user_first_name": str(data.get("user_first_name") or "").strip(),
+        "user_full_name": str(data.get("user_full_name") or "").strip(),
+        "user_username": str(data.get("user_username") or "").strip(),
     }
     pp = str(data.get("profile_picture") or "").strip()
     if pp:
@@ -768,7 +772,7 @@ def user_post_profile_picture(body, query, headers):
 
 
 def user_standalone_sync(body, query, headers):
-    """POST { bot_id, api_key, client_ms?, medicines?, dose_append?, medical_reminders? } — user app offline-first flush."""
+    """POST { bot_id, api_key, client_ms?, medicines?, dose_append?, medical_reminders?, system_settings? } — user app offline-first flush."""
     data = body if isinstance(body, dict) else {}
     bot_id = (data.get("bot_id") or "").strip()
     api_key = (data.get("api_key") or "").strip()
@@ -791,6 +795,7 @@ def user_standalone_sync(body, query, headers):
     if dose_append is None:
         dose_append = data.get("dose_log_append")
     medical_reminders = data.get("medical_reminders")
+    system_settings = data.get("system_settings")
     if medicines is None:
         medicines = []
     if dose_append is None:
@@ -802,6 +807,7 @@ def user_standalone_sync(body, query, headers):
         dose_append,
         medical_reminders,
         client_ms,
+        system_settings if isinstance(system_settings, dict) else None,
     )
     if not ok:
         return (500, {"message": "Failed to merge user data"})
@@ -1365,7 +1371,16 @@ def put_admin_alert_settings(body, query, headers):
     if isinstance(incoming_alert, dict):
         current["alert_settings"] = incoming_alert
     if isinstance(incoming_gmail, dict):
-        current["gmail_config"] = incoming_gmail
+        prev_g = current.get("gmail_config")
+        if isinstance(prev_g, dict):
+            merged_g = dict(prev_g)
+            for k, v in incoming_gmail.items():
+                if k in ("sender_email", "sender_password") and isinstance(v, str) and not v.strip():
+                    continue
+                merged_g[k] = v
+            current["gmail_config"] = merged_g
+        else:
+            current["gmail_config"] = dict(incoming_gmail)
     if isinstance(incoming_reminders, dict):
         current["medical_reminders"] = incoming_reminders
 

@@ -24,6 +24,7 @@ class CuraxApp : Application() {
             prefs.themeMode = mode
         }
         AppCompatDelegate.setDefaultNightMode(mode)
+        prefs.applyStandaloneSoundLibraryInstallGuard(this)
 
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {

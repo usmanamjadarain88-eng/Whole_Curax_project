@@ -5,21 +5,21 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.Context
 import android.content.ServiceConnection
-import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Build
 import android.os.IBinder
-import android.os.SystemClock
 import android.os.PowerManager
 import android.provider.Settings
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import androidx.core.graphics.ColorUtils
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
@@ -29,6 +29,8 @@ import java.io.File
 import java.net.URLEncoder
 import java.util.ArrayDeque
 import java.util.concurrent.TimeUnit
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -39,10 +41,9 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.PopupWindow
 import android.graphics.drawable.ColorDrawable
-import android.widget.CompoundButton
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.appcompat.widget.SwitchCompat
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -55,7 +56,6 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.tabs.TabLayout
@@ -69,15 +69,12 @@ class UserStandaloneActivity : AppCompatActivity() {
         private const val STATE_VIEW_PAGER_TAB = "user_standalone_vp_tab"
         /** Cold start of this activity after mode toggle (avoids fragment restore from [recreate]). */
         private const val EXTRA_RELAUNCH_TAB = "user_standalone_relaunch_tab"
-        /** Toolbar action order: lower = further left (Test → theme → mode → overflow). */
-        private const val MENU_ORDER_DEV = 1
-        private const val MENU_ORDER_THEME = 2
-        private const val MENU_ORDER_MODE = 3
+        /** Toolbar action order: lower = further left (theme → mode → overflow). */
+        private const val MENU_ORDER_THEME = 1
+        private const val MENU_ORDER_MODE = 2
         private const val MENU_ORDER_SETTINGS = 100
         /** Let the home shell paint before the mandatory mode bottom sheet appears (~1–2s). */
         private const val DEFERRED_MODE_SHEET_DELAY_MS = 1_800L
-        /** After the user qualifies for the PIN offer, wait briefly so it does not stack on the mode sheet / relaunch. */
-        private const val DEFERRED_PIN_PROMPT_DELAY_MS = 1_200L
         private const val REQ_CAMERA_PROFILE = 19
     }
 
@@ -101,23 +98,6 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var sidebarConnectShowsConnecting = false
     /** After Connect tap, run relay registration only once notification permission dialog returns (Android 13+). */
     private var pendingRelayConnectAfterNotificationPermission = false
-    /** Avoids relaunch when [onPrepareOptionsMenu] syncs the dev switch from prefs (spurious callbacks). */
-    private var suppressDevStandaloneSwitchCallback = false
-    private var lastDevStandaloneRelaunchAt = 0L
-
-    private val devModeSwitchListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
-        if (suppressDevStandaloneSwitchCallback || isFinishing) return@OnCheckedChangeListener
-        if (AppModeManager.isStandaloneMode(this) == isChecked) return@OnCheckedChangeListener
-        AppModeManager.setStandaloneMode(this, isChecked)
-        UserDisplayModeApi.postDisplayModeAsync(this, isChecked)
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastDevStandaloneRelaunchAt < 450L) return@OnCheckedChangeListener
-        lastDevStandaloneRelaunchAt = now
-        relaunchAfterDisplayModeChange()
-    }
-
-    private fun isDebuggableBuild(): Boolean =
-        (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
     private lateinit var tvUserSidebarAdminStatus: TextView
     private lateinit var tvUserSidebarHealthStatus: TextView
     private lateinit var tvUserSidebarAlertsStatus: TextView
@@ -130,6 +110,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     private lateinit var tvChevronHealth: TextView
     private lateinit var tvChevronAlerts: TextView
     private lateinit var tvChevronRealtime: TextView
+    private lateinit var tvUserSidebarFullName: TextView
     private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
     private var connectionService: AlertConnectionService? = null
@@ -140,7 +121,6 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var mandatoryModeSheetLaunched = false
     private var firstAppModeBottomSheet: BottomSheetDialog? = null
     private var deferredHomeUiRunnable: Runnable? = null
-    private var pinDeferredPromptRunnable: Runnable? = null
     private var appModeLabelPopup: PopupWindow? = null
     private var pendingSyncSwipeTray: PendingSyncSwipeTray? = null
     private var displayModeReceiverRegistered = false
@@ -280,9 +260,21 @@ class UserStandaloneActivity : AppCompatActivity() {
         tvChevronHealth = findViewById(R.id.tvChevronHealth)
         tvChevronAlerts = findViewById(R.id.tvChevronAlerts)
         tvChevronRealtime = findViewById(R.id.tvChevronRealtime)
+        tvUserSidebarFullName = findViewById(R.id.tvUserSidebarFullName)
 
-        findViewById<ImageButton>(R.id.btnUserSidebarProfileAdd)?.setOnClickListener { showProfilePictureSourceDialog() }
+        findViewById<ShapeableImageView>(R.id.ivUserSidebarProfile)?.setOnClickListener {
+            if (prefs.userProfilePictureDataUrl.trim().isNotEmpty()) {
+                showProfilePhotoPreview()
+            } else {
+                showProfilePictureSourceDialog()
+            }
+        }
+        findViewById<ImageButton>(R.id.btnUserSidebarProfileAdd)?.setOnClickListener {
+            showProfilePictureSourceDialog()
+        }
         bindSidebarProfileAvatar()
+        findViewById<ImageButton>(R.id.btnUserSidebarProfileAdd)?.bringToFront()
+        applyProfileChromeNoShadow()
 
         findViewById<LinearLayout>(R.id.sidebarSectionAdmin).setOnClickListener { toggleSidebarSection(0) }
         findViewById<LinearLayout>(R.id.sidebarSectionHealth).setOnClickListener { toggleSidebarSection(1) }
@@ -378,20 +370,6 @@ class UserStandaloneActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menu.clear()
-        val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar)
-        if (isDebuggableBuild()) {
-            val devSwitchLayout = layoutInflater.inflate(R.layout.toolbar_dev_mode_switch, toolbar, false)
-            devSwitchLayout.findViewById<SwitchCompat>(R.id.switchDevStandalone).apply {
-                suppressDevStandaloneSwitchCallback = true
-                setOnCheckedChangeListener(null)
-                isChecked = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
-                setOnCheckedChangeListener(devModeSwitchListener)
-                suppressDevStandaloneSwitchCallback = false
-            }
-            menu.add(Menu.NONE, R.id.action_dev_test_mode, MENU_ORDER_DEV, "")
-                .setActionView(devSwitchLayout)
-                .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-        }
         menu.add(Menu.NONE, R.id.action_toggle_theme, MENU_ORDER_THEME, getString(R.string.dark_mode))
             .setIcon(R.drawable.ic_theme_moon_toolbar)
             .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
@@ -412,17 +390,6 @@ class UserStandaloneActivity : AppCompatActivity() {
         menu.findItem(R.id.action_app_mode)?.apply {
             title = ""
             MenuItemCompat.setTooltipText(this, getString(R.string.user_mode_section))
-        }
-        if (isDebuggableBuild()) {
-            menu.findItem(R.id.action_dev_test_mode)?.actionView
-                ?.findViewById<SwitchCompat>(R.id.switchDevStandalone)
-                ?.let { sw ->
-                    suppressDevStandaloneSwitchCallback = true
-                    sw.setOnCheckedChangeListener(null)
-                    sw.isChecked = AppModeManager.isStandaloneMode(this@UserStandaloneActivity)
-                    sw.setOnCheckedChangeListener(devModeSwitchListener)
-                    suppressDevStandaloneSwitchCallback = false
-                }
         }
         findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar).overflowIcon?.setTint(android.graphics.Color.WHITE)
         return result
@@ -447,8 +414,6 @@ class UserStandaloneActivity : AppCompatActivity() {
             if (isFinishing) return@Runnable
             if (!prefs.userInitialAppModeSheetCompleted) {
                 showMandatoryFirstAppModeSheetIfNeeded()
-            } else {
-                maybeOfferPinSecurityDialog()
             }
         }
         val delayMs = if (!prefs.userInitialAppModeSheetCompleted) {
@@ -747,13 +712,6 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         }
         deferredHomeUiRunnable = null
-        pinDeferredPromptRunnable?.let { r ->
-            try {
-                window.decorView.removeCallbacks(r)
-            } catch (_: Exception) {
-            }
-        }
-        pinDeferredPromptRunnable = null
         try {
             firstAppModeBottomSheet?.dismiss()
         } catch (_: Exception) {
@@ -933,11 +891,28 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    private fun applyProfileChromeNoShadow() {
+        val add = findViewById<ImageButton>(R.id.btnUserSidebarProfileAdd) ?: return
+        add.stateListAnimator = null
+        add.elevation = 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            add.outlineSpotShadowColor = Color.TRANSPARENT
+            add.outlineAmbientShadowColor = Color.TRANSPARENT
+        }
+        val iv = findViewById<ShapeableImageView>(R.id.ivUserSidebarProfile) ?: return
+        iv.elevation = 0f
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            iv.outlineSpotShadowColor = Color.TRANSPARENT
+            iv.outlineAmbientShadowColor = Color.TRANSPARENT
+        }
+    }
+
     private fun bindSidebarProfileAvatar() {
         val iv = findViewById<ShapeableImageView>(R.id.ivUserSidebarProfile) ?: return
         val raw = prefs.userProfilePictureDataUrl.trim()
         if (raw.isEmpty()) {
             iv.setImageResource(R.drawable.ic_avatar_placeholder)
+            findViewById<ImageButton>(R.id.btnUserSidebarProfileAdd)?.bringToFront()
             return
         }
         Thread {
@@ -945,21 +920,84 @@ class UserStandaloneActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (bmp != null) iv.setImageBitmap(bmp) else iv.setImageResource(R.drawable.ic_avatar_placeholder)
+                findViewById<ImageButton>(R.id.btnUserSidebarProfileAdd)?.bringToFront()
+            }
+        }.start()
+    }
+
+    private fun showProfilePhotoPreview() {
+        val raw = prefs.userProfilePictureDataUrl.trim()
+        if (raw.isEmpty()) return
+        Thread {
+            val bmp: Bitmap? = UserProfileImageCodec.bitmapFromDataUrl(raw)
+            runOnUiThread {
+                if (isFinishing || bmp == null) return@runOnUiThread
+                val dm = resources.displayMetrics
+                val pad = (16f * dm.density).toInt()
+                val maxH = (dm.heightPixels * 0.55f).toInt()
+                val maxW = dm.widthPixels - (32f * dm.density).toInt()
+                val iv = ImageView(this).apply {
+                    setImageBitmap(bmp)
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    adjustViewBounds = true
+                    maxHeight = maxH
+                    maxWidth = maxW
+                }
+                val wrap = FrameLayout(this).apply {
+                    setPadding(pad, pad, pad, pad)
+                    addView(
+                        iv,
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ),
+                    )
+                }
+                AlertDialog.Builder(this)
+                    .setView(wrap)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
             }
         }.start()
     }
 
     private fun showProfilePictureSourceDialog() {
-        val items = arrayOf(getString(R.string.user_profile_pick_gallery), getString(R.string.user_profile_pick_camera))
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.user_profile_pick_title)
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> pickGalleryLauncher.launch("image/*")
-                    1 -> requestCameraThenCapture()
-                }
-            }
-            .show()
+        val dm = resources.displayMetrics
+        val padH = (20f * dm.density).toInt()
+        val padV = (12f * dm.density).toInt()
+        val gap = (8f * dm.density).toInt()
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padH, padV, padH, padV)
+        }
+        val rowLp = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        )
+        val btnCamera = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            layoutParams = LinearLayout.LayoutParams(rowLp)
+            text = getString(R.string.user_profile_pick_camera)
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        }
+        val btnGallery = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            layoutParams = LinearLayout.LayoutParams(rowLp).apply { topMargin = gap }
+            text = getString(R.string.user_profile_pick_gallery)
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+        }
+        root.addView(btnCamera)
+        root.addView(btnGallery)
+        val dialog = AlertDialog.Builder(this).setView(root).create()
+        btnCamera.setOnClickListener {
+            dialog.dismiss()
+            requestCameraThenCapture()
+        }
+        btnGallery.setOnClickListener {
+            dialog.dismiss()
+            pickGalleryLauncher.launch("image/*")
+        }
+        dialog.show()
     }
 
     private fun requestCameraThenCapture() {
@@ -1015,6 +1053,17 @@ class UserStandaloneActivity : AppCompatActivity() {
     private fun refreshUserSidebar() {
         if (!::tvUserSidebarAdminStatus.isInitialized) return
         bindSidebarProfileAvatar()
+
+        val displayFullName = prefs.userHubUsername.trim()
+            .ifEmpty { prefs.userHubFullName.trim() }
+            .ifEmpty { prefs.userHubFirstName.trim() }
+        if (displayFullName.isNotEmpty()) {
+            tvUserSidebarFullName.text = displayFullName
+            tvUserSidebarFullName.visibility = View.VISIBLE
+        } else {
+            tvUserSidebarFullName.text = ""
+            tvUserSidebarFullName.visibility = View.GONE
+        }
 
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val botId = prefs.id.trim()
@@ -1224,40 +1273,6 @@ class UserStandaloneActivity : AppCompatActivity() {
                 .start()
         }
         sheet.show()
-    }
-
-    private fun maybeOfferPinSecurityDialog() {
-        if (prefs.appPin.isNotEmpty()) return
-        if (prefs.pinDeferredAutoPromptShown) return
-        if (prefs.userHomeColdStartCount < 2) return
-        pinDeferredPromptRunnable?.let { r ->
-            try {
-                window.decorView.removeCallbacks(r)
-            } catch (_: Exception) {
-            }
-        }
-        pinDeferredPromptRunnable = Runnable {
-            pinDeferredPromptRunnable = null
-            if (isFinishing) return@Runnable
-            if (prefs.appPin.isNotEmpty()) return@Runnable
-            if (prefs.pinDeferredAutoPromptShown) return@Runnable
-            val dlg = MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.pin_deferred_dialog_title)
-                .setMessage(R.string.pin_deferred_dialog_message)
-                .setNegativeButton(R.string.pin_deferred_skip, null)
-                .setPositiveButton(R.string.pin_deferred_set) { _, _ ->
-                    startActivity(
-                        Intent(this, PinSetupActivity::class.java).putExtra(
-                            PinSetupActivity.EXTRA_NEXT_ROLE,
-                            LocalUserStore.ROLE_USER,
-                        ),
-                    )
-                }
-                .create()
-            dlg.setOnDismissListener { prefs.pinDeferredAutoPromptShown = true }
-            dlg.show()
-        }
-        window.decorView.postDelayed(pinDeferredPromptRunnable!!, DEFERRED_PIN_PROMPT_DELAY_MS)
     }
 
     private fun dismissAppModeLabelPopup() {

@@ -179,25 +179,32 @@
                     android:lineSpacingExtra="2dp"
                     android:text="@string/user_sidebar_title"
                     android:textColor="@color/text_primary"
-                    android:textSize="26sp"
+                    android:textSize="22sp"
                     android:textStyle="bold" />
 
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="20dp" />
 
+                <!-- 82dp frame: 72dp circle centered so the + badge sits on the rim without clipping; photo stays inside the circle. -->
                 <FrameLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="82dp"
+                    android:layout_height="82dp"
                     android:layout_gravity="center_horizontal"
-                    android:layout_marginBottom="18dp">
+                    android:layout_marginBottom="10dp"
+                    android:clipChildren="false">
 
                     <com.google.android.material.imageview.ShapeableImageView
                         android:id="@+id/ivUserSidebarProfile"
                         android:layout_width="72dp"
                         android:layout_height="72dp"
                         android:layout_gravity="center"
+                        android:clickable="true"
                         android:contentDescription="@string/user_sidebar_profile_image_cd"
+                        android:elevation="0dp"
+                        android:focusable="true"
+                        android:foreground="?attr/selectableItemBackgroundBorderless"
+                        android:outlineProvider="background"
                         android:scaleType="centerCrop"
                         android:src="@drawable/ic_avatar_placeholder"
                         app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.Curax.AvatarCircle"
@@ -208,16 +215,33 @@
                         android:id="@+id/btnUserSidebarProfileAdd"
                         android:layout_width="28dp"
                         android:layout_height="28dp"
-                        android:layout_gravity="top|end"
-                        android:layout_marginTop="-2dp"
-                        android:layout_marginEnd="-2dp"
+                        android:layout_gravity="bottom|end"
+                        android:layout_marginEnd="4dp"
+                        android:layout_marginBottom="4dp"
                         android:background="@drawable/bg_profile_add_fab"
                         android:contentDescription="@string/user_sidebar_profile_change_cd"
+                        android:elevation="0dp"
+                        android:outlineProvider="background"
                         android:padding="4dp"
                         android:scaleType="centerInside"
                         android:src="@android:drawable/ic_input_add"
+                        android:stateListAnimator="@null"
                         app:tint="@color/connect_button_bg" />
                 </FrameLayout>
+
+                <TextView
+                    android:id="@+id/tvUserSidebarFullName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="14dp"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center_horizontal"
+                    android:maxLines="2"
+                    android:textAlignment="center"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
 
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardUserSidebarStatusPanel"
@@ -493,54 +517,6 @@
                                 android:textSize="12sp"
                                 android:visibility="gone" />
                         </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardUserSidebarNotificationInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    app:cardBackgroundColor="@color/summary_card"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/summary_stroke"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:paddingStart="14dp"
-                        android:paddingTop="12dp"
-                        android:paddingEnd="14dp"
-                        android:paddingBottom="12dp">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/user_sidebar_notifications_title"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:lineSpacingExtra="3dp"
-                            android:text="@string/user_sidebar_notifications_local_body"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:lineSpacingExtra="3dp"
-                            android:text="@string/user_sidebar_notifications_cloud_body"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="12sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>

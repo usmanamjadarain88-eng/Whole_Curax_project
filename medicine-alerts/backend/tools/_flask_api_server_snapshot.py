@@ -1,4 +1,4 @@
-﻿"""
+"""
 Backend (one server). All data lives in the database; clients use HTTPS and data bus for updates.
 Run: python -m backend.api_server or from backend/ python api_server.py
 """
@@ -68,7 +68,7 @@ def get_data_bus_url():
             except Exception:
                 pass
     # Default: deployed data bus on Railway (receives notify_admin from backend for real-time sync)
-    return "https://databus-production-6eef.up.railway.app"
+    return "https://databus.vercel.app"
 
 
 try:
@@ -320,6 +320,8 @@ def signup_link_admin():
         "databus_access_code": r.get("databus_access_code"),
         "account_status": r.get("account_status", "ACTIVE"),
         "user_first_name": r.get("user_first_name") or "",
+        "user_full_name": r.get("user_full_name") or "",
+        "user_username": r.get("user_username") or "",
         "user_display_mode": r.get("user_display_mode") or "",
     })
 
@@ -750,6 +752,8 @@ def _normalize_user_data_response(data):
     if data.get("medicine_box_ids") is not None:
         out["medicine_box_ids"] = data["medicine_box_ids"]
     out["user_first_name"] = str(data.get("user_first_name") or "").strip()
+    out["user_full_name"] = str(data.get("user_full_name") or "").strip()
+    out["user_username"] = str(data.get("user_username") or "").strip()
     return out
 
 

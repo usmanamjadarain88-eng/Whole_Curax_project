@@ -174,6 +174,12 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         val hubFirst = fromServer.ifBlank { UserNameFormatter.firstNameForHub(SignUpFlowState.nameForLink) }
         if (hubFirst.isNotEmpty()) prefs.userHubFirstName = hubFirst
 
+        val fromFull = jo.optString("user_full_name", "").trim()
+        if (fromFull.isNotEmpty()) prefs.userHubFullName = fromFull
+
+        val fromUsername = jo.optString("user_username", "").trim()
+        if (fromUsername.isNotEmpty()) prefs.userHubUsername = fromUsername
+
         val dm = jo.optString("user_display_mode", "").trim().lowercase()
         if (dm == "standalone" || dm == "default") {
             val wantStandalone = dm == "standalone"

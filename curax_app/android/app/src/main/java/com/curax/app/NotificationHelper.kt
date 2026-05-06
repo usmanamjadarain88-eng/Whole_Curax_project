@@ -16,6 +16,28 @@ object NotificationHelper {
 
     private const val CHANNEL_ID = "curax_alert_channel"
 
+    private fun defaultAlertSoundUri(context: Context): Uri? =
+        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+    /** Ringtone for standalone local alarms ([LocalAlertReceiver]); respects [Prefs.standaloneLocalAlertSoundUri]. */
+    fun resolveStandaloneAlertSoundUri(context: Context): Uri? {
+        if (!StandaloneUi.isUserStandalone(context)) return defaultAlertSoundUri(context)
+        val raw = Prefs(context).standaloneLocalAlertSoundUri.trim()
+        if (raw.isEmpty()) return defaultAlertSoundUri(context)
+        if (raw.equals("silent", ignoreCase = true)) return null
+        return try {
+            Uri.parse(raw)
+        } catch (_: Exception) {
+            defaultAlertSoundUri(context)
+        }
+    }
+
+    private fun resolveStandaloneVibrate(context: Context): Boolean {
+        if (!StandaloneUi.isUserStandalone(context)) return true
+        return Prefs(context).standaloneLocalAlertVibrate
+    }
+
     const val EXTRA_ALERT_ID = "extra_alert_id"
     const val EXTRA_ALERT_TYPE = "extra_alert_type"
     const val EXTRA_ALERT_MESSAGE = "extra_alert_message"
@@ -75,9 +97,9 @@ object NotificationHelper {
             else -> "Curax Alert"
         }
 
-        val soundUri: Uri? = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val soundUri = resolveStandaloneAlertSoundUri(context)
+        val vibrateOn = resolveStandaloneVibrate(context)
+        val b = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(message)
@@ -88,7 +110,12 @@ object NotificationHelper {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setSound(soundUri)
-            .build()
+        if (vibrateOn) {
+            b.setVibrate(longArrayOf(0L, 380L, 220L, 380L))
+        } else {
+            b.setVibrate(null)
+        }
+        val notification = b.build()
 
         try {
             NotificationManagerCompat.from(context).notify(notificationId, notification)

@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Built-in tone catalog (MediaStore ringtone/alarm rows); runtime prompt can be added later -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -99,14 +102,14 @@
             android:exported="false"
             android:parentActivityName=".SignInActivity"
             android:theme="@style/Theme.Curax.AuthOnboarding"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustPan" />
 
         <activity
             android:name=".SignUpLinkAdminActivity"
             android:exported="false"
             android:parentActivityName=".SignInActivity"
             android:theme="@style/Theme.Curax.AuthOnboarding"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustPan" />
 
         <activity
             android:name=".AdminRegistrationActivity"
@@ -117,12 +120,14 @@
         <activity
             android:name=".PinSetupActivity"
             android:exported="false"
-            android:theme="@style/Theme.Curax" />
+            android:theme="@style/Theme.Curax"
+            android:windowSoftInputMode="adjustPan" />
 
         <activity
             android:name=".PinEntryActivity"
             android:exported="false"
-            android:theme="@style/Theme.Curax" />
+            android:theme="@style/Theme.Curax"
+            android:windowSoftInputMode="adjustPan" />
 
         <activity
             android:name=".UserDashboardActivity"
@@ -133,6 +138,26 @@
             android:name=".UserStandaloneActivity"
             android:exported="false"
             android:theme="@style/Theme.Curax.UserToolbar" />
+
+        <activity
+            android:name=".CreateHealthHubPlanActivity"
+            android:exported="false"
+            android:parentActivityName=".UserStandaloneActivity"
+            android:theme="@style/Theme.Curax"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".StandaloneLocalAlertSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".UserStandaloneActivity"
+            android:theme="@style/Theme.Curax"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".StandaloneAlertSoundPickerActivity"
+            android:exported="false"
+            android:parentActivityName=".StandaloneLocalAlertSettingsActivity"
+            android:theme="@style/Theme.Curax" />
 
         <activity
             android:name=".MainActivity"

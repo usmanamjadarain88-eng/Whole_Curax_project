@@ -2,6 +2,9 @@
 # Work/ monorepo — private, machine-local, and generated files (all 3 projects)
 # =============================================================================
 
+# Standalone Git repo + Vercel app (do not track here — use c:\Work\3d-model\.git)
+3d-model/
+
 # --- Local backup of old per-folder .git (never push — huge + wrong history) ---
 **/.git.bak/
 

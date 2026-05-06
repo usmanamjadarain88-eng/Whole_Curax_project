@@ -451,8 +451,8 @@ class AppController(QObject):
                                 return "wss://" + url if ":" not in url or url.endswith(":443") else "ws://" + url
                 except Exception:
                     pass
-        # Default: deployed data bus on Railway (receives alerts / real-time sync)
-        return "wss://databus-production-6eef.up.railway.app"
+        # Default: production databus on Vercel (desktop realtime: set DATABUS_ABLY_SUBSCRIBE_KEY).
+        return "wss://databus.vercel.app"
 
     def get_relay_alert_url(self):
         """URL for forwarding status alerts to relay (FCM). None = do not forward (avoids localhost:5000 errors when relay not running)."""

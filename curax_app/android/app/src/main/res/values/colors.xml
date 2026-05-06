@@ -117,10 +117,10 @@
     <color name="standalone_inventory_strip_normal">#22C55E</color>
     <color name="standalone_inventory_strip_low">#F59E0B</color>
     <color name="standalone_inventory_strip_exp">#EF4444</color>
-    <!-- Medicine chips (original soft grey / status tints) -->
-    <color name="standalone_medicine_chip_normal">#EEF2FF</color>
-    <color name="standalone_medicine_chip_low">#FEF9C3</color>
-    <color name="standalone_medicine_chip_exp">#FFE4E6</color>
+    <!-- Medicine chips: fill matches stock snapshot inner strip (standalone_tab_strip_bg). -->
+    <color name="standalone_medicine_chip_normal">@color/standalone_tab_strip_bg</color>
+    <color name="standalone_medicine_chip_low">@color/standalone_tab_strip_bg</color>
+    <color name="standalone_medicine_chip_exp">@color/standalone_tab_strip_bg</color>
     <!-- Match adherence trend card stroke (bg_standalone_adherence_chart_well) -->
     <color name="standalone_medicine_chip_stroke_normal">#C7D2FE</color>
     <color name="standalone_medicine_chip_stroke_low">#D97706</color>

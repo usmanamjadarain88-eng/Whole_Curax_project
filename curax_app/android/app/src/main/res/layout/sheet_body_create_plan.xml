@@ -111,40 +111,60 @@
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!-- Same pattern as admin Add medicine / reminders: label row + Calendar / Set time -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="10dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCreatePlanDate"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    <TextView
+                        android:id="@+id/tvCreatePlanDateDisplay"
                         android:layout_width="0dp"
-                        android:layout_height="38dp"
-                        android:layout_marginEnd="5dp"
+                        android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:insetBottom="0dp"
-                        android:insetTop="0dp"
-                        android:minHeight="0dp"
-                        android:paddingVertical="0dp"
-                        android:text="@string/plan_pick_date"
-                        android:textSize="12sp"
-                        app:strokeColor="@color/summary_stroke" />
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnCreatePlanTime"
+                        android:id="@+id/btnCreatePlanCalendar"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="38dp"
-                        android:layout_weight="1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
                         android:insetBottom="0dp"
                         android:insetTop="0dp"
-                        android:minHeight="0dp"
-                        android:paddingVertical="0dp"
-                        android:text="@string/plan_pick_time"
-                        android:textSize="12sp"
+                        android:minHeight="40dp"
+                        android:text="@string/picker_calendar"
+                        android:textSize="13sp"
+                        app:strokeColor="@color/summary_stroke" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvCreatePlanTimeDisplay"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCreatePlanSetTime"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:insetBottom="0dp"
+                        android:insetTop="0dp"
+                        android:minHeight="40dp"
+                        android:text="@string/picker_set_time"
+                        android:textSize="13sp"
                         app:strokeColor="@color/summary_stroke" />
                 </LinearLayout>
 

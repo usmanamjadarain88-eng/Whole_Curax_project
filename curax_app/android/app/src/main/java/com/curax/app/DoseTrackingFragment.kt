@@ -9,6 +9,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.HorizontalScrollView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -26,7 +28,7 @@ import java.util.Locale
 class DoseTrackingFragment : Fragment() {
 
     private val doseSlots = listOf("B1", "B2", "B3")
-    private var doseChipAdapter: StandaloneMedicineChipAdapter? = null
+    private var doseSelectedBoxUpper: String? = null
     private var historyAdapter: DoseHistoryRowsAdapter? = null
     private var selectedMedicine: AdminDemoData.Medicine? = null
 
@@ -46,32 +48,8 @@ class DoseTrackingFragment : Fragment() {
     ): View = inflater.inflate(R.layout.fragment_dose_tracking_standalone, container, false)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val rv = view.findViewById<RecyclerView>(R.id.rvDoseTrackingBoxes)
-        doseChipAdapter = StandaloneMedicineChipAdapter(
-            computedStatus = { chipStatus(it) },
-            onItemClick = { item ->
-                val m = AdminDemoData.medicines.find { it.box.equals(item.box, ignoreCase = true) }
-                if (m != null && m.stock > 0) {
-                    selectedMedicine = m
-                    doseChipAdapter?.selectedBoxUpper = m.box
-                } else {
-                    selectedMedicine = null
-                    doseChipAdapter?.selectedBoxUpper = item.box.trim().ifEmpty { null }
-                }
-                updateMarkButtonState(view)
-            },
-            onPlaceholderClick = {},
-            showBoxLabelWhenPlaceholder = true,
-            onPlaceholderItemClick = { item ->
-                selectedMedicine = null
-                doseChipAdapter?.selectedBoxUpper = item.box.trim().ifEmpty { null }
-                updateMarkButtonState(view)
-            },
-        )
-        rv.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-        rv.adapter = doseChipAdapter
-        rv.isNestedScrollingEnabled = false
-        rv.itemAnimator = null
+        view.findViewById<HorizontalScrollView>(R.id.hsvDoseTrackingMedicineChips)
+            ?.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = true)
 
         view.findViewById<MaterialButton>(R.id.btnMarkDoseTaken).setOnClickListener {
             onMarkDoseClicked(view)
@@ -84,6 +62,38 @@ class DoseTrackingFragment : Fragment() {
         rvHist.isNestedScrollingEnabled = false
 
         refreshAll()
+    }
+
+    private fun rebuildDoseChips(v: View) {
+        val ll = v.findViewById<LinearLayout>(R.id.llDoseTrackingMedicineChips) ?: return
+        val inflater = LayoutInflater.from(requireContext())
+        populateStandaloneMedicineChipRow(
+            container = ll,
+            inflater = inflater,
+            items = buildThreeSlots(),
+            computedStatus = { chipStatus(it) },
+            selectedBoxUpper = doseSelectedBoxUpper,
+            onItemClick = { item ->
+                val m = AdminDemoData.medicines.find { it.box.equals(item.box, ignoreCase = true) }
+                if (m != null && m.stock > 0) {
+                    selectedMedicine = m
+                    doseSelectedBoxUpper = m.box.trim().uppercase(Locale.US)
+                } else {
+                    selectedMedicine = null
+                    doseSelectedBoxUpper = item.box.trim().takeIf { it.isNotEmpty() }?.uppercase(Locale.US)
+                }
+                rebuildDoseChips(v)
+                updateMarkButtonState(v)
+            },
+            onPlaceholderClick = {},
+            showBoxLabelWhenPlaceholder = true,
+            onPlaceholderItemClick = { item ->
+                selectedMedicine = null
+                doseSelectedBoxUpper = item.box.trim().takeIf { it.isNotEmpty() }?.uppercase(Locale.US)
+                rebuildDoseChips(v)
+                updateMarkButtonState(v)
+            },
+        )
     }
 
     override fun onStart() {
@@ -117,13 +127,9 @@ class DoseTrackingFragment : Fragment() {
             AdminDemoData.medicines.find { it.box.equals(sel.box, ignoreCase = true) }
         }
         selectedMedicine = still
-        doseChipAdapter?.submit(buildThreeSlots())
-        doseChipAdapter?.selectedBoxUpper = selectedMedicine?.box
+        doseSelectedBoxUpper = selectedMedicine?.box?.trim()?.ifEmpty { null }?.uppercase(Locale.US)
+        rebuildDoseChips(v)
         historyAdapter?.submit(DoseTrackingLocalStore.readLog(requireContext()))
-        v.findViewById<TextView>(R.id.tvDoseWeeklyAdherence)?.text = getString(
-            R.string.dose_tracking_weekly_adherence,
-            DoseAdherenceCalculator.weeklyAdherencePercent(requireContext()),
-        )
         updateMarkButtonState(v)
     }
 

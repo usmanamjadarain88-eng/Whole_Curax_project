@@ -1,9 +1,14 @@
 """
-Data bus WebSocket server: syncs admin data between Central API, desktop, and app.
-- Clients (desktop + app) connect with access_code and client_type ("desktop" | "app").
-- When admin is saved/created, Central API calls POST /notify_admin with access_code;
-  data bus fetches GET central_api/admin/data and pushes to all clients for that admin.
-- All data flows through Central API (single source of truth).
+Data bus: syncs admin data between Central API, desktop, and app.
+
+Self-hosted (this file): aiohttp WebSocket rooms + POST /notify_admin pushes in-process.
+
+Vercel: POST /notify_admin is implemented in api/notify_admin.py — it fetches Central API
+and publishes the same JSON envelope to Ably channel admin:<ACCESS_CODE_UPPER>.
+Clients set Ably subscribe key + HTTPS data-bus URL (see Prefs / DATABUS_ABLY_SUBSCRIBE_KEY).
+
+- Clients register with access_code and client_type ("desktop" | "app" | "user_app") on WS.
+- Central API calls POST /notify_admin with {"access_code": "..."} when admin data changes.
 """
 import asyncio
 import json
@@ -14,7 +19,7 @@ from typing import Dict, Set, Tuple
 
 from aiohttp import WSMsgType, web
 
-# Must point to the backend that serves GET /admin/data (e.g. https://web-production-050d.up.railway.app).
+# Must point to the backend that serves GET /admin/data (your Central API base URL).
 # When notify_admin is called, the data bus fetches from CENTRAL_API_URL/admin/data and pushes to connected clients.
 CENTRAL_API_URL = (os.environ.get("CENTRAL_API_URL") or "").strip().rstrip("/")
 PORT = int(os.environ.get("PORT", "5052"))

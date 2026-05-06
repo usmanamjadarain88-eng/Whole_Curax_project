@@ -156,8 +156,8 @@ class AdminConnectedUsersFragment : Fragment() {
                                 } else {
                                     Thread {
                                         val bmp = UserProfileImageCodec.bitmapFromDataUrl(pic)
-                                        activity?.runOnUiThread {
-                                            if (!isAdded) return@runOnUiThread
+                                        activity?.runOnUiThread avatarRow@{
+                                            if (!isAdded) return@avatarRow
                                             if (bmp != null) iv.setImageBitmap(bmp) else iv.setImageResource(R.drawable.ic_avatar_placeholder)
                                         }
                                     }.start()
@@ -206,7 +206,7 @@ class AdminConnectedUsersFragment : Fragment() {
                                     AlertDialog.Builder(requireContext())
                                         .setTitle("Remove user?")
                                         .setMessage("Remove \"$name\"? They will be informed on their app and desktop. Only you can remove users.")
-                                        .setPositiveButton("Remove") { _, _ -> deleteUser(userId, name) }
+                                        .setPositiveButton("Remove") { _, _ -> deleteUser(userId) }
                                         .setNegativeButton("Cancel", null)
                                         .show()
                                     true
@@ -233,7 +233,7 @@ class AdminConnectedUsersFragment : Fragment() {
         }.start()
     }
 
-    private fun deleteUser(userId: String, userName: String) {
+    private fun deleteUser(userId: String) {
         val prefs = Prefs(requireContext())
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")

@@ -28,7 +28,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnAutoLock: MaterialButton
 
     private lateinit var prefs: Prefs
-    private lateinit var alertDb: AlertDb
+    /** Only needed for export; lazy avoids SQLite open on every Settings visit (standalone Alert settings path). */
+    private val alertDb by lazy { AlertDb(this) }
     private lateinit var localUserStore: LocalUserStore
 
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
@@ -39,7 +40,6 @@ class SettingsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_settings)
 
         prefs = Prefs(this)
-        alertDb = AlertDb(this)
         localUserStore = LocalUserStore(this)
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
@@ -98,7 +98,16 @@ class SettingsActivity : AppCompatActivity() {
             if (prefs.linkedAdminId.isNotEmpty()) {
                 val btnUserDesktopLink = findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode)
                 btnUserDesktopLink.visibility = View.VISIBLE
-                btnUserDesktopLink.setOnClickListener { showUserDesktopLinkCodeDialog() }
+                if (StandaloneUi.isUserStandalone(this)) {
+                    btnUserDesktopLink.setText(R.string.standalone_alert_settings)
+                    btnUserDesktopLink.setOnClickListener {
+                        startActivity(Intent(this, StandaloneLocalAlertSettingsActivity::class.java))
+                        overridePendingTransition(0, 0)
+                    }
+                } else {
+                    btnUserDesktopLink.setText(R.string.desktop_linking_code)
+                    btnUserDesktopLink.setOnClickListener { showUserDesktopLinkCodeDialog() }
+                }
             } else {
                 findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode).visibility = View.GONE
             }

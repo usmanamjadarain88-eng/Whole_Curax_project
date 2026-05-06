@@ -1,4 +1,5 @@
-# Data Bus WebSocket server - deploy anywhere (Railway, Fly.io, ECS, etc.)
+# Data Bus WebSocket server — long-running process (Docker, Fly.io, ECS, VPS, etc.).
+# Vercel deploys only serverless routes under api/; run this image where persistent WS is supported.
 FROM python:3.11-slim
 
 WORKDIR /app

@@ -1,5 +1,7 @@
 package com.curax.app
 
+import android.animation.ArgbEvaluator
+import android.animation.ValueAnimator
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -34,7 +36,10 @@ class AdminAlertsFragment : Fragment() {
 
     private lateinit var alertDb: AlertDb
     private lateinit var recycler: RecyclerView
+    private lateinit var layoutEmpty: View
     private lateinit var tvEmpty: TextView
+    private lateinit var tvPinSetupHint: TextView
+    private var pinHintColorAnim: ValueAnimator? = null
     private lateinit var adapter: AdminAlertsAdapter
 
     private lateinit var cardFilter: View
@@ -94,7 +99,18 @@ class AdminAlertsFragment : Fragment() {
         alertDb = AlertDb(requireContext())
 
         recycler = view.findViewById(R.id.recyclerAdminAlerts)
+        layoutEmpty = view.findViewById(R.id.layoutAdminAlertsEmpty)
         tvEmpty = view.findViewById(R.id.tvAdminNoAlerts)
+        tvPinSetupHint = view.findViewById(R.id.tvPinSetupHint)
+        tvPinSetupHint.setOnClickListener {
+            if (!AppRole.isUser(requireContext())) return@setOnClickListener
+            startActivity(
+                Intent(requireContext(), PinSetupActivity::class.java).putExtra(
+                    PinSetupActivity.EXTRA_NEXT_ROLE,
+                    LocalUserStore.ROLE_USER,
+                ),
+            )
+        }
         cardFilter = view.findViewById(R.id.cardFilterPanel)
         btnFiltersTrigger = view.findViewById(R.id.btnFiltersTrigger)
         btnFilterTime = view.findViewById(R.id.btnFilterTime)
@@ -167,7 +183,13 @@ class AdminAlertsFragment : Fragment() {
         super.onStop()
     }
 
+    override fun onPause() {
+        stopPinHintColorAnimation()
+        super.onPause()
+    }
+
     override fun onDestroyView() {
+        stopPinHintColorAnimation()
         if (syncReceiverRegistered) {
             try { requireContext().unregisterReceiver(syncReceiver) } catch (_: Exception) {}
             syncReceiverRegistered = false
@@ -495,10 +517,46 @@ class AdminAlertsFragment : Fragment() {
             } else {
                 "No alerts match current filters"
             }
-            tvEmpty.visibility = View.VISIBLE
+            layoutEmpty.visibility = View.VISIBLE
+            val showPinLink = AppRole.isUser(requireContext()) &&
+                Prefs(requireContext()).appPin.isEmpty() &&
+                totalAvailable == 0
+            if (showPinLink) {
+                tvPinSetupHint.visibility = View.VISIBLE
+                startPinHintColorAnimation()
+            } else {
+                tvPinSetupHint.visibility = View.GONE
+                stopPinHintColorAnimation()
+            }
         } else {
-            tvEmpty.visibility = View.GONE
+            layoutEmpty.visibility = View.GONE
+            stopPinHintColorAnimation()
         }
         updateApplyButton()
+    }
+
+    private fun startPinHintColorAnimation() {
+        if (pinHintColorAnim?.isRunning == true) return
+        val c1 = ContextCompat.getColor(requireContext(), R.color.standalone_tab_indicator)
+        val c2 = ContextCompat.getColor(requireContext(), R.color.connect_button_bg)
+        val eval = ArgbEvaluator()
+        pinHintColorAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1600L
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            addUpdateListener { a ->
+                val t = a.animatedValue as Float
+                tvPinSetupHint.setTextColor(eval.evaluate(t, c1, c2) as Int)
+            }
+            start()
+        }
+    }
+
+    private fun stopPinHintColorAnimation() {
+        pinHintColorAnim?.cancel()
+        pinHintColorAnim = null
+        if (::tvPinSetupHint.isInitialized && isAdded) {
+            tvPinSetupHint.setTextColor(ContextCompat.getColor(requireContext(), R.color.standalone_tab_indicator))
+        }
     }
 }

@@ -1,11 +1,10 @@
 """
-Data bus WebSocket client for desktop. Runs in a background thread; puts data_sync
-payloads into a queue so the main thread can apply them. No polling: backend pushes
-only when real data changes. When disconnected we reconnect with exponential backoff
-so we don't hammer the server every few seconds.
+Data bus client for desktop: WebSocket (self-hosted server.py) or Ably (Vercel + DATABUS_ABLY_SUBSCRIBE_KEY).
+Puts data_sync payloads into out_queue; backend pushes when data changes.
 """
 import asyncio
 import json
+import os
 import queue
 import threading
 import time
@@ -18,12 +17,35 @@ RECONNECT_LOG_INTERVAL = 60.0    # log at most once per 60s when disconnected
 
 def run_databus_client(ws_url: str, access_code: str, out_queue: queue.Queue, stop_event: threading.Event):
     """
-    Connect to data bus (WebSocket), register with access_code and client_type=desktop,
-    and push every data_sync payload into out_queue. Backend sends only when data
-    actually changes — no polling. Runs until stop_event is set.
-    ws_url: e.g. ws://127.0.0.1:5052 or wss://databus.onrender.com
+    Real-time admin sync. Two transports:
+
+    - If env DATABUS_ABLY_SUBSCRIBE_KEY is set: subscribe to Ably channel admin:<ACCESS_CODE_UPPER>
+      (matches Vercel POST /notify_admin fan-out). ws_url is ignored.
+    - Else: classic WebSocket to ws_url; register with access_code and client_type=desktop.
+
+    Runs until stop_event is set.
     """
-    if not ws_url or not access_code:
+    code = (access_code or "").strip()
+    if not code:
+        return
+
+    ably_key = (os.environ.get("DATABUS_ABLY_SUBSCRIBE_KEY") or "").strip()
+    if ably_key:
+        reconnect_delay = INITIAL_RECONNECT_DELAY
+        while not stop_event.is_set():
+            try:
+                connected = asyncio.run(_ably_connect_loop(code, out_queue, stop_event, ably_key))
+                if connected:
+                    reconnect_delay = INITIAL_RECONNECT_DELAY
+            except Exception:
+                pass
+            if stop_event.is_set():
+                break
+            time.sleep(reconnect_delay)
+            reconnect_delay = min(MAX_RECONNECT_DELAY, reconnect_delay * BACKOFF_MULTIPLIER)
+        return
+
+    if not ws_url:
         return
     url = (ws_url or "").strip()
     if url.startswith("http://"):
@@ -39,10 +61,6 @@ def run_databus_client(ws_url: str, access_code: str, out_queue: queue.Queue, st
     except ImportError:
         return
 
-    code = (access_code or "").strip()
-    if not code:
-        return
-
     reconnect_delay = INITIAL_RECONNECT_DELAY
 
     while not stop_event.is_set():
@@ -56,6 +74,45 @@ def run_databus_client(ws_url: str, access_code: str, out_queue: queue.Queue, st
             break
         time.sleep(reconnect_delay)
         reconnect_delay = min(MAX_RECONNECT_DELAY, reconnect_delay * BACKOFF_MULTIPLIER)
+
+
+async def _ably_connect_loop(
+    access_code: str, out_queue: queue.Queue, stop_event: threading.Event, ably_key: str
+) -> bool:
+    """Subscribe via Ably; returns True if subscribe/attach succeeded at least once."""
+    from ably import AblyRealtime
+
+    client = AblyRealtime(ably_key)
+    attached_ok = False
+    try:
+        ch = client.channels.get(f"admin:{access_code.strip().upper()}")
+
+        async def listener(message):
+            try:
+                raw = message.data
+                if isinstance(raw, dict):
+                    obj = raw
+                elif isinstance(raw, str):
+                    obj = json.loads(raw)
+                else:
+                    obj = json.loads(str(raw))
+                if obj.get("action") == "data_sync" and "payload" in obj:
+                    out_queue.put(obj["payload"])
+            except Exception:
+                pass
+
+        await ch.subscribe(listener)
+        attached_ok = True
+        while not stop_event.is_set():
+            await asyncio.sleep(0.25)
+    except Exception:
+        attached_ok = False
+    finally:
+        try:
+            await client.close()
+        except Exception:
+            pass
+    return attached_ok
 
 
 async def _connect_loop(ws_url: str, access_code: str, out_queue: queue.Queue, stop_event: threading.Event) -> bool:

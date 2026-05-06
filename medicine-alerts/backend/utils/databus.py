@@ -27,7 +27,7 @@ def get_data_bus_url() -> str:
                             return _line.rstrip("/")
             except OSError:
                 pass
-    return "https://databus-production-6eef.up.railway.app"
+    return "https://databus.vercel.app"
 
 
 def notify_databus(access_code: str) -> None:

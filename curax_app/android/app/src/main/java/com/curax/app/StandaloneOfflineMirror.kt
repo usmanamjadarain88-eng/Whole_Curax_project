@@ -42,6 +42,10 @@ object StandaloneOfflineMirror {
         if (st.isNotEmpty()) base.put("server_time", st)
         val ufn = prefs.userHubFirstName.trim()
         if (ufn.isNotEmpty()) base.put("user_first_name", ufn)
+        val ufull = prefs.userHubFullName.trim()
+        if (ufull.isNotEmpty()) base.put("user_full_name", ufull)
+        val uuname = prefs.userHubUsername.trim()
+        if (uuname.isNotEmpty()) base.put("user_username", uuname)
         if (AppModeManager.isStandaloneMode(ctx)) {
             base.put("user_display_mode", "standalone")
         }
@@ -53,6 +57,20 @@ object StandaloneOfflineMirror {
         prefs.cachedUserDataSnapshotJson = base.toString()
         prefs.userStandaloneDataReady = true
         LocalAlertsController.reschedule(ctx)
+    }
+
+    /** Attach alert_settings and/or gmail_config to POST /user/standalone-sync (partial updates allowed). */
+    fun appendSystemSettingsForSync(body: JSONObject, settingsRoot: Map<String, Any?>) {
+        val alert = settingsRoot["alert_settings"]
+        val gmail = settingsRoot["gmail_config"]
+        if (alert == null && gmail == null) return
+        body.put(
+            "system_settings",
+            JSONObject().apply {
+                if (alert != null) put("alert_settings", valueToJson(alert))
+                if (gmail != null) put("gmail_config", valueToJson(gmail))
+            },
+        )
     }
 
     /** Payload for POST /user/standalone-sync (medicines + dose log + reminders + client clock). */

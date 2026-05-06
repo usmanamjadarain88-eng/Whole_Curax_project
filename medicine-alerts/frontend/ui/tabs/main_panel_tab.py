@@ -549,12 +549,12 @@ class BoxDetailDialog(QDialog):
             )
             root.addWidget(empty)
         else:
-        exact = med.get("exact_time", med.get("time", "—"))
+            exact = med.get("exact_time", med.get("time", "\u2014"))
             for lbl, val in [
-                ("Medicine",     med.get("name", "—")),
-                ("Quantity",     f"{med.get('quantity', '—')} tablets"),
-                ("Dose / Day",   str(med.get("dose_per_day", "—"))),
-                ("Expiry",       med.get("expiry", "—")),
+                ("Medicine",     med.get("name", "\u2014")),
+                ("Quantity",     f"{med.get('quantity', '\u2014')} tablets"),
+                ("Dose / Day",   str(med.get("dose_per_day", "\u2014"))),
+                ("Expiry",       med.get("expiry", "\u2014")),
                 ("Exact Time",   exact),
                 ("Instructions", med.get("instructions", "None")),
                 ("Last Dose",    med.get("last_dose_taken", "Not taken yet")),

@@ -788,8 +788,8 @@ def get_data_bus_url():
                             return _line.rstrip("/")
             except Exception:
                 pass
-    # Default: deployed data bus on Railway (receives notify_admin from backend for real-time sync)
-    return "https://databus-production-6eef.up.railway.app"
+    # Default: deployed data bus on Vercel (notify_admin for real-time sync)
+    return "https://databus.vercel.app"
 
 
 try:

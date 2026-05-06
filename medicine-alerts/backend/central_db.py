@@ -1354,6 +1354,34 @@ class CentralDB:
                 self.create_dose_log(user_id, medicine_id=None, box_id=box, taken_at=ts, source="desktop")
         return True
 
+    def merge_user_system_settings_overlay(self, user_id, incoming):
+        """Merge alert_settings + gmail_config from standalone app System screen (same gmail merge rules as admin PUT)."""
+        if not user_id or not isinstance(incoming, dict):
+            return True
+        try:
+            current = self.get_alert_settings(user_id) or {}
+            if not isinstance(current, dict):
+                current = {}
+            incoming_alert = incoming.get("alert_settings")
+            incoming_gmail = incoming.get("gmail_config")
+            if isinstance(incoming_alert, dict):
+                current["alert_settings"] = incoming_alert
+            if isinstance(incoming_gmail, dict):
+                prev_g = current.get("gmail_config")
+                if isinstance(prev_g, dict):
+                    merged_g = dict(prev_g)
+                    for k, v in incoming_gmail.items():
+                        if k in ("sender_email", "sender_password") and isinstance(v, str) and not v.strip():
+                            continue
+                        merged_g[k] = v
+                    current["gmail_config"] = merged_g
+                else:
+                    current["gmail_config"] = dict(incoming_gmail)
+            return bool(self.upsert_alert_settings(user_id, current))
+        except Exception as e:
+            print(f"CentralDB merge_user_system_settings_overlay: {e}")
+            return False
+
     def merge_user_standalone_sync_from_app(
         self,
         admin_id,
@@ -1362,10 +1390,12 @@ class CentralDB:
         dose_append,
         medical_reminders,
         client_ms,
+        system_settings=None,
     ):
         """Merge user-app standalone changes: upsert medicines by box, append dose rows (deduped), merge medical_reminders.
 
         Latest client payload wins for supplied medicine boxes and reminder categories (timestamp via client_ms for future use).
+        Optional system_settings: { alert_settings, gmail_config } from System tab save.
         """
         if not self.user_belongs_to_admin(user_id, admin_id):
             return False
@@ -1455,6 +1485,9 @@ class CentralDB:
                         merged_mr[cat] = medical_reminders[cat]
                 settings["medical_reminders"] = merged_mr
                 self.upsert_alert_settings(user_id, settings)
+            if isinstance(system_settings, dict) and system_settings:
+                if not self.merge_user_system_settings_overlay(user_id, system_settings):
+                    return False
             return True
         except Exception as e:
             print(f"CentralDB merge_user_standalone_sync_from_app: {e}")
@@ -2339,6 +2372,18 @@ class CentralDB:
         except Exception:
             pass
         try:
+            full = self.get_user_full_display_name_for_user_id(user_id)
+            if full:
+                out["user_full_name"] = full
+        except Exception:
+            pass
+        try:
+            un = self.get_user_username_for_user_id(user_id)
+            if un:
+                out["user_username"] = un
+        except Exception:
+            pass
+        try:
             pp = self.get_user_profile_picture_for_user_id(user_id)
             if pp:
                 out["profile_picture"] = pp
@@ -2382,6 +2427,68 @@ class CentralDB:
             return self._first_name_greeting_token(raw)
         except Exception as e:
             print(f"CentralDB get_user_first_name_for_user_id: {e}")
+            return ""
+        finally:
+            cur.close()
+
+    def get_user_full_display_name_for_user_id(self, user_id):
+        """Full name for UI: first_name + last_name when both set, else name, else username."""
+        uid = str(user_id or "").strip()
+        if not uid:
+            return ""
+        self._ensure_users_first_last_name_columns()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT TRIM(COALESCE(first_name, '')), TRIM(COALESCE(last_name, '')), "
+                "TRIM(COALESCE(name, '')), TRIM(COALESCE(username, '')) FROM users WHERE id = %s::uuid LIMIT 1",
+                (uid,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return ""
+            fn = (row[0] or "").strip() if len(row) > 0 else ""
+            ln = (row[1] or "").strip() if len(row) > 1 else ""
+            nm = (row[2] or "").strip() if len(row) > 2 else ""
+            un = (row[3] or "").strip() if len(row) > 3 else ""
+            # Prefer explicit first+last; then users.name (signup often stores full name here even when first/last are partial).
+            if fn and ln:
+                return f"{fn} {ln}".strip()
+            if nm:
+                return nm
+            if fn:
+                return fn
+            if ln:
+                return ln
+            if un:
+                return un
+            return ""
+        except Exception as e:
+            print(f"CentralDB get_user_full_display_name_for_user_id: {e}")
+            return ""
+        finally:
+            cur.close()
+
+    def get_user_username_for_user_id(self, user_id):
+        """users.username when set; else full display name (legacy rows often left username empty)."""
+        uid = str(user_id or "").strip()
+        if not uid:
+            return ""
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT TRIM(COALESCE(username, '')) FROM users WHERE id = %s::uuid LIMIT 1",
+                (uid,),
+            )
+            row = cur.fetchone()
+            un = (row[0] or "").strip() if row else ""
+            if un:
+                return un
+            return self.get_user_full_display_name_for_user_id(user_id) or ""
+        except Exception as e:
+            print(f"CentralDB get_user_username_for_user_id: {e}")
             return ""
         finally:
             cur.close()
@@ -3099,9 +3206,19 @@ class CentralDB:
 
         databus_access_code = (admin.get("admin_access_code") or "").strip()
         greet = ""
+        full_name = ""
+        username_display = ""
         display_mode = ""
         try:
             greet = self.get_user_first_name_for_user_id(user_id) or ""
+        except Exception:
+            pass
+        try:
+            full_name = self.get_user_full_display_name_for_user_id(user_id) or ""
+        except Exception:
+            pass
+        try:
+            username_display = self.get_user_username_for_user_id(user_id) or ""
         except Exception:
             pass
         try:
@@ -3117,6 +3234,8 @@ class CentralDB:
             "databus_access_code": databus_access_code,
             "account_status": "ACTIVE",
             "user_first_name": greet,
+            "user_full_name": full_name,
+            "user_username": username_display,
             "user_display_mode": display_mode,
         }
 

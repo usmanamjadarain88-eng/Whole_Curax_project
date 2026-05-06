@@ -2,7 +2,13 @@ package com.curax.app
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
+import android.net.Uri
+import org.json.JSONArray
+import java.util.LinkedHashSet
+import java.util.Locale
 
 class Prefs(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("curax_prefs", Context.MODE_PRIVATE)
@@ -102,10 +108,31 @@ class Prefs(context: Context) {
         get() = prefs.getString(KEY_LAST_SYNC_TIME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LAST_SYNC_TIME, value?.trim().orEmpty()).apply()
 
-    /** Data bus URL used for real-time admin data_sync over WebSocket. */
+    /**
+     * Data bus HTTPS base (Central API posts /notify_admin here). Pref overrides [BuildConfig.DATABUS_PUBLIC_URL].
+     * Set in android/local.properties as databus.public.url=… or env DATABUS_PUBLIC_URL for CI.
+     */
     var dataBusUrl: String
-        get() = prefs.getString(KEY_DATA_BUS_URL, "")?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_DATA_BUS_URL
+        get() {
+            val fromPref = prefs.getString(KEY_DATA_BUS_URL, "")?.trim().orEmpty()
+            if (fromPref.isNotEmpty()) return fromPref
+            val fromBuild = BuildConfig.DATABUS_PUBLIC_URL.trim()
+            if (fromBuild.isNotEmpty()) return fromBuild
+            return DEFAULT_DATA_BUS_URL
+        }
         set(value) = prefs.edit().putString(KEY_DATA_BUS_URL, value?.trim().orEmpty()).apply()
+
+    /**
+     * Ably subscribe-only key (channel admin:<ACCESS_CODE>). Pref overrides [BuildConfig.DATABUS_ABLY_SUBSCRIBE_KEY].
+     * Empty = raw WebSocket to [dataBusUrl]. Fill local.properties databus.ably.subscribe.key=… (gitignored).
+     */
+    var dataBusAblySubscribeKey: String
+        get() {
+            val fromPref = prefs.getString(KEY_DATA_BUS_ABLY_SUBSCRIBE_KEY, "")?.trim().orEmpty()
+            if (fromPref.isNotEmpty()) return fromPref
+            return BuildConfig.DATABUS_ABLY_SUBSCRIBE_KEY.trim()
+        }
+        set(value) = prefs.edit().putString(KEY_DATA_BUS_ABLY_SUBSCRIBE_KEY, value?.trim().orEmpty()).apply()
 
     /** When admin taps a connected user in Settings, act as that user; all changes go to that user's data. */
     var actAsUserId: String
@@ -165,15 +192,221 @@ class Prefs(context: Context) {
         get() = prefs.getString(KEY_USER_HUB_FIRST_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_USER_HUB_FIRST_NAME, value.trim()).apply()
 
+    /** Full display name from backend (sidebar under avatar); falls back to [userHubFirstName] in UI when empty. */
+    var userHubFullName: String
+        get() = prefs.getString(KEY_USER_HUB_FULL_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_USER_HUB_FULL_NAME, value.trim()).apply()
+
+    /** [users.username] from backend — shown under avatar when set (signup display name). */
+    var userHubUsername: String
+        get() = prefs.getString(KEY_USER_HUB_USERNAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_USER_HUB_USERNAME, value.trim()).apply()
+
     /** User avatar as `data:image/jpeg;base64,...` from server + local selection (also under profile_picture in cached JSON). */
     var userProfilePictureDataUrl: String
         get() = prefs.getString(KEY_USER_PROFILE_PICTURE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_USER_PROFILE_PICTURE, value).apply()
 
+    /** Standalone local alerts: optional ringtone URI string ([StandaloneLocalAlertSettingsActivity]). Empty = default alarm/notification. */
+    var standaloneLocalAlertSoundUri: String
+        get() = prefs.getString(KEY_STANDALONE_LOCAL_ALERT_SOUND_URI, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_STANDALONE_LOCAL_ALERT_SOUND_URI, value.trim()).apply()
+
+    /** Saved sounds list for [StandaloneAlertSoundPickerActivity]; JSON array of URI strings (deduped). */
+    private var standaloneLocalAlertSoundLibraryJson: String
+        get() = prefs.getString(KEY_STANDALONE_ALERT_SOUND_LIBRARY_JSON, "[]") ?: "[]"
+        set(value) {
+            prefs.edit().putString(KEY_STANDALONE_ALERT_SOUND_LIBRARY_JSON, value).commit()
+        }
+
+    fun getStandaloneAlertSoundLibrary(): List<String> {
+        val raw = standaloneLocalAlertSoundLibraryJson.trim()
+        if (raw.isEmpty()) return emptyList()
+        return try {
+            val a = JSONArray(raw)
+            buildList {
+                for (i in 0 until a.length()) {
+                    val s = a.optString(i).trim()
+                    if (s.isNotEmpty()) add(s)
+                }
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun normalizeStandaloneSoundUriKey(uriStr: String): String {
+        val t = uriStr.trim()
+        if (t.isEmpty() || t.equals("silent", ignoreCase = true)) return t.lowercase()
+        return try {
+            Uri.parse(t).toString()
+        } catch (_: Exception) {
+            t
+        }
+    }
+
+    /** Whether this URI is present in the saved library ([addStandaloneAlertSoundToLibrary]). */
+    fun isStandaloneAlertSoundInLibrary(uriStr: String): Boolean {
+        val key = normalizeStandaloneSoundUriKey(uriStr)
+        if (key.isEmpty() || key == "silent") return false
+        return getStandaloneAlertSoundLibrary().any { normalizeStandaloneSoundUriKey(it) == key }
+    }
+
+    private fun saveStandaloneAlertSoundLibrary(uris: List<String>) {
+        val seen = LinkedHashSet<String>()
+        val distinct = uris.mapNotNull { u ->
+            val k = normalizeStandaloneSoundUriKey(u)
+            if (k.isEmpty() || k == "silent") null
+            else if (seen.add(k)) u.trim() else null
+        }.take(48)
+        val a = JSONArray()
+        distinct.forEach { a.put(it) }
+        standaloneLocalAlertSoundLibraryJson = a.toString()
+    }
+
+    /** @return false if already present (duplicate). */
+    fun addStandaloneAlertSoundToLibrary(uriStr: String): Boolean {
+        val t = uriStr.trim()
+        if (t.isEmpty() || t.equals("silent", ignoreCase = true)) return false
+        val key = normalizeStandaloneSoundUriKey(t)
+        val list = getStandaloneAlertSoundLibrary().toMutableList()
+        if (list.any { normalizeStandaloneSoundUriKey(it) == key }) return false
+        list.add(t)
+        saveStandaloneAlertSoundLibrary(list)
+        return true
+    }
+
+    fun removeStandaloneAlertSoundFromLibrary(uriStr: String) {
+        val key = normalizeStandaloneSoundUriKey(uriStr)
+        val list = getStandaloneAlertSoundLibrary().filter { normalizeStandaloneSoundUriKey(it) != key }
+        saveStandaloneAlertSoundLibrary(list)
+    }
+
+    /** Tones hidden from picker (device-list URIs); does not delete files on disk. */
+    fun getHiddenStandaloneToneKeys(): Set<String> {
+        val raw = prefs.getString(KEY_STANDALONE_HIDDEN_TONE_KEYS_JSON, "[]") ?: "[]"
+        if (raw.isBlank()) return emptySet()
+        return try {
+            val a = JSONArray(raw)
+            buildSet {
+                for (i in 0 until a.length()) {
+                    val s = a.optString(i).trim()
+                    if (s.isNotEmpty()) add(s)
+                }
+            }
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    fun addHiddenStandaloneToneKey(normalizedKey: String) {
+        val k = normalizedKey.trim()
+        if (k.isEmpty() || k.equals("silent", ignoreCase = true)) return
+        val cur = getHiddenStandaloneToneKeys().toMutableSet()
+        if (!cur.add(k)) return
+        val a = JSONArray()
+        cur.take(96).forEach { a.put(it) }
+        prefs.edit().putString(KEY_STANDALONE_HIDDEN_TONE_KEYS_JSON, a.toString()).commit()
+    }
+
+    /** Normalized display title so hidden built-ins stay hidden even if MediaStore URI changes. */
+    fun normalizeStandaloneToneTitleKey(title: String): String =
+        title.trim().lowercase(Locale.US).replace(Regex("\\s+"), " ")
+
+    fun getHiddenStandaloneToneTitles(): Set<String> {
+        val raw = prefs.getString(KEY_STANDALONE_HIDDEN_TONE_TITLES_JSON, "[]") ?: "[]"
+        if (raw.isBlank()) return emptySet()
+        return try {
+            val a = JSONArray(raw)
+            buildSet {
+                for (i in 0 until a.length()) {
+                    val s = normalizeStandaloneToneTitleKey(a.optString(i))
+                    if (s.isNotEmpty()) add(s)
+                }
+            }
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    fun addHiddenStandaloneToneTitle(rawTitle: String) {
+        val t = normalizeStandaloneToneTitleKey(rawTitle)
+        if (t.isEmpty()) return
+        val cur = getHiddenStandaloneToneTitles().toMutableSet()
+        if (!cur.add(t)) return
+        val a = JSONArray()
+        cur.take(96).forEach { key -> a.put(key) }
+        prefs.edit().putString(KEY_STANDALONE_HIDDEN_TONE_TITLES_JSON, a.toString()).commit()
+    }
+
+    /**
+     * v4: clears library + URI + hidden list once. Swipe-left works for every tone row: library = remove;
+     * device-only = hide from this list ([addHiddenStandaloneToneKey]).
+     */
+    fun runOneTimeStandaloneSoundLibraryResetIfNeeded() {
+        if (prefs.getBoolean(KEY_STANDALONE_SOUND_LIB_RESET_V4, false)) return
+        prefs.edit()
+            .putString(KEY_STANDALONE_ALERT_SOUND_LIBRARY_JSON, "[]")
+            .putString(KEY_STANDALONE_LOCAL_ALERT_SOUND_URI, "")
+            .putString(KEY_STANDALONE_HIDDEN_TONE_KEYS_JSON, "[]")
+            .putString(KEY_STANDALONE_HIDDEN_TONE_TITLES_JSON, "[]")
+            .putBoolean(KEY_STANDALONE_SOUND_LIB_RESET_V4, true)
+            .commit()
+    }
+
+    /**
+     * When the app is removed and installed again, [android.content.pm.PackageInfo.firstInstallTime]
+     * changes; clear custom alert sounds so only built‑ins show. Updates keep the same install time,
+     * so the user's library is preserved across normal upgrades (adb install -r still keeps data).
+     */
+    fun applyStandaloneSoundLibraryInstallGuard(context: Context) {
+        val fi = packageFirstInstallTimeMs(context) ?: return
+        val prev = prefs.getLong(KEY_STANDALONE_SOUND_PACKAGE_FIRST_INSTALL_MS, -1L)
+        if (prev == -1L) {
+            prefs.edit().putLong(KEY_STANDALONE_SOUND_PACKAGE_FIRST_INSTALL_MS, fi).apply()
+            return
+        }
+        if (prev != fi) {
+            prefs.edit()
+                .putString(KEY_STANDALONE_ALERT_SOUND_LIBRARY_JSON, "[]")
+                .putString(KEY_STANDALONE_LOCAL_ALERT_SOUND_URI, "")
+                .putString(KEY_STANDALONE_HIDDEN_TONE_KEYS_JSON, "[]")
+                .putString(KEY_STANDALONE_HIDDEN_TONE_TITLES_JSON, "[]")
+                .putLong(KEY_STANDALONE_SOUND_PACKAGE_FIRST_INSTALL_MS, fi)
+                .commit()
+        }
+    }
+
+    private fun packageFirstInstallTimeMs(context: Context): Long? {
+        return try {
+            val pm = context.packageManager
+            val pn = context.packageName
+            val pi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(pn, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION") pm.getPackageInfo(pn, 0)
+            }
+            pi.firstInstallTime
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    var standaloneLocalAlertVibrate: Boolean
+        get() = prefs.getBoolean(KEY_STANDALONE_LOCAL_ALERT_VIBRATE, true)
+        set(value) = prefs.edit().putBoolean(KEY_STANDALONE_LOCAL_ALERT_VIBRATE, value).apply()
+
+    /** Default snooze duration shown in settings (minutes); full snooze UX may expand later. */
+    var standaloneLocalAlertSnoozeMinutes: Int
+        get() = prefs.getInt(KEY_STANDALONE_LOCAL_ALERT_SNOOZE_MIN, 5).coerceIn(1, 120)
+        set(value) {
+            prefs.edit().putInt(KEY_STANDALONE_LOCAL_ALERT_SNOOZE_MIN, value.coerceIn(1, 120)).apply()
+        }
+
     companion object {
         private const val DEFAULT_SERVER_URL = "https://curax-relay.onrender.com"
         private const val DEFAULT_CENTRAL_API_URL = "https://whole-curax-project.vercel.app"
-        private const val DEFAULT_DATA_BUS_URL = "https://databus-production-6eef.up.railway.app"
+        private const val DEFAULT_DATA_BUS_URL = "https://databus.vercel.app"
         private const val KEY_SERVER_URL = "server_url"
         private const val KEY_BOT_ID = "bot_id"
         private const val KEY_API_KEY = "api_key"
@@ -191,6 +424,7 @@ class Prefs(context: Context) {
         private const val KEY_ADMIN_ACCESS_CODE = "admin_access_code"
         private const val KEY_LAST_SYNC_TIME = "last_sync_time"
         private const val KEY_DATA_BUS_URL = "data_bus_url"
+        private const val KEY_DATA_BUS_ABLY_SUBSCRIBE_KEY = "data_bus_ably_subscribe_key"
         private const val KEY_ACT_AS_USER_ID = "act_as_user_id"
         private const val KEY_ACT_AS_USER_NAME = "act_as_user_name"
         private const val KEY_USER_STANDALONE_MODE = "user_standalone_mode"
@@ -200,7 +434,17 @@ class Prefs(context: Context) {
         private const val KEY_USER_STANDALONE_DATA_READY = "user_standalone_data_ready"
         private const val KEY_CACHED_USER_DATA_JSON = "cached_user_data_snapshot_json"
         private const val KEY_USER_HUB_FIRST_NAME = "user_hub_first_name"
+        private const val KEY_USER_HUB_FULL_NAME = "user_hub_full_name"
+        private const val KEY_USER_HUB_USERNAME = "user_hub_username"
         private const val KEY_USER_PROFILE_PICTURE = "user_profile_picture_data_url"
+        private const val KEY_STANDALONE_LOCAL_ALERT_SOUND_URI = "standalone_local_alert_sound_uri"
+        private const val KEY_STANDALONE_ALERT_SOUND_LIBRARY_JSON = "standalone_alert_sound_library_json"
+        private const val KEY_STANDALONE_HIDDEN_TONE_KEYS_JSON = "standalone_alert_hidden_tone_keys_json"
+        private const val KEY_STANDALONE_HIDDEN_TONE_TITLES_JSON = "standalone_alert_hidden_tone_titles_json"
+        private const val KEY_STANDALONE_SOUND_LIB_RESET_V4 = "standalone_sound_lib_reset_v4"
+        private const val KEY_STANDALONE_SOUND_PACKAGE_FIRST_INSTALL_MS = "standalone_sound_pkg_first_install_ms"
+        private const val KEY_STANDALONE_LOCAL_ALERT_VIBRATE = "standalone_local_alert_vibrate"
+        private const val KEY_STANDALONE_LOCAL_ALERT_SNOOZE_MIN = "standalone_local_alert_snooze_min"
         private const val KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS = "has_requested_connect_wake_permissions"
         const val KEY_FCM_TOKEN = "fcm_token"
     }

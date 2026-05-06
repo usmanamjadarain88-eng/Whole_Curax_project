@@ -27,13 +27,8 @@ object HealthHubPlanInsights {
         val today = dayFmt.format(Calendar.getInstance(TimeZone.getDefault()).time)
 
         val adherence = DoseAdherenceCalculator.weeklyAdherencePercent(ctx.applicationContext)
-        val adhBody = buildString {
-            append(ctx.getString(R.string.insight_adherence_body_fmt, adherence))
-            if (adherence < 70) {
-                append("\n")
-                append(ctx.getString(R.string.insight_adherence_soft_fmt))
-            }
-        }
+        // UI shows a single subtitle line per card (ellipsize in layout).
+        val adhBody = ctx.getString(R.string.insight_adherence_body_fmt, adherence)
 
         val overdue = plans.count { !it.isDone && it.planDate.isNotBlank() && it.planDate < today }
         val openToday = plans.count { !it.isDone && it.planDate == today }

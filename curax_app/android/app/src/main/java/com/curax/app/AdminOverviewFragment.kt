@@ -19,12 +19,11 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.Gravity
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.view.ViewTreeObserver
 import android.webkit.WebView
+import androidx.activity.result.contract.ActivityResultContracts
 import android.webkit.WebViewClient
 import android.widget.ArrayAdapter
 import android.widget.EditText
@@ -37,21 +36,18 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipGroup
 import com.curax.app.AdherenceLineChartView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.textfield.MaterialAutoCompleteTextView
-import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
@@ -86,7 +82,6 @@ class AdminOverviewFragment : Fragment() {
     private val allItems = mutableListOf<InventoryItem>()
     private var selectedItemId: Long? = null
     private lateinit var adapter: AdminInventoryAdapter
-    private var standaloneMedicineChipAdapter: StandaloneMedicineChipAdapter? = null
     private var adherenceChart: AdherenceLineChartView? = null
     private var weekOffset: Int = 0 // 0 = current 7 days, 1 = previous 7, etc.
     private var lastDonutTotal: Int = -1
@@ -101,6 +96,16 @@ class AdminOverviewFragment : Fragment() {
     private var activeHealthHubSheet: BottomSheetDialog? = null
     /** Bumped when standalone Health Hub plan count should ignore an in-flight [UserPlansApi.fetchPlans]. */
     private var healthHubPlanFetchSeq: Int = 0
+    /** While the planned-items sheet is open, invoked after a plan is created on the full-screen activity. */
+    private var healthHubPlannedReloadCallback: (() -> Unit)? = null
+
+    private val healthHubCreatePlanLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            healthHubPlannedReloadCallback?.invoke()
+        }
+    }
 
     private val dataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -275,6 +280,10 @@ class AdminOverviewFragment : Fragment() {
                         if (isUserApp()) {
                             val ufn = data.optString("user_first_name", "").trim()
                             if (ufn.isNotEmpty()) Prefs(requireContext()).userHubFirstName = ufn
+                            val ufull = data.optString("user_full_name", "").trim()
+                            if (ufull.isNotEmpty()) Prefs(requireContext()).userHubFullName = ufull
+                            val uuname = data.optString("user_username", "").trim()
+                            if (uuname.isNotEmpty()) Prefs(requireContext()).userHubUsername = uuname
                         }
                         // Use AdminDataBusClient to apply all data (medicines, alerts, medical_reminders, alert_settings)
                         // This ensures medical reminders and settings are also loaded when dashboard is shown
@@ -342,6 +351,10 @@ class AdminOverviewFragment : Fragment() {
                             if (isUserApp()) {
                                 val ufn = data.optString("user_first_name", "").trim()
                                 if (ufn.isNotEmpty()) Prefs(requireContext()).userHubFirstName = ufn
+                                val ufull = data.optString("user_full_name", "").trim()
+                                if (ufull.isNotEmpty()) Prefs(requireContext()).userHubFullName = ufull
+                                val uuname = data.optString("user_username", "").trim()
+                                if (uuname.isNotEmpty()) Prefs(requireContext()).userHubUsername = uuname
                             }
                             AdminDemoData.replaceMedicines(medicinesList)
                             AdminDemoData.replaceApiAlerts(apiAlerts)
@@ -485,35 +498,15 @@ class AdminOverviewFragment : Fragment() {
             }
         }
 
-        view.findViewById<RecyclerView>(R.id.rvStandaloneMedicineChips)?.let { rv ->
-            standaloneMedicineChipAdapter = StandaloneMedicineChipAdapter(
-                computedStatus = { computedStatus(it) },
-                onItemClick = { item ->
-                    selectedItemId = item.id
-                    adapter.setSelectedId(selectedItemId)
-                    if (isUserApp()) showBoxDetailsDialog(item)
-                },
-                onPlaceholderClick = {
-                    CuraxFeedback.warn(
-                        this,
-                        getString(R.string.standalone_medicines_empty_slot_hint),
-                        long = false,
-                    )
-                },
-            )
-            val chipLm = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false).apply {
-                initialPrefetchItemCount = 6
-            }
-            rv.layoutManager = chipLm
-            rv.adapter = standaloneMedicineChipAdapter
-            rv.isNestedScrollingEnabled = false
-            rv.itemAnimator = null
-            rv.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            attachHorizontalScrollHandoff(rv, immediateDisallowOnDown = true)
+        view.findViewById<HorizontalScrollView>(R.id.hsvStandaloneMedicineChips)?.let {
+            it.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = true)
+        }
+        view.findViewById<HorizontalScrollView>(R.id.hsv_health_hub_insights)?.let {
+            it.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = true)
         }
 
-        view.findViewById<HorizontalScrollView>(R.id.hsvStandaloneInventory)?.let { attachHorizontalScrollHandoff(it) }
-        view.findViewById<HorizontalScrollView>(R.id.hsvAdminInventoryTable)?.let { attachHorizontalScrollHandoff(it) }
+        view.findViewById<HorizontalScrollView>(R.id.hsvStandaloneInventory)?.let { it.attachHorizontalScrollNestedHandoff() }
+        view.findViewById<HorizontalScrollView>(R.id.hsvAdminInventoryTable)?.let { it.attachHorizontalScrollNestedHandoff() }
 
         view.findViewById<MaterialButton>(R.id.btnRemoveMedicine)?.setOnClickListener {
             val index = allItems.indexOfFirst { it.id == selectedItemId }
@@ -536,58 +529,6 @@ class AdminOverviewFragment : Fragment() {
             view.findViewById<MaterialButton>(R.id.btnAddMedicine)?.visibility = View.GONE
             view.findViewById<MaterialButton>(R.id.btnEditMedicine)?.visibility = View.GONE
             view.findViewById<MaterialButton>(R.id.btnRemoveMedicine)?.visibility = View.GONE
-        }
-    }
-
-    /**
-     * When the user drags mostly horizontally, ask ancestors not to intercept so nested
-     * [NestedScrollView] / [androidx.viewpager2.widget.ViewPager2] do not steal the gesture from medicine chips or the wide
-     * inventory table.
-     *
-     * @param immediateDisallowOnDown When true (medicine chip row), parent scroll views do not
-     *   capture the gesture first — horizontal scroll works like the inventory header strip.
-     */
-    private fun attachHorizontalScrollHandoff(view: View, immediateDisallowOnDown: Boolean = false) {
-        val start = FloatArray(2)
-        fun disallowAllParents(v: View, disallow: Boolean) {
-            var p: android.view.ViewParent? = v.parent
-            var depth = 0
-            while (p != null && depth < 24) {
-                p.requestDisallowInterceptTouchEvent(disallow)
-                p = p.parent
-                depth++
-            }
-        }
-        view.setOnTouchListener { v, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    start[0] = ev.x
-                    start[1] = ev.y
-                    if (immediateDisallowOnDown) {
-                        disallowAllParents(v, true)
-                    }
-                }
-                MotionEvent.ACTION_POINTER_DOWN -> {
-                    if (immediateDisallowOnDown) {
-                        disallowAllParents(v, true)
-                    }
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (immediateDisallowOnDown) {
-                        disallowAllParents(v, true)
-                    } else {
-                        val dx = kotlin.math.abs(ev.x - start[0])
-                        val dy = kotlin.math.abs(ev.y - start[1])
-                        if (dx > dy + 10f) {
-                            disallowAllParents(v, true)
-                        }
-                    }
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    disallowAllParents(v, false)
-                }
-            }
-            false
         }
     }
 
@@ -1006,29 +947,58 @@ class AdminOverviewFragment : Fragment() {
             view.findViewById<MaterialButton>(R.id.btnAddMedicine)?.visibility = if (avail.isEmpty()) View.GONE else View.VISIBLE
         }
 
-        if (standaloneMedicineChipAdapter != null && StandaloneUi.isUserStandalone(requireContext())) {
-            val chipList = working.toMutableList()
-            var pad = 0
-            while (chipList.size < 3) {
-                chipList.add(
-                    InventoryItem(
-                        id = StandaloneMedicineChipAdapter.PLACEHOLDER_CHIP_MAX_ID - 1 - pad,
-                        name = "",
-                        stock = 0,
-                        dosePerDay = 0,
-                        exactTime = "",
-                        expiry = "",
-                        status = "Normal",
-                        box = "",
-                        addedAt = 0L,
-                    ),
-                )
-                pad++
+        if (view.findViewById<LinearLayout>(R.id.llStandaloneMedicineChips) != null) {
+            val chipList = if (StandaloneUi.isUserStandalone(requireContext())) {
+                val list = working.toMutableList()
+                var pad = 0
+                while (list.size < 3) {
+                    list.add(
+                        InventoryItem(
+                            id = StandaloneMedicineChipAdapter.PLACEHOLDER_CHIP_MAX_ID - 1 - pad,
+                            name = "",
+                            stock = 0,
+                            dosePerDay = 0,
+                            exactTime = "",
+                            expiry = "",
+                            status = "Normal",
+                            box = "",
+                            addedAt = 0L,
+                        ),
+                    )
+                    pad++
+                }
+                list
+            } else {
+                working
             }
-            standaloneMedicineChipAdapter!!.submit(chipList)
-        } else {
-            standaloneMedicineChipAdapter?.submit(working)
+            rebuildStandaloneMedicineChipRow(view, chipList)
         }
+    }
+
+    private fun rebuildStandaloneMedicineChipRow(view: View, items: List<InventoryItem>) {
+        val ll = view.findViewById<LinearLayout>(R.id.llStandaloneMedicineChips) ?: return
+        val inflater = LayoutInflater.from(requireContext())
+        val onPlaceholder: () -> Unit = {
+            CuraxFeedback.warn(
+                this,
+                getString(R.string.standalone_medicines_empty_slot_hint),
+                long = false,
+            )
+        }
+        val computed: (InventoryItem) -> String = { computedStatus(it) }
+        populateStandaloneMedicineChipRow(
+            ll,
+            inflater,
+            items,
+            computed,
+            selectedBoxUpper = null,
+            onItemClick = { sel ->
+                selectedItemId = sel.id
+                adapter.setSelectedId(selectedItemId)
+                if (isUserApp()) showBoxDetailsDialog(sel)
+            },
+            onPlaceholderClick = onPlaceholder,
+        )
     }
 
     private fun availableBoxes(): List<String> {
@@ -1807,40 +1777,6 @@ class AdminOverviewFragment : Fragment() {
         activeHealthHubSheet = null
     }
 
-    /** Slightly shorter Material date/time dialogs (plan sheet) without shrinking to unusable sizes. */
-    private fun applyPlanMaterialPickerWindow(dialog: android.app.Dialog?, heightRatio: Float) {
-        val win = dialog?.window ?: return
-        val dm = resources.displayMetrics
-        val w = (dm.widthPixels * 0.92f).toInt().coerceAtMost(dm.widthPixels)
-        val h = (dm.heightPixels * heightRatio).toInt().coerceIn(320, (dm.heightPixels * 0.76f).toInt())
-        win.setLayout(w, h)
-    }
-
-    private fun planDateYmdToUtcSelectionMillis(ymd: String): Long {
-        return try {
-            val p = ymd.trim().split("-")
-            if (p.size < 3) throw IllegalArgumentException()
-            val c = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
-            c.clear()
-            c.set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt(), 0, 0, 0)
-            c.set(Calendar.MILLISECOND, 0)
-            c.timeInMillis
-        } catch (_: Exception) {
-            MaterialDatePicker.todayInUtcMilliseconds()
-        }
-    }
-
-    private fun utcMillisToPlanDateYmd(ms: Long): String {
-        val c = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = ms }
-        return String.format(
-            Locale.US,
-            "%04d-%02d-%02d",
-            c.get(Calendar.YEAR),
-            c.get(Calendar.MONTH) + 1,
-            c.get(Calendar.DAY_OF_MONTH),
-        )
-    }
-
     private fun healthHubSheetAnchor(): View? = view?.findViewById(R.id.card_standalone_health_hub)
 
     /**
@@ -1855,6 +1791,7 @@ class AdminOverviewFragment : Fragment() {
         val ph = parent.height
         if (ph <= 0) return false
         val density = resources.displayMetrics.density
+
         val gapBelowHubPx = (6 * density).toInt()
         val extraHeightPx = (48 * density).toInt()
 
@@ -1915,32 +1852,40 @@ class AdminOverviewFragment : Fragment() {
             val bottomSheet = sheet.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
                 ?: return@setOnShowListener
 
-            fun tryApply() {
+            fun applyOnceStable() {
                 if (!isAdded || !sheet.isShowing) return
                 val parent = bottomSheet.parent as? View ?: return
-                if (parent.height > 0) {
+                if (parent.height <= 0 || parent.width <= 0) return
+                // One frame after layout so coordinator height is final — avoids triple resize/jerk.
+                ViewCompat.postOnAnimation(bottomSheet) {
+                    if (!isAdded || !sheet.isShowing) return@postOnAnimation
                     applyHealthHubBottomSheetSizing(bottomSheet, anchor)
+                }
+            }
+
+            fun waitForParentLayout() {
+                val parent = bottomSheet.parent as? View ?: return
+                if (parent.height > 0 && parent.width > 0) {
+                    bottomSheet.post { applyOnceStable() }
                     return
                 }
-                val vto = parent.viewTreeObserver
+                val vto = bottomSheet.viewTreeObserver
                 val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
                     override fun onGlobalLayout() {
-                        if (!isAdded || !sheet.isShowing || !parent.isAttachedToWindow) {
+                        val p = bottomSheet.parent as? View ?: return
+                        if (!isAdded || !sheet.isShowing || !bottomSheet.isAttachedToWindow) {
                             if (vto.isAlive) vto.removeOnGlobalLayoutListener(this)
                             return
                         }
-                        if (parent.height <= 0) return
-                        vto.removeOnGlobalLayoutListener(this)
-                        applyHealthHubBottomSheetSizing(bottomSheet, anchor)
+                        if (p.height <= 0 || p.width <= 0) return
+                        if (vto.isAlive) vto.removeOnGlobalLayoutListener(this)
+                        applyOnceStable()
                     }
                 }
                 vto.addOnGlobalLayoutListener(listener)
             }
 
-            bottomSheet.post { tryApply() }
-            // Coordinator height can be wrong on the first frame; re-apply after layout settles.
-            bottomSheet.postDelayed({ tryApply() }, 48)
-            bottomSheet.postDelayed({ tryApply() }, 160)
+            bottomSheet.post { waitForParentLayout() }
         }
     }
 
@@ -2025,6 +1970,7 @@ class AdminOverviewFragment : Fragment() {
     private fun showHealthHubPlannedItemsBottomSheet() {
         val ctx = requireContext()
         dismissActiveHealthHubSheet()
+        healthHubPlannedReloadCallback = null
         val shell = layoutInflater.inflate(R.layout.standalone_health_hub_bottom_sheet, null)
         shell.findViewById<TextView>(R.id.tv_health_hub_sheet_prompt).setText(R.string.health_hub_sheet_planned_prompt)
         shell.findViewById<MaterialButton>(R.id.btn_sheet_primary).visibility = View.GONE
@@ -2036,7 +1982,6 @@ class AdminOverviewFragment : Fragment() {
         layoutInflater.inflate(R.layout.sheet_body_planned_list, flBody, true)
         val rv = flBody.findViewById<RecyclerView>(R.id.rvPlannedList)
         val tvEmpty = flBody.findViewById<TextView>(R.id.tvPlannedListEmpty)
-        val btnStickyCreate = flBody.findViewById<MaterialButton>(R.id.btnCreatePlanSticky)
         rv.layoutManager = LinearLayoutManager(ctx)
 
         val sheet = BottomSheetDialog(ctx)
@@ -2084,7 +2029,7 @@ class AdminOverviewFragment : Fragment() {
             }.start()
         }
 
-        plansAdapter = HealthHubPlansAdapter { row -> toggleHealthHubPlanStatus(row) }
+        plansAdapter = HealthHubPlansAdapter()
         rv.adapter = plansAdapter
 
         ItemTouchHelper(
@@ -2144,150 +2089,11 @@ class AdminOverviewFragment : Fragment() {
             },
         ).attachToRecyclerView(rv)
 
-        fun openCreatePlanFullSheet() {
-            val createShell = layoutInflater.inflate(R.layout.standalone_health_hub_bottom_sheet, null)
-            createShell.findViewById<TextView>(R.id.tv_health_hub_sheet_prompt).setText(R.string.health_hub_sheet_create_plan_prompt)
-            createShell.findViewById<MaterialButton>(R.id.btn_sheet_primary).visibility = View.GONE
-            createShell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_add).visibility = View.GONE
-            createShell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_print).visibility = View.GONE
-            val fl = createShell.findViewById<FrameLayout>(R.id.fl_health_hub_sheet_body)
-            layoutInflater.inflate(R.layout.sheet_body_create_plan, fl, true)
-
-            val actHealth = fl.findViewById<MaterialAutoCompleteTextView>(R.id.actPlanHealthType)
-            val chipGroup = fl.findViewById<ChipGroup>(R.id.chipGroupPlanSuggestions)
-            val etTitle = fl.findViewById<TextInputEditText>(R.id.etCreatePlanTitle)
-            val etNotes = fl.findViewById<TextInputEditText>(R.id.etCreatePlanNotes)
-            val btnDate = fl.findViewById<MaterialButton>(R.id.btnCreatePlanDate)
-            val btnTime = fl.findViewById<MaterialButton>(R.id.btnCreatePlanTime)
-            val actActivity = fl.findViewById<MaterialAutoCompleteTextView>(R.id.actCreatePlanActivity)
-            val btnSave = fl.findViewById<MaterialButton>(R.id.btnCreatePlanSave)
-
-            var selectedHealthSlug = "general"
-            val healthLabels = HealthHubPlanTemplates.labels(ctx)
-            actHealth.setAdapter(ArrayAdapter(ctx, android.R.layout.simple_list_item_1, healthLabels))
-            actHealth.setText(HealthHubPlanTemplates.labelForSlug(ctx, selectedHealthSlug), false)
-
-            fun refillSuggestionChips() {
-                chipGroup.removeAllViews()
-                for ((t, n) in HealthHubPlanTemplates.suggestions(ctx, selectedHealthSlug)) {
-                    val chip = Chip(ctx)
-                    chip.text = t
-                    chip.isCheckable = false
-                    chip.setOnClickListener {
-                        etTitle.setText(t)
-                        etNotes.setText(n)
-                    }
-                    chipGroup.addView(chip)
-                }
-            }
-
-            actHealth.setOnItemClickListener { _, _, position, _ ->
-                selectedHealthSlug = HealthHubPlanTemplates.ORDER.getOrNull(position) ?: "general"
-                refillSuggestionChips()
-            }
-            refillSuggestionChips()
-
-            val cal = Calendar.getInstance()
-            var pickedDate = String.format(
-                Locale.US,
-                "%04d-%02d-%02d",
-                cal.get(Calendar.YEAR),
-                cal.get(Calendar.MONTH) + 1,
-                cal.get(Calendar.DAY_OF_MONTH),
-            )
-            var pickedTime = ""
-            btnDate.text = pickedDate
-            btnTime.text = getString(R.string.plan_pick_time)
-
-            val acts = resources.getStringArray(R.array.plan_activity_types)
-            actActivity.setAdapter(ArrayAdapter(ctx, android.R.layout.simple_list_item_1, acts))
-            actActivity.setText(acts[0], false)
-
-            btnDate.setOnClickListener {
-                val picker = MaterialDatePicker.Builder.datePicker()
-                    .setSelection(planDateYmdToUtcSelectionMillis(pickedDate))
-                    .build()
-                picker.addOnPositiveButtonClickListener { ms ->
-                    pickedDate = utcMillisToPlanDateYmd(ms)
-                    btnDate.text = pickedDate
-                }
-                picker.show(parentFragmentManager, "health_hub_plan_create_date")
-                btnDate.post {
-                    applyPlanMaterialPickerWindow(picker.dialog, 0.68f)
-                    btnDate.post { applyPlanMaterialPickerWindow(picker.dialog, 0.68f) }
-                }
-            }
-            btnTime.setOnClickListener {
-                var hour = cal.get(Calendar.HOUR_OF_DAY)
-                var minute = cal.get(Calendar.MINUTE)
-                if (pickedTime.isNotBlank() && pickedTime.length >= 5) {
-                    val parts = pickedTime.split(":")
-                    hour = parts.getOrNull(0)?.toIntOrNull() ?: hour
-                    minute = parts.getOrNull(1)?.toIntOrNull() ?: minute
-                }
-                val tp = MaterialTimePicker.Builder()
-                    .setTimeFormat(TimeFormat.CLOCK_24H)
-                    .setHour(hour)
-                    .setMinute(minute)
-                    .build()
-                tp.addOnPositiveButtonClickListener {
-                    pickedTime = String.format(Locale.US, "%02d:%02d:00", tp.hour, tp.minute)
-                    btnTime.text = pickedTime.substring(0, 5)
-                }
-                tp.show(parentFragmentManager, "health_hub_plan_create_time")
-                btnTime.post {
-                    applyPlanMaterialPickerWindow(tp.dialog, 0.54f)
-                    btnTime.post { applyPlanMaterialPickerWindow(tp.dialog, 0.54f) }
-                }
-            }
-
-            val createSheet = BottomSheetDialog(ctx)
-            createSheet.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-            createSheet.setContentView(createShell)
-            configureHealthHubSheetLayout(createSheet, healthHubSheetAnchor())
-            createShell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_close).setOnClickListener { createSheet.dismiss() }
-
-            btnSave.setOnClickListener {
-                val title = etTitle.text?.toString()?.trim().orEmpty()
-                if (title.isEmpty()) {
-                    CuraxFeedback.warn(requireActivity(), getString(R.string.plan_field_title))
-                    return@setOnClickListener
-                }
-                val notes = etNotes.text?.toString()?.trim().orEmpty()
-                val act = actActivity.text?.toString()?.trim().orEmpty().ifEmpty { "Other" }
-                val timePart = pickedTime.trim()
-                btnSave.isEnabled = false
-                Thread {
-                    val (ok, err) = UserPlansApi.createPlan(
-                        ctx.applicationContext,
-                        title,
-                        notes,
-                        pickedDate,
-                        timePart,
-                        act,
-                        selectedHealthSlug,
-                    )
-                    activity?.runOnUiThread {
-                        btnSave.isEnabled = true
-                        if (ok) {
-                            CuraxFeedback.success(requireActivity(), getString(R.string.plan_saved))
-                            createSheet.dismiss()
-                            reloadPlansFromNetwork()
-                        } else {
-                            CuraxFeedback.warn(
-                                requireActivity(),
-                                getString(R.string.plan_save_failed) + (err?.let { ": $it" } ?: ""),
-                            )
-                        }
-                    }
-                }.start()
-            }
-
-            createSheet.show()
+        fun openCreatePlanFullScreen() {
+            healthHubCreatePlanLauncher.launch(Intent(ctx, CreateHealthHubPlanActivity::class.java))
         }
 
-        btnAdd.setOnClickListener { openCreatePlanFullSheet() }
-        btnStickyCreate.setOnClickListener { openCreatePlanFullSheet() }
+        btnAdd.setOnClickListener { openCreatePlanFullScreen() }
 
         val sortedLocal = UserPlansLocalStore.readCache(ctx.applicationContext)
             .sortedWith(compareBy({ it.planDate }, { it.planTime }))
@@ -2295,11 +2101,12 @@ class AdminOverviewFragment : Fragment() {
         plansAdapter.submitList(sortedLocal)
 
         shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_close).setOnClickListener { sheet.dismiss() }
-        sheet.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         sheet.setContentView(shell)
         configureHealthHubSheetLayout(sheet, healthHubSheetAnchor())
+        healthHubPlannedReloadCallback = { reloadPlansFromNetwork() }
         sheet.setOnDismissListener {
             if (activeHealthHubSheet === sheet) activeHealthHubSheet = null
+            healthHubPlannedReloadCallback = null
         }
         sheet.show()
         reloadPlansFromNetwork()

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "python",
+  "rewrites": [
+    { "source": "/", "destination": "/api/health" },
+    { "source": "/notify_admin", "destination": "/api/notify_admin" }
+  ]
+}

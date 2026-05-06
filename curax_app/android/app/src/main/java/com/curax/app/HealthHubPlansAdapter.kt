@@ -9,8 +9,11 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 
+/**
+ * Plan rows: marking done is via swipe only ([AdminOverviewFragment] ItemTouchHelper), not row tap.
+ */
 class HealthHubPlansAdapter(
-    private val onRowClick: (UserPlanRow) -> Unit,
+    private val onRowClick: ((UserPlanRow) -> Unit)? = null,
 ) : RecyclerView.Adapter<HealthHubPlansAdapter.VH>() {
 
     private val items = mutableListOf<UserPlanRow>()
@@ -43,7 +46,7 @@ class HealthHubPlansAdapter(
         private val tvNotes: TextView = itemView.findViewById(R.id.tvPlanNotes)
         private val ivDone: ImageView = itemView.findViewById(R.id.ivPlanDone)
 
-        fun bind(row: UserPlanRow, onRowClick: (UserPlanRow) -> Unit) {
+        fun bind(row: UserPlanRow, onRowClick: ((UserPlanRow) -> Unit)?) {
             val ctx = itemView.context
             val done = row.isDone
             tvStatus.setText(if (done) R.string.plan_status_done else R.string.plan_status_pending)
@@ -67,7 +70,12 @@ class HealthHubPlansAdapter(
             } else {
                 tvNotes.visibility = View.GONE
             }
-            itemView.setOnClickListener { onRowClick(row) }
+            if (onRowClick != null) {
+                itemView.setOnClickListener { onRowClick.invoke(row) }
+            } else {
+                itemView.setOnClickListener(null)
+                itemView.isClickable = false
+            }
         }
     }
 }

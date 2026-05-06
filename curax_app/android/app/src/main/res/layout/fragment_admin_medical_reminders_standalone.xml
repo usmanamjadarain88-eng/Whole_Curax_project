@@ -21,7 +21,7 @@
             android:letterSpacing="0.02"
             android:text="Reminders"
             android:textColor="@color/text_primary"
-            android:textSize="24sp"
+            android:textSize="20sp"
             android:textStyle="bold" />
 
         <TextView

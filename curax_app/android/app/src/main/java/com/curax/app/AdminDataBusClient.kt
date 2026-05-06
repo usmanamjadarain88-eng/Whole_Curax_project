@@ -5,6 +5,10 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import io.ably.lib.realtime.AblyRealtime
+import io.ably.lib.realtime.CompletionListener
+import io.ably.lib.types.ClientOptions
+import io.ably.lib.types.ErrorInfo
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -13,11 +17,12 @@ import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * Real-time admin data sync client (Data Bus WebSocket).
- * Server sends { action: "data_sync", payload: {...same as GET /admin/data...} }.
+ * Real-time admin data sync (self-hosted WebSocket or Ably when prefs data bus Ably key is set).
+ * Payload shape: { action: "data_sync", payload: {...same as GET /admin/data...} }.
  */
 object AdminDataBusClient {
     private const val TAG = "AdminDataBusClient"
@@ -28,6 +33,8 @@ object AdminDataBusClient {
     private var appContext: Context? = null
     private var client: OkHttpClient? = null
     private var ws: WebSocket? = null
+    private var ablyRealtime: AblyRealtime? = null
+    private var useAblyTransport = false
     private var running = false
     private var currentAccessCode: String = ""
     private var currentWsUrl: String = ""
@@ -42,9 +49,12 @@ object AdminDataBusClient {
     fun start(context: Context, accessCode: String, rawUrl: String) {
         val code = accessCode.trim()
         if (code.isEmpty()) return
-        val url = toWsUrl(rawUrl)
-        if (url.isEmpty()) return
-        appContext = context.applicationContext
+        val appCtx = context.applicationContext
+        val ablyKey = Prefs(appCtx).dataBusAblySubscribeKey.trim()
+        useAblyTransport = ablyKey.isNotEmpty()
+        val url = if (useAblyTransport) "ably" else toWsUrl(rawUrl)
+        if (!useAblyTransport && url.isEmpty()) return
+        appContext = appCtx
         currentAccessCode = code
         currentWsUrl = url
         running = true
@@ -56,6 +66,11 @@ object AdminDataBusClient {
         running = false
         cancelReconnect()
         try {
+            ablyRealtime?.close()
+        } catch (_: Exception) {}
+        ablyRealtime = null
+        useAblyTransport = false
+        try {
             ws?.close(1000, "stop")
         } catch (_: Exception) {}
         ws = null
@@ -66,8 +81,76 @@ object AdminDataBusClient {
     }
 
     private fun connect() {
-        if (!running || currentAccessCode.isEmpty() || currentWsUrl.isEmpty()) return
+        if (!running || currentAccessCode.isEmpty()) return
+        if (!useAblyTransport && currentWsUrl.isEmpty()) return
         cancelReconnect()
+        if (useAblyTransport) {
+            connectAbly()
+        } else {
+            connectWebSocket()
+        }
+    }
+
+    private fun connectAbly() {
+        val ctx = appContext ?: return
+        val subscribeKey = Prefs(ctx).dataBusAblySubscribeKey.trim()
+        if (subscribeKey.isEmpty()) return
+        try {
+            ablyRealtime?.close()
+        } catch (_: Exception) {}
+        ablyRealtime = null
+        try {
+            val opts = ClientOptions()
+            opts.key = subscribeKey
+            val ably = AblyRealtime(opts)
+            ablyRealtime = ably
+            val channelName = "admin:${currentAccessCode.trim().uppercase(Locale.US)}"
+            val channel = ably.channels.get(channelName, null)
+            channel.subscribe { message ->
+                try {
+                    val raw = message.data ?: return@subscribe
+                    val text = raw as? String ?: return@subscribe
+                    val obj = JSONObject(text)
+                    val action = obj.optString("action", "")
+                    if (action != "data_sync") return@subscribe
+                    val app = appContext ?: return@subscribe
+                    val prefs = Prefs(app)
+                    if (prefs.actAsUserId.isNotEmpty()) {
+                        fetchAdminSnapshotAsync(app, null)
+                        return@subscribe
+                    }
+                    val payload = obj.optJSONObject("payload") ?: return@subscribe
+                    mainHandler.post {
+                        applyAdminDataJson(app, payload)
+                        app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse Ably data bus message", e)
+                }
+            }
+            channel.attach(object : CompletionListener {
+                override fun onSuccess() {
+                    reconnectDelayMs = 3000L
+                    Log.d(TAG, "Connected to data bus (Ably)")
+                    mainHandler.post {
+                        val c = appContext ?: return@post
+                        fetchAdminSnapshotAsync(c, null)
+                    }
+                }
+
+                override fun onError(reason: ErrorInfo?) {
+                    Log.w(TAG, "Ably channel attach failed: ${reason?.message}")
+                    scheduleReconnect()
+                }
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "Ably connect failed: ${e.message}")
+            scheduleReconnect()
+        }
+    }
+
+    private fun connectWebSocket() {
+        if (!running || currentAccessCode.isEmpty() || currentWsUrl.isEmpty()) return
         try {
             ws?.close(1000, "reconnect")
         } catch (_: Exception) {}
@@ -99,19 +182,17 @@ object AdminDataBusClient {
                     val obj = JSONObject(text)
                     val action = obj.optString("action", "")
                     if (action == "data_sync") {
-                        val ctx = appContext ?: return
-                        val prefs = Prefs(ctx)
-                        // Data bus always fetches GET /admin/data without act_as_user_id (see databus server).
-                        // If admin is managing a linked user, applying that payload would show admin's medicines, not the user's.
+                        val actx = appContext ?: return
+                        val prefs = Prefs(actx)
                         if (prefs.actAsUserId.isNotEmpty()) {
-                            fetchAdminSnapshotAsync(ctx, null)
+                            fetchAdminSnapshotAsync(actx, null)
                             return
                         }
                         val payload = obj.optJSONObject("payload")
                         if (payload != null) {
                             mainHandler.post {
-                                applyAdminDataJson(ctx, payload)
-                                ctx.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                                applyAdminDataJson(actx, payload)
+                                actx.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
                             }
                         }
                     }

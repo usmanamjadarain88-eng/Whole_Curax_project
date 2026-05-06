@@ -18,6 +18,7 @@ import java.util.TimeZone
  * Schedules standalone-only device alarms from cached [AdminDemoData], [UserPlansLocalStore], and
  * medical reminders (per-row Reminders tab options: 24h/2h or 7d/3d/1d + Send alert).
  * Medicines use System View [AdminDemoData.getAlertSettings] medicine + missed toggles.
+ * Health Hub plans use optional 30 / 15 min before + exact ([plan_alerts] in Settings → System).
  * Primary on-device scheduler for medicine times, plans, medical reminders, and stock/expiry scans
  * for standalone users. Does not use FCM or the data bus — routine reminders are not duplicated via cloud push.
  */
@@ -110,6 +111,7 @@ object LocalAlertsController {
         val esc = sectionMap(settings, "missed_dose_escalation")
         val sa = sectionMap(settings, "stock_alerts")
         val ea = sectionMap(settings, "expiry_alerts")
+        val pa = sectionMap(settings, "plan_alerts")
 
         val med30 = boolOrDefault(ma["30_min_before"], true)
         val med15 = boolOrDefault(ma["15_min_before"], true)
@@ -118,6 +120,10 @@ object LocalAlertsController {
         val missed15 = boolOrDefault(esc["15_min_urgent"], true)
         val missed30 = boolOrDefault(esc["30_min_family"], true)
         val missed1h = boolOrDefault(esc["1_hour_log"], true)
+
+        val plan30 = boolOrDefault(pa["30_min_before"], true)
+        val plan15 = boolOrDefault(pa["15_min_before"], true)
+        val planExact = boolOrDefault(pa["exact_time"], true)
 
         fun scheduleIfOk(
             alarmId: String,
@@ -256,39 +262,58 @@ object LocalAlertsController {
             }
         }
 
-        // Plans: only when time is set — 5 minutes before + exact (no alarms for date-only / all-day).
+        // Plans: only when time is set — optional 30 / 15 min before + exact (System · Health Hub plans toggles).
         for (p in UserPlansLocalStore.readCache(app)) {
             if (p.isDone) continue
             if (p.planTime.trim().isEmpty()) continue
             val exact = planExactMillis(p) ?: continue
             val stableId = p.id.trim().ifEmpty { "${p.title}_${p.planDate}".hashCode().toString() }
                 .replace(Regex("[^a-zA-Z0-9_.-]"), "_").take(48)
-            scheduleIfOk(
-                "plan_${stableId}_pre5",
-                exact - 5L * 60_000L,
-                JSONObject().apply {
-                    put("type", "plan")
-                    put("title", app.getString(R.string.local_alert_plan_title))
-                    put(
-                        "message",
-                        "${p.title} · ${p.planDate.take(10)} · ${app.getString(R.string.local_alert_plan_in_5_min)}",
-                    )
-                },
-                horizonLongMs,
-            )
-            scheduleIfOk(
-                "plan_${stableId}_exact",
-                exact,
-                JSONObject().apply {
-                    put("type", "plan")
-                    put("title", app.getString(R.string.local_alert_plan_title))
-                    put(
-                        "message",
-                        "${p.title} · ${p.planDate.take(10)} · ${p.planTime.trim().take(5)}",
-                    )
-                },
-                horizonLongMs,
-            )
+            if (plan30) {
+                scheduleIfOk(
+                    "plan_${stableId}_pre30",
+                    exact - 30L * 60_000L,
+                    JSONObject().apply {
+                        put("type", "plan")
+                        put("title", app.getString(R.string.local_alert_plan_title))
+                        put(
+                            "message",
+                            "${p.title} · ${p.planDate.take(10)} · ${app.getString(R.string.local_alert_plan_in_30_min)}",
+                        )
+                    },
+                    horizonLongMs,
+                )
+            }
+            if (plan15) {
+                scheduleIfOk(
+                    "plan_${stableId}_pre15",
+                    exact - 15L * 60_000L,
+                    JSONObject().apply {
+                        put("type", "plan")
+                        put("title", app.getString(R.string.local_alert_plan_title))
+                        put(
+                            "message",
+                            "${p.title} · ${p.planDate.take(10)} · ${app.getString(R.string.local_alert_plan_in_15_min)}",
+                        )
+                    },
+                    horizonLongMs,
+                )
+            }
+            if (planExact) {
+                scheduleIfOk(
+                    "plan_${stableId}_exact",
+                    exact,
+                    JSONObject().apply {
+                        put("type", "plan")
+                        put("title", app.getString(R.string.local_alert_plan_title))
+                        put(
+                            "message",
+                            "${p.title} · ${p.planDate.take(10)} · ${p.planTime.trim().take(5)}",
+                        )
+                    },
+                    horizonLongMs,
+                )
+            }
         }
 
         // Medical reminders: offsets from Reminders tab form ([AdminMedicalRemindersFragment] `reminders` map).

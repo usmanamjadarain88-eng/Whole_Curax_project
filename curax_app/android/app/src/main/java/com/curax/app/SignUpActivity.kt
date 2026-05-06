@@ -51,6 +51,7 @@ class SignUpActivity : AppCompatActivity() {
     private lateinit var tvResendCountdown: TextView
     private lateinit var tvResend: TextView
     private lateinit var btnVerifyOtp: AppCompatButton
+    private var authBottomSvg: WebView? = null
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -114,6 +115,7 @@ class SignUpActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_signup)
+        authBottomSvg = findViewById(R.id.authBottomSvg)
         setupAuthBottomSvg()
         onBackPressedDispatcher.addCallback(this, backCallback)
 
@@ -194,6 +196,8 @@ class SignUpActivity : AppCompatActivity() {
 
     private fun setupAuthBottomSvg() {
         val wv = findViewById<WebView>(R.id.authBottomSvg) ?: return
+        wv.isNestedScrollingEnabled = false
+        wv.overScrollMode = View.OVER_SCROLL_NEVER
         wv.setBackgroundColor(Color.TRANSPARENT)
         wv.isClickable = false
         wv.isFocusable = false
@@ -293,6 +297,7 @@ class SignUpActivity : AppCompatActivity() {
         group1.visibility = if (s == Step.ONE) View.VISIBLE else View.GONE
         group2.visibility = if (s == Step.TWO) View.VISIBLE else View.GONE
         tvSignUpAdmin.visibility = if (s == Step.ONE) View.VISIBLE else View.GONE
+        authBottomSvg?.visibility = if (s == Step.TWO) View.GONE else View.VISIBLE
         when (s) {
             Step.ONE -> {
                 tvTitleLine1.text = getString(R.string.sign_up_screen_title)

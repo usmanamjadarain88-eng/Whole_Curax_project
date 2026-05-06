@@ -25,16 +25,4 @@
         android:clipToPadding="false"
         android:paddingBottom="8dp"
         android:paddingHorizontal="12dp" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnCreatePlanSticky"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="14dp"
-        android:layout_marginBottom="12dp"
-        android:layout_marginTop="4dp"
-        android:minHeight="48dp"
-        android:text="@string/create_plan"
-        android:textAllCaps="false"
-        app:cornerRadius="12dp" />
 </LinearLayout>

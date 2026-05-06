@@ -5,6 +5,10 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import io.ably.lib.realtime.AblyRealtime
+import io.ably.lib.realtime.CompletionListener
+import io.ably.lib.types.ClientOptions
+import io.ably.lib.types.ErrorInfo
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -16,8 +20,7 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * Real-time user data sync (Data Bus WebSocket).
- * Register with the admin's **admin_access_code** (same room as desktop notify_admin), not connection_code.
+ * Real-time user data sync (self-hosted WebSocket or Ably when prefs Ably subscribe key is set).
  * On data_sync (backend called notify_admin), fetches GET /user/data once — no timers, no polling.
  */
 object UserDataBusClient {
@@ -26,6 +29,9 @@ object UserDataBusClient {
     private var appContext: Context? = null
     private var client: OkHttpClient? = null
     private var ws: WebSocket? = null
+    private var ablyRealtime: AblyRealtime? = null
+    private var useAblyTransport = false
+    private var currentAblyKey: String = ""
     private var running = false
     private var currentAccessCode: String = ""
     private var currentWsUrl: String = ""
@@ -43,7 +49,7 @@ object UserDataBusClient {
         .build()
     private var reconnectDelayMs = 3000L
     private var reconnectRunnable: Runnable? = null
-    /** True between WebSocket onOpen and onClosed/onFailure. */
+    /** True when transport is up (WebSocket onOpen or Ably channel attached). */
     private var socketConnected = false
 
     private val apiFallbackRunnable = Runnable {
@@ -83,14 +89,17 @@ object UserDataBusClient {
     }
 
     /**
-     * Start or refresh the data-bus WebSocket (admin_access_code room).
+     * Start or refresh the data-bus connection (admin_access_code room).
      * If already connected with the same credentials, no-op (avoids dropping the socket on every resume).
      */
     fun start(context: Context, accessCode: String, rawUrl: String, apiBase: String, botId: String, apiKey: String) {
         val code = accessCode.trim()
         if (code.isEmpty()) return
-        val wsUrl = toWsUrl(rawUrl)
-        if (wsUrl.isEmpty()) return
+        val appCtx = context.applicationContext
+        val ablyKey = Prefs(appCtx).dataBusAblySubscribeKey.trim()
+        val useAbly = ablyKey.isNotEmpty()
+        val wsUrl = if (useAbly) "ably" else toWsUrl(rawUrl)
+        if (!useAbly && wsUrl.isEmpty()) return
         val base = apiBase.trim().removeSuffix("/")
         if (base.isEmpty()) return
         if (botId.isBlank() || apiKey.isBlank()) return
@@ -100,12 +109,14 @@ object UserDataBusClient {
         synchronized(this) {
             if (running &&
                 socketConnected &&
-                ws != null &&
                 currentAccessCode == code &&
-                currentWsUrl == wsUrl &&
                 currentApiBase == base &&
                 currentBotId == bid &&
-                currentApiKey == key
+                currentApiKey == key &&
+                useAblyTransport == useAbly &&
+                currentWsUrl == wsUrl &&
+                currentAblyKey == ablyKey &&
+                (ws != null || ablyRealtime != null)
             ) {
                 Log.d(TAG, "Data bus already connected; skip restart")
                 mainHandler.post {
@@ -115,12 +126,14 @@ object UserDataBusClient {
             }
         }
 
-        appContext = context.applicationContext
+        appContext = appCtx
         currentAccessCode = code
         currentWsUrl = wsUrl
         currentApiBase = base
         currentBotId = bid
         currentApiKey = key
+        useAblyTransport = useAbly
+        currentAblyKey = if (useAbly) ablyKey else ""
         running = true
         reconnectDelayMs = 3000L
         connect()
@@ -131,18 +144,103 @@ object UserDataBusClient {
         running = false
         socketConnected = false
         cancelReconnect()
-        try { ws?.close(1000, "stop") } catch (_: Exception) {}
+        try {
+            ablyRealtime?.close()
+        } catch (_: Exception) {}
+        ablyRealtime = null
+        useAblyTransport = false
+        currentAblyKey = ""
+        try {
+            ws?.close(1000, "stop")
+        } catch (_: Exception) {}
         ws = null
-        try { client?.dispatcher?.executorService?.shutdown() } catch (_: Exception) {}
+        try {
+            client?.dispatcher?.executorService?.shutdown()
+        } catch (_: Exception) {}
         client = null
         fetchInFlight = false
     }
 
     private fun connect() {
+        if (!running || currentAccessCode.isEmpty()) return
+        if (!useAblyTransport && currentWsUrl.isEmpty()) return
+        if (useAblyTransport) {
+            connectAbly()
+        } else {
+            connectWebSocket()
+        }
+    }
+
+    private fun connectAbly() {
+        val ctx = appContext ?: return
+        val subscribeKey = Prefs(ctx).dataBusAblySubscribeKey.trim()
+        if (subscribeKey.isEmpty()) return
+        cancelReconnect()
+        synchronized(this) { socketConnected = false }
+        try {
+            ablyRealtime?.close()
+        } catch (_: Exception) {}
+        ablyRealtime = null
+        try {
+            val opts = ClientOptions()
+            opts.key = subscribeKey
+            val ably = AblyRealtime(opts)
+            ablyRealtime = ably
+            val channelName = "admin:${currentAccessCode.trim().uppercase()}"
+            val channel = ably.channels.get(channelName, null)
+            channel.subscribe { message ->
+                try {
+                    val raw = message.data ?: return@subscribe
+                    val text = raw as? String ?: return@subscribe
+                    val obj = JSONObject(text)
+                    if (obj.optString("action", "") == "data_sync") {
+                        triggerFetch()
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse Ably data bus message", e)
+                }
+            }
+            channel.attach(object : CompletionListener {
+                override fun onSuccess() {
+                    mainHandler.removeCallbacks(apiFallbackRunnable)
+                    reconnectDelayMs = 3000L
+                    synchronized(this@UserDataBusClient) { socketConnected = true }
+                    Log.d(TAG, "Connected to data bus (Ably user_app room=$currentAccessCode)")
+                    val actx = appContext
+                    if (actx != null && !Prefs(actx).userStandaloneDataReady) {
+                        triggerFetch()
+                    }
+                    mainHandler.post {
+                        actx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                    }
+                }
+
+                override fun onError(reason: ErrorInfo?) {
+                    Log.w(TAG, "Ably channel attach failed: ${reason?.message}")
+                    synchronized(this@UserDataBusClient) { socketConnected = false }
+                    scheduleReconnect()
+                    mainHandler.post {
+                        appContext?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "Ably connect failed: ${e.message}")
+            scheduleReconnect()
+        }
+        val ctxNotify = appContext
+        mainHandler.post {
+            ctxNotify?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+        }
+    }
+
+    private fun connectWebSocket() {
         if (!running || currentAccessCode.isEmpty() || currentWsUrl.isEmpty()) return
         cancelReconnect()
         synchronized(this) { socketConnected = false }
-        try { ws?.close(1000, "reconnect") } catch (_: Exception) {}
+        try {
+            ws?.close(1000, "reconnect")
+        } catch (_: Exception) {}
         ws = null
 
         if (client == null) {
@@ -166,13 +264,12 @@ object UserDataBusClient {
                 }
                 webSocket.send(register.toString())
                 Log.d(TAG, "Connected to data bus (user_app room=$currentAccessCode, ws=$currentWsUrl)")
-                val ctx = appContext
-                if (ctx != null && !Prefs(ctx).userStandaloneDataReady) {
-                    // First open for a fresh install: pull one snapshot so cache can be seeded.
+                val actx = appContext
+                if (actx != null && !Prefs(actx).userStandaloneDataReady) {
                     triggerFetch()
                 }
                 mainHandler.post {
-                    ctx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                    actx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
                 }
             }
 
@@ -192,9 +289,9 @@ object UserDataBusClient {
                 synchronized(this@UserDataBusClient) { socketConnected = false }
                 ws = null
                 scheduleReconnect()
-                val ctx = appContext
+                val actx = appContext
                 mainHandler.post {
-                    ctx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                    actx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
                 }
             }
 
@@ -203,9 +300,9 @@ object UserDataBusClient {
                 ws = null
                 Log.w(TAG, "Data bus WS failure: ${t.message}")
                 scheduleReconnect()
-                val ctx = appContext
+                val actx = appContext
                 mainHandler.post {
-                    ctx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
+                    actx?.sendBroadcast(Intent(AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE))
                 }
             }
         })
@@ -292,7 +389,6 @@ object UserDataBusClient {
         }
         synchronized(this) {
             if (fetchInFlight) {
-                // Socket is already fetching; it will apply data, so skip bootstrap to avoid race.
                 return
             }
             fetchInFlight = true
@@ -349,6 +445,12 @@ object UserDataBusClient {
 
         val ufn = data.optString("user_first_name", "").trim()
         if (ufn.isNotEmpty()) prefs.userHubFirstName = ufn
+
+        val ufull = data.optString("user_full_name", "").trim()
+        if (ufull.isNotEmpty()) prefs.userHubFullName = ufull
+
+        val uuname = data.optString("user_username", "").trim()
+        if (uuname.isNotEmpty()) prefs.userHubUsername = uuname
 
         val pic = data.optString("profile_picture", "").trim()
         prefs.userProfilePictureDataUrl = pic
@@ -418,9 +520,9 @@ object UserDataBusClient {
         return u
     }
 
-    /** True when the data-bus WebSocket session is up (see [start]). */
+    /** True when the data-bus session is up (WebSocket or Ably channel). */
     fun isSocketConnected(): Boolean = synchronized(this) {
-        running && socketConnected && ws != null
+        running && socketConnected && (ws != null || ablyRealtime != null)
     }
 
     /** True after [start] until [stop] (socket may still be handshaking or reconnecting). */
