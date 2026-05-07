@@ -337,7 +337,8 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
 
         updateConnectionUi(false)
-        showLoading(!restored)
+        // No cloud snapshot yet while waiting for admin approval — avoid blocking overlay + bogus /user/data logout.
+        showLoading(!restored && !prefs.awaitingAdminLinkApproval)
 
         pendingSyncSwipeTray = PendingSyncSwipeTray(this)
         StandaloneUserMutationSink.swipeCardPresenter = { title, subtitle ->
@@ -358,6 +359,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         super.onResume()
         refreshUserShellChrome()
         refreshUserSidebar()
+        AwaitingAdminLinkCoordinator.pollIfNeeded(this)
         if (StandaloneUi.isUserStandalone(this)) {
             LocalAlertsController.reschedule(this)
             DoseAutoMissedMarker.run(this)
@@ -1120,7 +1122,17 @@ class UserStandaloneActivity : AppCompatActivity() {
         val databusOk = UserDataBusClient.isSocketConnected()
         val snapshotOk = prefs.userStandaloneDataReady
 
-        if (!adminLinked) {
+        val awaitingAdmin = prefs.awaitingAdminLinkApproval
+        val pendingAdminLabel = prefs.awaitingAdminChosenDisplayName.trim()
+
+        if (awaitingAdmin) {
+            val pendingMsg = if (pendingAdminLabel.isNotEmpty()) {
+                getString(R.string.user_sidebar_admin_request_pending_named, pendingAdminLabel)
+            } else {
+                getString(R.string.user_sidebar_admin_request_pending_generic)
+            }
+            setSidebarLine(tvUserSidebarAdminStatus, 1, pendingMsg)
+        } else if (!adminLinked) {
             setSidebarLine(tvUserSidebarAdminStatus, 2, getString(R.string.user_sidebar_admin_not_linked))
         } else {
             val label = if (adminName.isNotEmpty()) {
@@ -1136,6 +1148,11 @@ class UserStandaloneActivity : AppCompatActivity() {
                 tvUserSidebarHealthStatus,
                 2,
                 getString(R.string.user_sidebar_health_config),
+            )
+            awaitingAdmin -> setSidebarLine(
+                tvUserSidebarHealthStatus,
+                1,
+                getString(R.string.user_sidebar_health_local_until_admin),
             )
             !adminLinked -> setSidebarLine(
                 tvUserSidebarHealthStatus,
@@ -1205,14 +1222,19 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
 
         val displayAdmin = if (adminName.isNotEmpty()) adminName else getString(R.string.user_sidebar_admin_connected_generic)
-        tvUserSidebarAdminDetail.text = if (adminLinked) {
-            getString(R.string.user_sidebar_detail_admin_linked, displayAdmin)
-        } else {
-            getString(R.string.user_sidebar_detail_admin_not_linked)
+        tvUserSidebarAdminDetail.text = when {
+            adminLinked -> getString(R.string.user_sidebar_detail_admin_linked, displayAdmin)
+            awaitingAdmin -> if (pendingAdminLabel.isNotEmpty()) {
+                getString(R.string.user_sidebar_detail_admin_pending_named, pendingAdminLabel)
+            } else {
+                getString(R.string.user_sidebar_detail_admin_pending_generic)
+            }
+            else -> getString(R.string.user_sidebar_detail_admin_not_linked)
         }
 
         val healthDetailRes = when {
             !configOk -> R.string.user_sidebar_detail_health_config
+            awaitingAdmin -> R.string.user_sidebar_detail_health_until_admin_detail
             !adminLinked -> R.string.user_sidebar_detail_health_no_admin
             databusOk && relayOk -> R.string.user_sidebar_detail_health_ok
             databusOk || relayOk -> R.string.user_sidebar_detail_health_partial
@@ -1234,9 +1256,20 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    internal fun applyAdminLinkAcceptedUiRefresh() {
+        runOnUiThread {
+            refreshUserShellChrome()
+            refreshUserSidebar()
+        }
+    }
+
     private fun bootstrapStandaloneDataOnce() {
         if (bootstrapFetchRequested) return
         bootstrapFetchRequested = true
+        if (prefs.awaitingAdminLinkApproval) {
+            showLoading(false)
+            return
+        }
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")

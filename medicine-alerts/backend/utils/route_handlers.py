@@ -204,6 +204,11 @@ def signup_sign_in(body, query, headers):
             "connection_code",
         ):
             out[k] = r.get(k) or ""
+    if phase == "pending_admin":
+        for k in ("bot_id", "api_key", "pending_admin_name"):
+            v = r.get(k)
+            if v:
+                out[k] = v
     return (200, out)
 
 

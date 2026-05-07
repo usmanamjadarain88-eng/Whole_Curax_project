@@ -17,6 +17,8 @@ object UserLogoutHelper {
         LocalUserStore(app).clearUser()
         val prefs = Prefs(app)
         prefs.clearSignupWipLink()
+        prefs.awaitingAdminLinkApproval = false
+        prefs.awaitingAdminChosenDisplayName = ""
         prefs.id = ""
         prefs.apiKey = ""
         prefs.fcmToken = ""

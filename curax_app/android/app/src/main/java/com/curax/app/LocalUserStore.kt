@@ -33,6 +33,14 @@ class LocalUserStore(context: Context) {
         this.role = if (role == ROLE_ADMIN) ROLE_ADMIN else ROLE_USER
     }
 
+    /** Same as [saveUser] but [commit] so launcher/home never reads an empty session right after link. */
+    fun saveUserCommitted(email: String, password: String, role: String): Boolean =
+        prefs.edit()
+            .putString(KEY_EMAIL, email.trim())
+            .putString(KEY_PASSWORD, password)
+            .putString(KEY_ROLE, if (role == ROLE_ADMIN) ROLE_ADMIN else ROLE_USER)
+            .commit()
+
     fun savePin(pin: String) {
         pinCode = pin
         pinEnabled = pin.isNotBlank()

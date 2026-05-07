@@ -71,11 +71,17 @@ object UserDataBusClient {
     private fun handleTerminalAuthFailure(ctx: Context?, bodyStr: String, explicitReject: ((String) -> Unit)?) {
         val msg = parseUserDataErrorMessage(bodyStr)
         mainHandler.post {
+            val app = ctx?.applicationContext
+            // User exists but /user/data is not available until admin accepts the link; do not wipe session.
+            if (explicitReject == null && app != null && Prefs(app).awaitingAdminLinkApproval) {
+                Log.d(TAG, "Ignoring user/data auth failure while awaiting admin link")
+                return@post
+            }
             if (explicitReject != null) {
                 explicitReject.invoke(msg)
                 return@post
             }
-            val app = ctx?.applicationContext ?: return@post
+            if (app == null) return@post
             synchronized(terminalAuthLock) {
                 val p = Prefs(app)
                 if (p.id.isEmpty() && p.apiKey.isEmpty()) return@post
@@ -579,7 +585,9 @@ object UserDataBusClient {
      * (same snapshot path as bootstrap). Cancelled when the socket opens.
      */
     fun scheduleApiFallbackIfDataBusOffline(context: Context, delayMs: Long = 5000L) {
-        appContext = context.applicationContext
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        if (Prefs(appCtx).awaitingAdminLinkApproval) return
         mainHandler.removeCallbacks(apiFallbackRunnable)
         mainHandler.postDelayed(apiFallbackRunnable, delayMs)
     }

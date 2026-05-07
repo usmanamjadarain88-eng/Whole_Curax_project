@@ -8,11 +8,13 @@
     android:fitsSystemWindows="true">
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollSignUpLinkAdmin"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
         android:fillViewport="true"
         android:overScrollMode="never"
+        android:paddingBottom="8dp"
         android:scrollbars="vertical">
 
         <LinearLayout
@@ -113,20 +115,39 @@
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <TextView
-                    android:id="@+id/tvChooseAdmin"
+                <LinearLayout
+                    android:id="@+id/rowChooseAdmin"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:background="?attr/selectableItemBackground"
-                    android:clickable="true"
-                    android:focusable="true"
                     android:gravity="center"
-                    android:paddingVertical="10dp"
-                    android:text="@string/signup_choose_admin_link"
-                    android:textColor="@color/auth_reset_green"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvChooseAdminPrefix"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="@string/signup_choose_admin_prefix"
+                        android:textColor="@color/auth_subtitle"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvChooseAdminLink"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:includeFontPadding="false"
+                        android:paddingVertical="10dp"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="10dp"
+                        android:text="@string/signup_choose_admin_action"
+                        android:textColor="@color/auth_reset_green"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/tvPendingStatus"
@@ -137,8 +158,7 @@
                     android:textColor="@color/auth_subtitle"
                     android:textSize="14sp"
                     android:visibility="gone"
-                    tools:text="Waiting for Dr. Smith to accept your request…"
-                    tools:visibility="visible" />
+                    tools:visibility="gone" />
 
                 <Space
                     android:layout_width="match_parent"

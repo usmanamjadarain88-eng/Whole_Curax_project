@@ -3021,7 +3021,11 @@ class CentralDB:
             if st == "PENDING_EMAIL":
                 return {"ok": True, "account_phase": "pending_email"}
             if st == "PENDING_ADMIN":
-                return {"ok": True, "account_phase": "pending_admin"}
+                out = {"ok": True, "account_phase": "pending_admin"}
+                creds = self._signup_pending_directory_link_credentials(email_n)
+                if creds:
+                    out.update(creds)
+                return out
             return {"ok": False, "error": "invalid_state", "account_status": st}
 
         cur2 = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
@@ -3442,6 +3446,44 @@ class CentralDB:
             return None
         except Exception as e:
             print(f"CentralDB get_admin_for_user_directory_link: {e}")
+            return None
+        finally:
+            cur.close()
+
+    def _signup_pending_directory_link_credentials(self, email_n):
+        """If a directory link request is queued, return bot_id/api_key/admin label for sign-in resume."""
+        self._ensure_user_admin_link_requests_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT r.user_bot_id AS bot_id, r.user_api_key AS api_key,
+                       COALESCE(NULLIF(TRIM(a.name), ''), '') AS pending_admin_name
+                FROM user_admin_link_requests r
+                LEFT JOIN admins a ON a.id = r.admin_id
+                WHERE r.email_normalized = %s AND r.status = 'pending'
+                ORDER BY r.created_at DESC NULLS LAST
+                LIMIT 1
+                """,
+                (email_n,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            if hasattr(row, "get"):
+                bid = (row.get("bot_id") or "").strip()
+                key = (row.get("api_key") or "").strip()
+                aname = (row.get("pending_admin_name") or "").strip()
+            else:
+                bid = (row[0] or "").strip()
+                key = (row[1] or "").strip()
+                aname = (row[2] or "").strip() if len(row) > 2 else ""
+            if not bid or not key:
+                return None
+            return {"bot_id": bid, "api_key": key, "pending_admin_name": aname}
+        except Exception as e:
+            print(f"CentralDB _signup_pending_directory_link_credentials: {e}")
             return None
         finally:
             cur.close()

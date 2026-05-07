@@ -61,6 +61,12 @@
     <string name="user_sidebar_admin_connected">Connected (%1$s)</string>
     <string name="user_sidebar_admin_connected_generic">Connected</string>
     <string name="user_sidebar_admin_not_linked">Not linked to an admin</string>
+    <string name="user_sidebar_admin_request_pending_named">Request sent — %1$s will connect you when they approve</string>
+    <string name="user_sidebar_admin_request_pending_generic">Request sent — waiting for your admin to approve</string>
+    <string name="user_sidebar_health_local_until_admin">Using the app locally until your admin connects you</string>
+    <string name="user_sidebar_detail_admin_pending_named">Request sent to %1$s — pending approval</string>
+    <string name="user_sidebar_detail_admin_pending_generic">Admin request pending approval</string>
+    <string name="user_sidebar_detail_health_until_admin_detail">Local mode active; cloud features unlock when your admin approves</string>
     <string name="user_sidebar_health_ok">All systems normal</string>
     <string name="user_sidebar_health_partial">Partial connectivity</string>
     <string name="user_sidebar_health_issues">Issues detected</string>
@@ -427,9 +433,12 @@
     <string name="verify">Verify</string>
     <string name="signup_admin_step_subtitle">Enter the connection code your admin shared with you.</string>
     <string name="signup_link_admin_email_line">Using account: %1$s</string>
-    <string name="signup_choose_admin_link">Don\'t have a code? Choose your admin</string>
+    <string name="signup_choose_admin_prefix">Don\'t have a code? </string>
+    <string name="signup_choose_admin_action">Choose your admin</string>
     <string name="signup_choose_admin_dialog_title">Choose an admin</string>
     <string name="signup_waiting_admin_acceptance">Waiting for %1$s to accept your request…</string>
+    <string name="signup_admin_request_sent_message">Your request was sent. You can use the full app while your admin reviews it.</string>
+    <string name="signup_admin_request_sent_dialog_title">Request sent</string>
     <string name="signup_waiting_short">Waiting…</string>
     <string name="signup_no_admins_available">No admins are available right now. Ask your admin for a connection code.</string>
     <string name="signup_load_admins_failed">Could not load the admin list. Try again.</string>

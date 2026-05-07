@@ -454,6 +454,43 @@ class Prefs(context: Context) {
         return e.isNotEmpty() && p.isNotEmpty() && b.isNotEmpty() && k.isNotEmpty()
     }
 
+    /**
+     * Single synchronous [commit] before opening home after a directory admin link request (or sign-in resume).
+     * Async [.apply] on many pref fields previously raced: the next activity could miss [awaitingAdminLinkApproval]
+     * and treat GET /user/data 404 as logout.
+     */
+    fun commitAwaitingAdminHomeSession(
+        chosenAdminDisplayName: String,
+        botId: String,
+        apiKey: String,
+        emailForWip: String,
+        passwordForWip: String,
+        nameForLinkForWip: String,
+        fcmToken: String,
+    ): Boolean {
+        val ed = prefs.edit()
+            .putBoolean(KEY_AWAITING_ADMIN_LINK, true)
+            .putString(KEY_AWAITING_ADMIN_CHOSEN_NAME, chosenAdminDisplayName.trim())
+            .putString(KEY_BOT_ID, botId.trim())
+            .putString(KEY_API_KEY, apiKey.trim())
+            .putString(KEY_LINKED_ADMIN_ID, "")
+            .putString(KEY_LINKED_ADMIN_NAME, "")
+            .putString(KEY_CONNECTION_CODE, "")
+            .putString(KEY_DATABUS_ACCESS_CODE, "")
+            .putBoolean(KEY_HAS_EVER_CONNECTED, false)
+            .putBoolean(KEY_USER_INITIAL_MODE_SHEET, true)
+            .putBoolean(KEY_USER_STANDALONE_DATA_READY, true)
+            .putBoolean(KEY_USER_STANDALONE_MODE, true)
+            .putString(KEY_SIGNUP_WIP_EMAIL, emailForWip.trim())
+            .putString(KEY_SIGNUP_WIP_PASSWORD, passwordForWip)
+            .putString(KEY_SIGNUP_WIP_BOT_ID, botId.trim())
+            .putString(KEY_SIGNUP_WIP_API_KEY, apiKey.trim())
+            .putString(KEY_SIGNUP_WIP_NAME, nameForLinkForWip.trim())
+            .remove(KEY_CACHED_USER_DATA_JSON)
+        if (fcmToken.isNotEmpty()) ed.putString(KEY_FCM_TOKEN, fcmToken)
+        return ed.commit()
+    }
+
     fun clearSignupWipLink() {
         prefs.edit()
             .remove(KEY_SIGNUP_WIP_EMAIL)
@@ -463,6 +500,16 @@ class Prefs(context: Context) {
             .remove(KEY_SIGNUP_WIP_NAME)
             .apply()
     }
+
+    /** True after user chose an admin from directory until server link completes. */
+    var awaitingAdminLinkApproval: Boolean
+        get() = prefs.getBoolean(KEY_AWAITING_ADMIN_LINK, false)
+        set(value) = prefs.edit().putBoolean(KEY_AWAITING_ADMIN_LINK, value).apply()
+
+    /** Chosen admin display name for sidebar copy while [awaitingAdminLinkApproval]. */
+    var awaitingAdminChosenDisplayName: String
+        get() = prefs.getString(KEY_AWAITING_ADMIN_CHOSEN_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_AWAITING_ADMIN_CHOSEN_NAME, value.trim()).apply()
 
     companion object {
         private const val DEFAULT_SERVER_URL = "https://curax-relay.onrender.com"
@@ -515,6 +562,8 @@ class Prefs(context: Context) {
         private const val KEY_SIGNUP_WIP_BOT_ID = "signup_wip_bot_id"
         private const val KEY_SIGNUP_WIP_API_KEY = "signup_wip_api_key"
         private const val KEY_SIGNUP_WIP_NAME = "signup_wip_name_for_link"
+        private const val KEY_AWAITING_ADMIN_LINK = "awaiting_admin_link_approval"
+        private const val KEY_AWAITING_ADMIN_CHOSEN_NAME = "awaiting_admin_chosen_display_name"
         const val KEY_FCM_TOKEN = "fcm_token"
     }
 }

@@ -121,14 +121,14 @@
             android:exported="false"
             android:parentActivityName=".SignInActivity"
             android:theme="@style/Theme.Curax.AuthOnboarding"
-            android:windowSoftInputMode="adjustPan" />
+            android:windowSoftInputMode="adjustNothing" />
 
         <activity
             android:name=".SignUpLinkAdminActivity"
             android:exported="false"
             android:parentActivityName=".SignInActivity"
             android:theme="@style/Theme.Curax.AuthOnboarding"
-            android:windowSoftInputMode="adjustPan" />
+            android:windowSoftInputMode="adjustNothing" />
 
         <activity
             android:name=".AdminRegistrationActivity"

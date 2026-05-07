@@ -3,9 +3,11 @@ package com.curax.app
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Rect
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -16,6 +18,10 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import androidx.core.widget.NestedScrollView
 import androidx.core.widget.doOnTextChanged
 import androidx.appcompat.widget.AppCompatButton
 import com.google.android.material.textfield.TextInputEditText
@@ -52,6 +58,7 @@ class SignUpActivity : AppCompatActivity() {
     private lateinit var tvResend: TextView
     private lateinit var btnVerifyOtp: AppCompatButton
     private var authBottomSvg: WebView? = null
+    private var imeInsetListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -63,7 +70,8 @@ class SignUpActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { res ->
         if (res.resultCode == RESULT_OK) {
-            finish()
+            SignUpFlowState.clear()
+            // Home was opened from link-admin via finishAffinity(); stay alive only if still in stack.
         } else {
             step2ContinueOnly = true
             applyContinueOnlyStep2Ui()
@@ -164,6 +172,11 @@ class SignUpActivity : AppCompatActivity() {
         tvResendCountdown = findViewById(R.id.tvResendCountdown)
         tvResend = findViewById(R.id.tvResend)
         btnVerifyOtp = findViewById(R.id.btnVerifyOtp)
+
+        val scrollSignUp = findViewById<NestedScrollView>(R.id.scrollSignUp)
+        val scrollContent = scrollSignUp.getChildAt(0)
+        bindSignUpImeOverlayBottomPadding(scrollSignUp)
+        bindSignUpScrollOnFieldFocus(scrollSignUp, scrollContent, etEmail, etPassword, etOtp)
 
         fun syncSignUpButtonEnabled() {
             val emailOk = etEmail.text?.toString()?.trim().orEmpty().isNotEmpty()
@@ -292,8 +305,54 @@ class SignUpActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        imeInsetListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
+        imeInsetListener = null
         cancelResendTimer()
         super.onDestroy()
+    }
+
+    private fun bindSignUpImeOverlayBottomPadding(scroll: NestedScrollView) {
+        val decor = window.decorView
+        val baseBottomPad = scroll.paddingBottom
+        imeInsetListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val wi = ViewCompat.getRootWindowInsets(decor)
+            val imeBottom = if (wi != null && wi.isVisible(WindowInsetsCompat.Type.ime())) {
+                var b = wi.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                if (b == 0) {
+                    val r = Rect()
+                    decor.getWindowVisibleDisplayFrame(r)
+                    b = (decor.height - r.bottom).coerceAtLeast(0)
+                }
+                b
+            } else {
+                0
+            }
+            scroll.updatePadding(bottom = baseBottomPad + imeBottom)
+        }
+        decor.viewTreeObserver.addOnGlobalLayoutListener(imeInsetListener)
+    }
+
+    private fun bindSignUpScrollOnFieldFocus(scroll: NestedScrollView, content: View, vararg fields: View) {
+        for (f in fields) {
+            f.setOnFocusChangeListener { v, hasFocus ->
+                if (hasFocus) scrollSignUpToShowDescendant(scroll, content, v)
+            }
+        }
+    }
+
+    private fun scrollSignUpToShowDescendant(scroll: NestedScrollView, content: View, descendant: View) {
+        scroll.post {
+            var top = 0
+            var v: View? = descendant
+            while (v != null && v !== content) {
+                top += v.top
+                v = v.parent as? View
+            }
+            val pad = (scroll.height * 0.04f).toInt().coerceIn(20, 40)
+            val targetY = (top - pad).coerceAtLeast(0)
+            val maxY = (content.height - scroll.height).coerceAtLeast(0)
+            scroll.scrollTo(0, targetY.coerceAtMost(maxY))
+        }
     }
 
     private fun apiBase(): String = prefs.centralApiUrl.trim().removeSuffix("/")

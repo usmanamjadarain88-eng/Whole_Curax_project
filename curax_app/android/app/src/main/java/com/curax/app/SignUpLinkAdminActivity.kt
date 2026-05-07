@@ -1,17 +1,21 @@
 package com.curax.app
 
 import android.content.Intent
-import android.net.Uri
+import android.graphics.Rect
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
+import androidx.core.widget.NestedScrollView
 import androidx.appcompat.widget.AppCompatButton
 import androidx.core.widget.doOnTextChanged
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.messaging.FirebaseMessaging
@@ -25,8 +29,9 @@ import java.util.concurrent.TimeUnit
 
 /**
  * After email OTP: enter admin connection code [POST /signup/link-admin], or choose an admin from
- * [GET /signup/admins-directory] and send [POST /signup/request-admin-link], then poll
- * [GET /signup/link-request-status] until the admin accepts.
+ * [GET /signup/admins-directory] and send [POST /signup/request-admin-link]. Choose-admin path sends
+ * the request then opens the full user app (standalone); acceptance is finalized in the background
+ * via [AwaitingAdminLinkCoordinator].
  */
 class SignUpLinkAdminActivity : AppCompatActivity() {
 
@@ -35,13 +40,10 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     private lateinit var etAdminConnectionCode: TextInputEditText
     private lateinit var tilAdminConnectionCode: TextInputLayout
     private lateinit var tvLinkSubtitle: TextView
-    private lateinit var tvChooseAdmin: TextView
-    private lateinit var tvPendingStatus: TextView
+    private lateinit var tvChooseAdminLink: TextView
     private lateinit var btnLinkAdmin: AppCompatButton
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var pollRunnable: Runnable? = null
-    private var awaitingAdminAcceptance = false
+    private var imeInsetListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -64,8 +66,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         etAdminConnectionCode = findViewById(R.id.etAdminConnectionCode)
         tilAdminConnectionCode = findViewById(R.id.tilAdminConnectionCode)
         tvLinkSubtitle = findViewById(R.id.tvLinkSubtitle)
-        tvChooseAdmin = findViewById(R.id.tvChooseAdmin)
-        tvPendingStatus = findViewById(R.id.tvPendingStatus)
+        tvChooseAdminLink = findViewById(R.id.tvChooseAdminLink)
         btnLinkAdmin = findViewById(R.id.btnLinkAdmin)
 
         tvLinkSubtitle.text = getString(R.string.signup_link_admin_email_line, SignUpFlowState.email)
@@ -73,26 +74,69 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         syncConnectButtonState()
 
         btnLinkAdmin.setOnClickListener { onLinkAdminClicked() }
-        tvChooseAdmin.setOnClickListener {
+        tvChooseAdminLink.setOnClickListener {
             hideKeyboard()
             loadAdminsAndPick()
         }
 
-        refreshLinkStatusFromServer()
+        val scrollLink = findViewById<NestedScrollView>(R.id.scrollSignUpLinkAdmin)
+        val scrollChild = scrollLink.getChildAt(0)
+        bindImeOverlayBottomPadding(scrollLink)
+        bindScrollOnFieldFocus(scrollLink, scrollChild, etAdminConnectionCode)
     }
 
     override fun onDestroy() {
-        stopPolling()
+        imeInsetListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
+        imeInsetListener = null
         super.onDestroy()
+    }
+
+    private fun bindImeOverlayBottomPadding(scroll: NestedScrollView) {
+        val decor = window.decorView
+        val baseBottomPad = scroll.paddingBottom
+        imeInsetListener = ViewTreeObserver.OnGlobalLayoutListener {
+            val wi = ViewCompat.getRootWindowInsets(decor)
+            val imeBottom = if (wi != null && wi.isVisible(WindowInsetsCompat.Type.ime())) {
+                var b = wi.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                if (b == 0) {
+                    val r = Rect()
+                    decor.getWindowVisibleDisplayFrame(r)
+                    b = (decor.height - r.bottom).coerceAtLeast(0)
+                }
+                b
+            } else {
+                0
+            }
+            scroll.updatePadding(bottom = baseBottomPad + imeBottom)
+        }
+        decor.viewTreeObserver.addOnGlobalLayoutListener(imeInsetListener)
+    }
+
+    private fun bindScrollOnFieldFocus(scroll: NestedScrollView, content: View, vararg fields: View) {
+        for (f in fields) {
+            f.setOnFocusChangeListener { v, hasFocus ->
+                if (hasFocus) scrollToShowDescendant(scroll, content, v)
+            }
+        }
+    }
+
+    private fun scrollToShowDescendant(scroll: NestedScrollView, content: View, descendant: View) {
+        scroll.post {
+            var top = 0
+            var v: View? = descendant
+            while (v != null && v !== content) {
+                top += v.top
+                v = v.parent as? View
+            }
+            val pad = (scroll.height * 0.04f).toInt().coerceIn(20, 40)
+            val targetY = (top - pad).coerceAtLeast(0)
+            val maxY = (content.height - scroll.height).coerceAtLeast(0)
+            scroll.scrollTo(0, targetY.coerceAtMost(maxY))
+        }
     }
 
     /** Connect only when code length matches server admin connection codes (8 chars). */
     private fun syncConnectButtonState() {
-        if (awaitingAdminAcceptance) {
-            btnLinkAdmin.isEnabled = false
-            btnLinkAdmin.alpha = 1f
-            return
-        }
         val len = etAdminConnectionCode.text?.toString()?.trim().orEmpty().length
         val ok = len >= MIN_ADMIN_CONNECTION_CODE_LEN
         btnLinkAdmin.isEnabled = ok
@@ -132,109 +176,6 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             val raw = res.body?.string().orEmpty()
             val jo = ApiErrorMessages.parseResponseBody(raw, res.code)
             return Pair(res.code, jo)
-        }
-    }
-
-    private fun refreshLinkStatusFromServer() {
-        val base = apiBase()
-        val email = SignUpFlowState.email
-        val botId = SignUpFlowState.botId
-        val apiKey = SignUpFlowState.apiKey
-        if (base.isEmpty() || email.isBlank() || botId.isBlank() || apiKey.isBlank()) return
-        Thread {
-            try {
-                val q =
-                    "/signup/link-request-status?email=${Uri.encode(email)}&bot_id=${Uri.encode(botId)}&api_key=${Uri.encode(apiKey)}"
-                val (code, jo) = getJson(q)
-                runOnUiThread {
-                    if (isFinishing) return@runOnUiThread
-                    if (code != 200 || jo == null) return@runOnUiThread
-                    when (jo.optString("status")) {
-                        "pending" -> {
-                            val name = jo.optString("admin_name").trim().ifBlank {
-                                getString(R.string.link_admin_heading_line2)
-                            }
-                            enterPendingMode(name)
-                            startPolling()
-                        }
-                        "accepted" -> handleAcceptedResponse(jo)
-                        else -> { }
-                    }
-                }
-            } catch (_: Exception) { }
-        }.start()
-    }
-
-    private fun enterPendingMode(adminDisplayName: String) {
-        awaitingAdminAcceptance = true
-        tvPendingStatus.visibility = View.VISIBLE
-        tvPendingStatus.text = getString(R.string.signup_waiting_admin_acceptance, adminDisplayName)
-        tilAdminConnectionCode.isEnabled = false
-        etAdminConnectionCode.isEnabled = false
-        tvChooseAdmin.visibility = View.GONE
-        btnLinkAdmin.isEnabled = false
-        btnLinkAdmin.alpha = 1f
-        btnLinkAdmin.text = getString(R.string.signup_waiting_short)
-        syncConnectButtonState()
-    }
-
-    private fun startPolling() {
-        stopPolling()
-        val r = object : Runnable {
-            override fun run() {
-                if (isFinishing) return
-                pollLinkStatusOnce()
-                handler.postDelayed(this, POLL_INTERVAL_MS)
-            }
-        }
-        pollRunnable = r
-        handler.post(r)
-    }
-
-    private fun stopPolling() {
-        pollRunnable?.let { handler.removeCallbacks(it) }
-        pollRunnable = null
-    }
-
-    private fun pollLinkStatusOnce() {
-        val base = apiBase()
-        val email = SignUpFlowState.email
-        val botId = SignUpFlowState.botId
-        val apiKey = SignUpFlowState.apiKey
-        if (base.isEmpty() || email.isBlank() || botId.isBlank() || apiKey.isBlank()) return
-        Thread {
-            try {
-                val q =
-                    "/signup/link-request-status?email=${Uri.encode(email)}&bot_id=${Uri.encode(botId)}&api_key=${Uri.encode(apiKey)}"
-                val (code, jo) = getJson(q)
-                runOnUiThread {
-                    if (isFinishing) return@runOnUiThread
-                    if (code == 200 && jo != null && jo.optString("status") == "accepted") {
-                        handleAcceptedResponse(jo)
-                    }
-                }
-            } catch (_: Exception) { }
-        }.start()
-    }
-
-    private fun handleAcceptedResponse(jo: JSONObject) {
-        stopPolling()
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
-            val connectionCode = jo.optString("connection_code", "").trim()
-            val base = apiBase()
-            runOnUiThread {
-                applyPrefsAfterLink(
-                    jo,
-                    connectionCode,
-                    fcmToken,
-                    base,
-                    SignUpFlowState.email,
-                    SignUpFlowState.password,
-                    SignUpFlowState.botId,
-                    SignUpFlowState.apiKey,
-                )
-            }
         }
     }
 
@@ -313,13 +254,12 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (isFinishing) return@runOnUiThread
                         btnLinkAdmin.text = connectLabel
+                        syncConnectButtonState()
                         if (code == 200 && jo != null) {
-                            val nameFromServer = jo.optString("admin_name").trim().ifBlank { adminLabel }
-                            enterPendingMode(nameFromServer)
-                            startPolling()
+                            val adminShown = jo.optString("admin_name").trim().ifBlank { adminLabel }
+                            openFullAppAfterAdminRequestSent(adminShown, fcmToken)
                         } else {
                             CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
-                            syncConnectButtonState()
                         }
                     }
                 } catch (_: Exception) {
@@ -335,8 +275,54 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * User keeps full app access in standalone mode; admin acceptance is applied later via
+     * [AwaitingAdminLinkCoordinator].
+     */
+    private fun openFullAppAfterAdminRequestSent(chosenAdminDisplayName: String, fcmToken: String) {
+        val email = SignUpFlowState.email
+        val password = SignUpFlowState.password
+        val botId = SignUpFlowState.botId
+        val apiKey = SignUpFlowState.apiKey
+        val nameForLink = SignUpFlowState.nameForLink.trim().ifBlank { email }
+
+        if (!prefs.commitAwaitingAdminHomeSession(
+                chosenAdminDisplayName = chosenAdminDisplayName.trim(),
+                botId = botId,
+                apiKey = apiKey,
+                emailForWip = email,
+                passwordForWip = password,
+                nameForLinkForWip = nameForLink,
+                fcmToken = fcmToken.trim(),
+            )
+        ) {
+            CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
+            return
+        }
+        SignUpFlowState.clear()
+        if (!store.saveUserCommitted(email, password, LocalUserStore.ROLE_USER)) {
+            CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
+            return
+        }
+
+        CuraxFeedback.successThen(
+            this,
+            getString(R.string.signup_admin_request_sent_message),
+            delayMs = 420L,
+            snackbarDuration = Snackbar.LENGTH_LONG,
+        ) {
+            navigateHomeAndFinish()
+        }
+    }
+
+    private fun navigateHomeAndFinish() {
+        if (isFinishing) return
+        setResult(RESULT_OK)
+        startActivity(UserHomeIntent.forSignedInUser(this))
+        finishAffinity()
+    }
+
     private fun onLinkAdminClicked() {
-        if (awaitingAdminAcceptance) return
         val connectionCode = etAdminConnectionCode.text?.toString()?.trim().orEmpty()
         if (connectionCode.isBlank()) {
             CuraxFeedback.warn(this, getString(R.string.connection_code_hint))
@@ -374,6 +360,8 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                     runOnUiThread {
                         btnLinkAdmin.text = connectLabel
                         if (code == 200 && jo != null) {
+                            prefs.awaitingAdminLinkApproval = false
+                            prefs.awaitingAdminChosenDisplayName = ""
                             applyPrefsAfterLink(jo, connectionCode, fcmToken, base, email, password, botId, apiKey)
                         } else {
                             CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
@@ -401,94 +389,34 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         botId: String,
         apiKey: String,
     ) {
-        val adminId = when {
-            jo.isNull("admin_id") -> ""
-            else -> jo.get("admin_id").toString().trim()
-        }
-        val adminName = jo.optString("admin_name", "").trim()
-        val databusAccessCode = jo.optString("databus_access_code", "").trim()
-        val codeForPrefs = connectionCode.ifBlank { jo.optString("connection_code", "").trim() }
-
-        prefs.id = botId
-        prefs.apiKey = apiKey
-        prefs.connectionCode = codeForPrefs
-        prefs.databusAccessCode = databusAccessCode
-        prefs.linkedAdminId = adminId
-        prefs.linkedAdminName = adminName
-        prefs.hasEverConnected = true
-        prefs.userInitialAppModeSheetCompleted = false
-        if (fcmToken.isNotEmpty()) prefs.fcmToken = fcmToken
-
-        val fromServer = jo.optString("user_first_name", "").trim()
-        val hubFirst = fromServer.ifBlank { UserNameFormatter.firstNameForHub(SignUpFlowState.nameForLink) }
-        if (hubFirst.isNotEmpty()) prefs.userHubFirstName = hubFirst
-
-        val fromFull = jo.optString("user_full_name", "").trim()
-        if (fromFull.isNotEmpty()) prefs.userHubFullName = fromFull
-
-        val fromUsername = jo.optString("user_username", "").trim()
-        if (fromUsername.isNotEmpty()) prefs.userHubUsername = fromUsername
-
-        val dm = jo.optString("user_display_mode", "").trim().lowercase()
-        if (dm == "standalone" || dm == "default") {
-            val wantStandalone = dm == "standalone"
-            val was = prefs.userStandaloneMode
-            if (wantStandalone != was) {
-                AppModeManager.setStandaloneMode(this, wantStandalone)
-                sendBroadcast(Intent(AlertEvents.ACTION_USER_DISPLAY_MODE_FROM_SERVER))
-            }
-        }
-
-        store.saveUser(email, password, LocalUserStore.ROLE_USER)
-        SignUpFlowState.clear()
-        Prefs(this).clearSignupWipLink()
-
-        if (fcmToken.isNotEmpty() && adminId.isNotEmpty()) {
-            Thread {
-                try {
-                    val body = JSONObject().apply {
-                        put("bot_id", botId)
-                        put("api_key", apiKey)
-                        put("role", "user")
-                        put("admin_id", adminId)
-                        put("fcm_token", fcmToken)
-                    }
-                    val req = Request.Builder()
-                        .url("$base/save-credentials")
-                        .post(body.toString().toRequestBody(JSON_MEDIA))
-                        .build()
-                    http.newCall(req).execute().close()
-                } catch (_: Exception) {
-                }
-            }.start()
-        }
-
-        UserDataBusClient.fetchAndApplyUserData(
+        val nameFb = SignUpFlowState.nameForLink.trim().ifBlank { email }
+        SignupAdminLinkHelper.applyServerLinkSuccess(
             this,
-            base,
+            jo,
+            connectionCode,
+            fcmToken,
+            email,
+            password,
             botId,
             apiKey,
-            onSuccess = {
-                runOnUiThread {
-                    CuraxFeedback.successThen(this, R.string.linked_to_admin_success) {
-                        val home = UserHomeIntent.forSignedInUser(this).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                        }
-                        startActivity(home)
+            http,
+            nameForLinkFallback = nameFb,
+            onUserDataApplied = {
+                CuraxFeedback.successThen(this, R.string.linked_to_admin_success) {
+                    if (!isFinishing) {
                         setResult(RESULT_OK)
-                        finish()
+                        startActivity(UserHomeIntent.forSignedInUser(this))
+                        finishAffinity()
                     }
                 }
             },
             onAuthRejected = { msg ->
-                runOnUiThread {
-                    UserLogoutHelper.clearLocalSession(this)
-                    CuraxFeedback.warn(
-                        this,
-                        msg.ifBlank { getString(R.string.account_removed_by_admin) },
-                        long = true,
-                    )
-                }
+                UserLogoutHelper.clearLocalSession(this)
+                CuraxFeedback.warn(
+                    this,
+                    msg.ifBlank { getString(R.string.account_removed_by_admin) },
+                    long = true,
+                )
             },
         )
     }
@@ -496,7 +424,6 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     companion object {
         /** Matches backend `central_db._ADMIN_CODE_LENGTH` (connection_code format). */
         private const val MIN_ADMIN_CONNECTION_CODE_LEN = 8
-        private const val POLL_INTERVAL_MS = 4000L
 
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }

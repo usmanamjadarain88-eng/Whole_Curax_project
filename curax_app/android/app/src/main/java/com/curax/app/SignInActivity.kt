@@ -242,6 +242,59 @@ class SignInActivity : AppCompatActivity() {
         }.start()
     }
 
+    private fun resumePendingAdminDirectorySession(
+        email: String,
+        password: String,
+        botId: String,
+        apiKey: String,
+        pendingAdminName: String,
+    ) {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
+            runOnUiThread {
+                if (!prefs.commitAwaitingAdminHomeSession(
+                        chosenAdminDisplayName = pendingAdminName,
+                        botId = botId,
+                        apiKey = apiKey,
+                        emailForWip = email,
+                        passwordForWip = password,
+                        nameForLinkForWip = email,
+                        fcmToken = fcmToken,
+                    )
+                ) {
+                    CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)
+                    return@runOnUiThread
+                }
+                SignUpFlowState.clear()
+                if (!store.saveUserCommitted(email, password, LocalUserStore.ROLE_USER)) {
+                    CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)
+                    return@runOnUiThread
+                }
+                CuraxFeedback.successThen(
+                    this@SignInActivity,
+                    getString(R.string.sign_in_success),
+                    delayMs = 220L,
+                    snackbarDuration = Snackbar.LENGTH_SHORT,
+                ) {
+                    navigateToUserHomeAfterAuth()
+                }
+            }
+        }
+    }
+
+    private fun navigateToUserHomeAfterAuth() {
+        val home = UserHomeIntent.forSignedInUser(this).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        val opts = ActivityOptionsCompat.makeCustomAnimation(
+            this,
+            android.R.anim.fade_in,
+            android.R.anim.fade_out,
+        )
+        ActivityCompat.startActivity(this, home, opts.toBundle())
+        finish()
+    }
+
     private fun handleSignInSuccess(email: String, password: String, base: String, jo: JSONObject) {
         AutofillHelper.commit(this)
         val phase = jo.optString("account_phase", "").trim().lowercase()
@@ -257,9 +310,16 @@ class SignInActivity : AppCompatActivity() {
                 )
             }
             "pending_admin" -> {
-                val botId = UUID.randomUUID().toString().take(8)
-                val apiKey = UUID.randomUUID().toString().replace("-", "").take(16)
-                SignUpFlowState.set(email, password, botId, apiKey, nameForLink = email)
+                val botId = jo.optString("bot_id", "").trim()
+                val apiKey = jo.optString("api_key", "").trim()
+                val pendingAdminName = jo.optString("pending_admin_name", "").trim()
+                if (botId.isNotEmpty() && apiKey.isNotEmpty()) {
+                    resumePendingAdminDirectorySession(email, password, botId, apiKey, pendingAdminName)
+                    return
+                }
+                val nb = UUID.randomUUID().toString().take(8)
+                val nk = UUID.randomUUID().toString().replace("-", "").take(16)
+                SignUpFlowState.set(email, password, nb, nk, nameForLink = email)
                 SignUpFlowState.persistWipToPrefs(prefs)
                 startActivity(Intent(this, SignUpLinkAdminActivity::class.java))
             }
@@ -332,16 +392,7 @@ class SignInActivity : AppCompatActivity() {
                                 delayMs = 220L,
                                 snackbarDuration = Snackbar.LENGTH_SHORT,
                             ) {
-                                val home = UserHomeIntent.forSignedInUser(this@SignInActivity).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                                }
-                                val opts = ActivityOptionsCompat.makeCustomAnimation(
-                                    this@SignInActivity,
-                                    android.R.anim.fade_in,
-                                    android.R.anim.fade_out,
-                                )
-                                ActivityCompat.startActivity(this@SignInActivity, home, opts.toBundle())
-                                finish()
+                                navigateToUserHomeAfterAuth()
                             }
                         }
                     },
