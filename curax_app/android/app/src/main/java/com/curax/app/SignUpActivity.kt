@@ -505,7 +505,7 @@ class SignUpActivity : AppCompatActivity() {
         tvResend.isEnabled = false
         tvResend.alpha = 0.45f
         tvResendCountdown.visibility = View.VISIBLE
-        resendTimer = object : CountDownTimer(8_000L, 1_000L) {
+        resendTimer = object : CountDownTimer(3_000L, 1_000L) {
             override fun onTick(msUntilFinished: Long) {
                 val sec = ((msUntilFinished + 999) / 1000).toInt().coerceAtLeast(0)
                 tvResendCountdown.text = getString(R.string.resend_code_wait, sec)

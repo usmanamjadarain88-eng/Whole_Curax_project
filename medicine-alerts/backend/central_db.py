@@ -34,11 +34,15 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     address as the headline — From display name is SIGNUP_EMAIL_FROM_NAME; the technical
     From address still defaults to SIGNUP_SMTP_USER (required by Gmail SMTP).
 
-    Optional: SIGNUP_SMTP_HOST (default smtp.gmail.com), SIGNUP_SMTP_PORT (default 465),
+    Optional: SIGNUP_SMTP_HOST (default smtp.gmail.com), SIGNUP_SMTP_PORT (465 SSL or 587 STARTTLS),
+    SIGNUP_SMTP_TIMEOUT seconds for connect/send (default 25 — fail fast instead of hanging),
     SIGNUP_EMAIL_FROM (defaults to SIGNUP_SMTP_USER), SIGNUP_EMAIL_FROM_NAME,
-    SIGNUP_OTP_EMAIL_SUBJECT (default "Verification code"), SIGNUP_EMAIL_REPLY_TO.
+    SIGNUP_OTP_EMAIL_SUBJECT (default "Verification code"),
+    SIGNUP_OTP_EMAIL_SUBJECT_PREFIX (optional, e.g. "[Action required]" — prepended for stronger inbox alert cues),
+    SIGNUP_EMAIL_REPLY_TO.
     """
     import smtplib
+    import ssl as ssl_mod
     import html as html_mod
     from email.message import EmailMessage
     from email.policy import SMTP
@@ -53,9 +57,17 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
         port = int((os.environ.get("SIGNUP_SMTP_PORT") or "465").strip())
     except ValueError:
         port = 465
+    try:
+        smtp_timeout = float((os.environ.get("SIGNUP_SMTP_TIMEOUT") or "25").strip())
+    except ValueError:
+        smtp_timeout = 25.0
+    smtp_timeout = max(5.0, min(smtp_timeout, 120.0))
     from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
     from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
     subject = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT") or "Verification code").strip()
+    subj_prefix = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT_PREFIX") or "").strip()
+    if subj_prefix:
+        subject = f"{subj_prefix.rstrip()} {subject}".strip()
     reply_to = (os.environ.get("SIGNUP_EMAIL_REPLY_TO") or "").strip()
     to_addr = (to_addr or "").strip()
     if "@" not in to_addr:
@@ -119,9 +131,18 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     msg.set_content(text_body, subtype="plain", charset="utf-8")
     msg.add_alternative(html_body, subtype="html", charset="utf-8")
 
-    with smtplib.SMTP_SSL(host, port) as server:
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
+    # 587 + STARTTLS often negotiates faster than SSL-on-connect on some networks; 465 remains default.
+    if port == 587:
+        with smtplib.SMTP(host, port, timeout=smtp_timeout) as server:
+            server.ehlo()
+            server.starttls(context=ssl_mod.create_default_context())
+            server.ehlo()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP_SSL(host, port, timeout=smtp_timeout) as server:
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
     return True
 
 

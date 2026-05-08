@@ -17,13 +17,20 @@ def apply_urgent_notification_headers(msg) -> None:
     Ask mail apps to treat the message as important so new-mail notifications are more
     likely to pop up (heads-up). Still respects the user's OS / Gmail notification toggles.
 
+    Uses Microsoft-style capital Importance and legacy X-Priority spellings many mobile
+    clients (Outlook, Gmail heuristics, Samsung Mail) still read.
+
     Avoids Precedence: bulk and Auto-Submitted, which often suppress buzz / badge behavior.
     Works with email.message.EmailMessage and email.mime.multipart.MIMEMultipart.
     """
-    msg["Importance"] = "high"
+    # RFC-style + Exchange / Outlook de-facto (capital "High" matters for some parsers).
+    msg["Importance"] = "High"
     msg["Priority"] = "urgent"
-    msg["X-Priority"] = "1"
+    msg["X-Priority"] = "1 (Highest)"
     msg["X-MSMail-Priority"] = "High"
+    msg["MSMail-Priority"] = "High"
+    # Exchange classification — helps some clients surface as personal / notify.
+    msg["Sensitivity"] = "Personal"
 
 
 def curax_email_html(

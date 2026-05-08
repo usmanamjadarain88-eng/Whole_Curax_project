@@ -263,7 +263,7 @@ class BackendAlertScheduler:
             valid = [e for e in recipients if email_re.match(e)]
             if not valid:
                 return
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=25) as server:
                 server.login(sender_email, sender_password)
                 for rcpt in valid:
                     body_html = plain_body_to_html_paragraphs(body)
