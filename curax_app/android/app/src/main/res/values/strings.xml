@@ -399,7 +399,6 @@
     <string name="forgot_password_success">Your password was updated. Sign in with your new password.</string>
     <string name="forgot_password_password_mismatch">New password and confirmation do not match.</string>
     <string name="forgot_password_email_maybe_sent">If this email has an account, a code was sent. Also check spam. Server email must be configured.</string>
-    <string name="forgot_password_admin_register">Need admin registration?</string>
     <string name="auth_reset_sheet_hint">Use the button below if you need admin registration on this device.</string>
     <string name="sign_in_password_hint_dots">******</string>
     <string name="cd_show_password">Show password</string>
@@ -437,8 +436,6 @@
     <string name="sign_up_google">Google</string>
     <string name="sign_up_facebook">Facebook</string>
     <!-- Meta for Developers → Your App → Settings → Basic: paste App ID and Client Token here (not App Secret). -->
-    <string name="facebook_app_id" translatable="false">1365374282094935</string>
-    <string name="facebook_client_token" translatable="false">ad67e8063977cc4e1e46cb7a9b7d8a84</string>
     <!-- Matches Firebase default_web_client_id for curax-bfacb; server accepts this + Android-linked client for token verify. -->
     <string name="google_web_client_id" translatable="false">428598576836-lgo255b9oqhejb3vf91tn8la5cor1lcl.apps.googleusercontent.com</string>
     <string name="social_profile_filled">We filled your name and email from your account. Choose a password and tap Sign up to continue.</string>

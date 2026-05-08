@@ -30,9 +30,22 @@ android {
                 ?: System.getenv("DATABUS_ABLY_SUBSCRIBE_KEY")
                 ?: ""
             ).trim()
+        val facebookAppId = (
+            localProps.getProperty("facebook.app.id")
+                ?: System.getenv("FACEBOOK_APP_ID")
+                ?: ""
+            ).trim()
+        val facebookClientToken = (
+            localProps.getProperty("facebook.client.token")
+                ?: System.getenv("FACEBOOK_CLIENT_TOKEN")
+                ?: ""
+            ).trim()
         fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
         buildConfigField("String", "DATABUS_PUBLIC_URL", "\"${esc(databusUrl)}\"")
         buildConfigField("String", "DATABUS_ABLY_SUBSCRIBE_KEY", "\"${esc(ablySubscribe)}\"")
+        // Facebook SDK: never commit real values — set facebook.app.id + facebook.client.token in local.properties
+        resValue("string", "facebook_app_id", facebookAppId.ifEmpty { "0" })
+        resValue("string", "facebook_client_token", facebookClientToken.ifEmpty { "unset" })
     }
     buildTypes {
         release {

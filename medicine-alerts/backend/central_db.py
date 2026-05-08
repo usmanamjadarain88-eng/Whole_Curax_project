@@ -2979,7 +2979,6 @@ class CentralDB:
                 SELECT u.id::text AS id, u.password_hash,
                        COALESCE(u.account_status, 'ACTIVE') AS account_status
                 FROM users u
-                INNER JOIN admins a ON a.id = u.admin_id
                 WHERE LOWER(TRIM(COALESCE(u.email, ''))) = %s
                   AND COALESCE(u.bot_id, '') IS DISTINCT FROM 'dashboard'
                 ORDER BY u.updated_at DESC NULLS LAST, u.created_at DESC NULLS LAST
@@ -3085,7 +3084,6 @@ class CentralDB:
                 FROM (
                     SELECT u2.id
                     FROM users u2
-                    INNER JOIN admins a ON a.id = u2.admin_id
                     WHERE LOWER(TRIM(COALESCE(u2.email, ''))) = %s
                       AND COALESCE(u2.bot_id, '') IS DISTINCT FROM 'dashboard'
                       AND u2.password_reset_otp_hash = %s

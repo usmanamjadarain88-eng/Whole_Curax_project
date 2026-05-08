@@ -1,6 +1,5 @@
 package com.curax.app
 
-import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.View
@@ -43,7 +42,6 @@ class ForgotPasswordActivity : AppCompatActivity() {
     private lateinit var btnSendCode: AppCompatButton
     private lateinit var btnOtpNext: AppCompatButton
     private lateinit var btnSubmit: AppCompatButton
-    private lateinit var tvAdminRegister: TextView
     private lateinit var tvResend: TextView
 
     private var step = Step.EMAIL
@@ -89,7 +87,6 @@ class ForgotPasswordActivity : AppCompatActivity() {
         btnSendCode = findViewById(R.id.btnForgotSendCode)
         btnOtpNext = findViewById(R.id.btnForgotOtpNext)
         btnSubmit = findViewById(R.id.btnForgotSubmit)
-        tvAdminRegister = findViewById(R.id.tvForgotAdminRegister)
         tvResend = findViewById(R.id.tvForgotResend)
 
         etEmail.setHintTextColor(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.auth_hint_email_muted)))
@@ -118,10 +115,6 @@ class ForgotPasswordActivity : AppCompatActivity() {
         btnSubmit.setOnClickListener { onSubmitClicked() }
         tvResend.setOnClickListener { onSendCodeClicked() }
 
-        tvAdminRegister.setOnClickListener {
-            startActivity(Intent(this, AdminRegistrationActivity::class.java))
-        }
-
         showStep(Step.EMAIL)
     }
 
@@ -144,6 +137,17 @@ class ForgotPasswordActivity : AppCompatActivity() {
             val jo = ApiErrorMessages.parseResponseBody(raw, res.code)
             return Pair(res.code, jo)
         }
+    }
+
+    // Try /password-reset/... first; on 404 retry /api/password_reset_... (deployment differences).
+    private fun postJsonTryPaths(paths: List<String>, json: JSONObject): Pair<Int, JSONObject?> {
+        var last = Pair(-1, null as JSONObject?)
+        for (path in paths) {
+            val (code, jo) = postJson(path, json)
+            last = Pair(code, jo)
+            if (code != 404) return last
+        }
+        return last
     }
 
     private fun showStep(s: Step) {
@@ -186,7 +190,10 @@ class ForgotPasswordActivity : AppCompatActivity() {
         Thread {
             try {
                 val json = JSONObject().put("email", email)
-                val (code, jo) = postJson("/password-reset/start", json)
+                val (code, jo) = postJsonTryPaths(
+                    listOf("/password-reset/start", "/api/password_reset_start"),
+                    json,
+                )
                 runOnUiThread {
                     btnSendCode.isEnabled = true
                     btnSendCode.text = label
@@ -252,7 +259,10 @@ class ForgotPasswordActivity : AppCompatActivity() {
                     put("otp", otp)
                     put("new_password", pw)
                 }
-                val (code, jo) = postJson("/password-reset/complete", json)
+                val (code, jo) = postJsonTryPaths(
+                    listOf("/password-reset/complete", "/api/password_reset_complete"),
+                    json,
+                )
                 runOnUiThread {
                     btnSubmit.isEnabled = true
                     btnSubmit.text = label

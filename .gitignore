@@ -51,6 +51,10 @@ databus/.env
 **/yarn-error.log*
 
 # --- Android / Gradle (curax_app/android) ---
+# Facebook App ID / client token: use local.properties keys facebook.app.id, facebook.client.token (never commit)
+curax_app/android/facebook.properties
+curax_app/android/app/facebook.properties
+**/facebook_secrets.xml
 **/local.properties
 **/.gradle/
 **/build/
