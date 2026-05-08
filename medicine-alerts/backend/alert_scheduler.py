@@ -16,6 +16,8 @@ from email.mime.multipart import MIMEMultipart
 import os
 import schedule
 
+from utils.email_layout import curax_email_html, escape as curax_esc, plain_body_to_html_paragraphs
+
 RELAY_URL = (os.environ.get("RELAY_URL") or "wss://curax-relay.onrender.com").strip()
 
 
@@ -256,10 +258,34 @@ class BackendAlertScheduler:
             valid = [e for e in recipients if email_re.match(e)]
             if not valid:
                 return
-            html = f"<html><body><h3>{subject}</h3><p>{body}</p><p>Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p></body></html>"
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
                 server.login(sender_email, sender_password)
                 for rcpt in valid:
+                    body_html = plain_body_to_html_paragraphs(body)
+                    if not body_html.strip():
+                        body_html = (
+                            f'<p style="margin:0;font-size:14px;color:#374151;line-height:1.55;">'
+                            f"{curax_esc(body)}</p>"
+                        )
+                    sent_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    content_rows = (
+                        '<tr><td style="padding:24px 28px 8px 28px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
+                        f'<div style="font-size:18px;font-weight:700;color:#111827;line-height:1.35;">'
+                        f"{curax_esc(subject)}</div>"
+                        f'<div style="margin-top:12px;">{body_html}</div>'
+                        "</td></tr>"
+                    )
+                    html = curax_email_html(
+                        content_rows,
+                        footer_meta=[
+                            ("Time", curax_esc(sent_ts)),
+                            ("System", curax_esc("CuraX Intelligent Medicine System")),
+                            (
+                                "Recipients",
+                                f'<span style="color:#2563eb;">{curax_esc(rcpt)}</span>',
+                            ),
+                        ],
+                    )
                     msg = MIMEMultipart()
                     msg["From"] = sender_email
                     msg["To"] = rcpt
