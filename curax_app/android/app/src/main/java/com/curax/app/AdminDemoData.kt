@@ -1,5 +1,6 @@
 package com.curax.app
 
+import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -183,6 +184,33 @@ object AdminDemoData {
                 existingIds.add(item.id)
             }
         }
+    }
+
+    /**
+     * When a standalone user has no linked admin and no stored/API alerts yet, seed in-memory demo [AlertItem]s.
+     * Same store feeds **Alerts** and **Logs** tabs (API alert pipeline).
+     */
+    fun seedStandaloneDemoLogsIfNeeded(context: Context) {
+        val app = context.applicationContext
+        if (!AppRole.isUser(app)) return
+        if (!StandaloneUi.isUserStandalone(app)) return
+        if (Prefs(app).linkedAdminId.trim().isNotEmpty()) return
+        if (getApiAlerts().isNotEmpty()) return
+        if (AlertDb(app).getAllAlerts().isNotEmpty()) return
+
+        val now = System.currentTimeMillis()
+        val day = 86_400_000L
+        val hour = 3_600_000L
+        appendApiAlerts(
+            listOf(
+                AlertItem(-9_000_000_000_001L, "dose_taken", "Dose marked taken: Panadol from box B1", now - hour * 2, "You"),
+                AlertItem(-9_000_000_000_002L, "dose_missed", "Missed dose reminder: Amoxil from box B2", now - day / 2, "You"),
+                AlertItem(-9_000_000_000_003L, "refill_reminder", "Refill soon: Vitamin D from box B3", now - day, "You"),
+                AlertItem(-9_000_000_000_004L, "dose_taken", "Dose marked taken: Metformin from box A1", now - day - hour * 3, "You"),
+                AlertItem(-9_000_000_000_005L, "sync", "Sync completed with desktop Curax", now - day * 2, "System"),
+                AlertItem(-9_000_000_000_006L, "dose_missed", "Missed dose reminder: Ibuprofen from box B4", now - day * 2 - hour * 5, "You"),
+            ),
+        )
     }
 
     /** Build Medicine list from backend API response (medicines array). Used after admin sign-up and polling. */

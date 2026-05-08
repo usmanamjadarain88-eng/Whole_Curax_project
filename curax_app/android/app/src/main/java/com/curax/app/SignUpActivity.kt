@@ -71,7 +71,7 @@ class SignUpActivity : AppCompatActivity() {
     ) { res ->
         if (res.resultCode == RESULT_OK) {
             SignUpFlowState.clear()
-            // Home was opened from link-admin via finishAffinity(); stay alive only if still in stack.
+            // Home uses CLEAR_TASK; this activity is usually gone — OK if still finishing.
         } else {
             step2ContinueOnly = true
             applyContinueOnlyStep2Ui()
@@ -88,6 +88,9 @@ class SignUpActivity : AppCompatActivity() {
     private var step2ContinueOnly = false
     private var otpEntryMode = false
     private var pendingDisplayName = ""
+    /** Populated when continuing pending-email OTP after Google/Facebook sign-in (no password on device). */
+    private var pendingGoogleIdToken: String? = null
+    private var pendingFacebookAccessToken: String? = null
 
     private val verifyClickListener = View.OnClickListener { onVerifyOtpClicked() }
     private val continueClickListener = View.OnClickListener {
@@ -137,13 +140,16 @@ class SignUpActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        store = LocalUserStore(this)
+        prefs = Prefs(this)
+        if (store.hasUser()) {
+            finish()
+            return
+        }
         setContentView(R.layout.activity_signup)
         authBottomSvg = findViewById(R.id.authBottomSvg)
         setupAuthBottomSvg()
         onBackPressedDispatcher.addCallback(this, backCallback)
-
-        store = LocalUserStore(this)
-        prefs = Prefs(this)
 
         tvTitleLine1 = findViewById(R.id.tvTitleLine1)
         tvTitleLine2 = findViewById(R.id.tvTitleLine2)
@@ -208,6 +214,9 @@ class SignUpActivity : AppCompatActivity() {
             pendingDisplayName = b.getString(STATE_PENDING_DISPLAY_NAME).orEmpty().ifBlank { pendingDisplayName }
             botIdForLink = b.getString(STATE_BOT_ID_FOR_LINK).orEmpty()
             apiKeyForLink = b.getString(STATE_API_KEY_FOR_LINK).orEmpty()
+            pendingGoogleIdToken = b.getString(STATE_PENDING_GOOGLE_ID_TOKEN, "").trim().takeIf { it.isNotEmpty() }
+            pendingFacebookAccessToken =
+                b.getString(STATE_PENDING_FACEBOOK_ACCESS_TOKEN, "").trim().takeIf { it.isNotEmpty() }
             // Only restore OTP mode from state when intent did not start at OTP (e.g. rotation).
             if (!intent.getBooleanExtra(EXTRA_START_AT_OTP, false)) {
                 otpEntryMode = b.getBoolean(STATE_OTP_ENTRY_MODE, false)
@@ -220,6 +229,14 @@ class SignUpActivity : AppCompatActivity() {
                 pendingEmail = intent.getStringExtra(EXTRA_EMAIL).orEmpty().ifBlank { pendingEmail }
                 pendingPassword = intent.getStringExtra(EXTRA_PASSWORD).orEmpty().ifBlank { pendingPassword }
                 pendingDisplayName = intent.getStringExtra(EXTRA_DISPLAY_NAME).orEmpty().ifBlank { pendingDisplayName }
+                if (pendingGoogleIdToken == null) {
+                    pendingGoogleIdToken =
+                        intent.getStringExtra(EXTRA_GOOGLE_ID_TOKEN)?.trim()?.takeIf { it.isNotEmpty() }
+                }
+                if (pendingFacebookAccessToken == null) {
+                    pendingFacebookAccessToken =
+                        intent.getStringExtra(EXTRA_FACEBOOK_ACCESS_TOKEN)?.trim()?.takeIf { it.isNotEmpty() }
+                }
                 if (pendingEmail.isNotBlank() && prefs.signupWipEmail.isNotBlank() &&
                     prefs.signupWipEmail.trim().lowercase() != pendingEmail.lowercase()
                 ) {
@@ -280,6 +297,8 @@ class SignUpActivity : AppCompatActivity() {
         outState.putString(STATE_PENDING_DISPLAY_NAME, pendingDisplayName)
         outState.putString(STATE_BOT_ID_FOR_LINK, botIdForLink)
         outState.putString(STATE_API_KEY_FOR_LINK, apiKeyForLink)
+        outState.putString(STATE_PENDING_GOOGLE_ID_TOKEN, pendingGoogleIdToken.orEmpty())
+        outState.putString(STATE_PENDING_FACEBOOK_ACCESS_TOKEN, pendingFacebookAccessToken.orEmpty())
     }
 
     private fun setupAuthBottomSvg() {
@@ -302,6 +321,13 @@ class SignUpActivity : AppCompatActivity() {
                 "<img src=\"bottom.svg\" width=\"100%\" style=\"display:block;vertical-align:bottom\"/>" +
                 "</body></html>"
         wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::store.isInitialized && store.hasUser()) {
+            finish()
+        }
     }
 
     override fun onDestroy() {
@@ -363,6 +389,22 @@ class SignUpActivity : AppCompatActivity() {
         imm.hideSoftInputFromWindow(token, 0)
     }
 
+    /** Builds /signup/start body: password, or OAuth token when password is the OAuth placeholder. */
+    private fun putSignupStartCredentials(json: JSONObject) {
+        json.put("email", pendingEmail)
+        if (pendingPassword == LocalUserStore.OAUTH_LOCAL_PASSWORD_PLACEHOLDER) {
+            val gt = pendingGoogleIdToken?.trim()?.takeIf { it.isNotEmpty() }
+            val ft = pendingFacebookAccessToken?.trim()?.takeIf { it.isNotEmpty() }
+            when {
+                gt != null -> json.put("google_id_token", gt)
+                ft != null -> json.put("facebook_access_token", ft)
+                else -> json.put("password", pendingPassword)
+            }
+        } else {
+            json.put("password", pendingPassword)
+        }
+    }
+
     /** Dash row looks like the input; forward taps to the real OTP field and open the keypad. */
     private fun focusOtpField() {
         if (!etOtp.isEnabled || otpInputBlock.visibility != View.VISIBLE) return
@@ -384,10 +426,7 @@ class SignUpActivity : AppCompatActivity() {
         }
         Thread {
             try {
-                val json = JSONObject().apply {
-                    put("email", pendingEmail)
-                    put("password", pendingPassword)
-                }
+                val json = JSONObject().apply { putSignupStartCredentials(this) }
                 val (code, jo) = postJson("/signup/start", json)
                 runOnUiThread {
                     if (code == 200) {
@@ -582,10 +621,7 @@ class SignUpActivity : AppCompatActivity() {
         tvResend.isEnabled = false
         Thread {
             try {
-                val json = JSONObject().apply {
-                    put("email", pendingEmail)
-                    put("password", pendingPassword)
-                }
+                val json = JSONObject().apply { putSignupStartCredentials(this) }
                 val (code, jo) = postJson("/signup/start", json)
                 runOnUiThread {
                     if (code == 200) {
@@ -673,6 +709,8 @@ class SignUpActivity : AppCompatActivity() {
         const val EXTRA_EMAIL = "pending_email"
         const val EXTRA_PASSWORD = "pending_password"
         const val EXTRA_DISPLAY_NAME = "display_name"
+        const val EXTRA_GOOGLE_ID_TOKEN = "pending_google_id_token"
+        const val EXTRA_FACEBOOK_ACCESS_TOKEN = "pending_facebook_access_token"
 
         private const val STATE_STEP2_CONTINUE_ONLY = "signup_step2_continue_only"
         private const val STATE_OTP_ENTRY_MODE = "signup_otp_entry_mode"
@@ -681,6 +719,8 @@ class SignUpActivity : AppCompatActivity() {
         private const val STATE_PENDING_DISPLAY_NAME = "signup_pending_display_name"
         private const val STATE_BOT_ID_FOR_LINK = "signup_bot_id_for_link"
         private const val STATE_API_KEY_FOR_LINK = "signup_api_key_for_link"
+        private const val STATE_PENDING_GOOGLE_ID_TOKEN = "signup_pending_google_id_token"
+        private const val STATE_PENDING_FACEBOOK_ACCESS_TOKEN = "signup_pending_facebook_access_token"
 
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }

@@ -262,23 +262,12 @@ def signup_start():
 
 @app.route("/signup/verify-email", methods=["POST"])
 def signup_verify_email():
-    """POST { email, otp } -> session moves to PENDING_ADMIN."""
+    """POST { email, otp } or { email, google_id_token } -> session moves to PENDING_ADMIN."""
+    from utils.route_handlers import signup_verify_email as rh_signup_verify_email
+
     data = request.get_json() or {}
-    email = (data.get("email") or "").strip()
-    otp = (data.get("otp") or "").strip()
-    db = get_db()
-    if not db:
-        return jsonify({"message": "Central DB not configured"}), 503
-    r = db.signup_flow_verify_email(email, otp)
-    if not r.get("ok"):
-        err = r.get("error") or "error"
-        code = 503 if err == "signup_not_configured" else 400
-        if err in ("session_not_found",):
-            code = 404
-        if err in ("wrong_state",):
-            code = 409
-        return jsonify({"message": err, "account_status": r.get("account_status")}), code
-    return jsonify({"message": r.get("message", "ok"), "account_status": r.get("account_status")})
+    code, body = rh_signup_verify_email(data, {}, {})
+    return jsonify(body), code
 
 
 @app.route("/signup/link-admin", methods=["POST"])

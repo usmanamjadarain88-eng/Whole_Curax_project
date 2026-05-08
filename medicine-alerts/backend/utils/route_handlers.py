@@ -16,6 +16,114 @@ from utils.databus import notify_databus
 from utils.db import get_db
 from utils.scheduler_shim import trigger_alert_checks_for_admin
 
+
+def _verify_google_signin_id_token(id_token_jwt: str, expected_audience: str) -> dict:
+    """
+    Validate a Google Sign-In ID token via Google's tokeninfo endpoint.
+    expected_audience must be the OAuth Web client ID (same as Android default_web_client_id).
+    Returns {"ok": True, "email": str} or {"ok": False, "error": str}.
+    """
+    import urllib.parse
+    import urllib.request
+
+    if not (id_token_jwt or "").strip() or not (expected_audience or "").strip():
+        return {"ok": False, "error": "invalid_input"}
+    url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + urllib.parse.quote(
+        id_token_jwt.strip(), safe=""
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "CuraxSignup/1"})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read().decode()
+        data = json.loads(raw)
+    except Exception:
+        return {"ok": False, "error": "invalid_google_token"}
+    aud = (data.get("aud") or "").strip()
+    if aud != expected_audience.strip():
+        return {"ok": False, "error": "invalid_google_token"}
+    try:
+        exp = data.get("exp")
+        if exp is not None and int(exp) < int(time.time()):
+            return {"ok": False, "error": "invalid_google_token"}
+    except (TypeError, ValueError):
+        pass
+    email = (data.get("email") or "").strip()
+    if not email or "@" not in email:
+        return {"ok": False, "error": "invalid_google_token"}
+    ev = data.get("email_verified")
+    if ev is False or ev == "false":
+        return {"ok": False, "error": "invalid_google_token"}
+    return {"ok": True, "email": email}
+
+
+# Public OAuth client IDs from Firebase google-services (curax-bfacb). Env GOOGLE_SIGNIN_WEB_CLIENT_ID overrides / prepends.
+_CURAX_GOOGLE_WEB_CLIENT_IDS_DEFAULT = (
+    "428598576836-lgo255b9oqhejb3vf91tn8la5cor1lcl.apps.googleusercontent.com",
+    "428598576836-mjv3b8l0vmskvmbvkv0n19n69oim31ol.apps.googleusercontent.com",
+)
+
+
+def _google_signin_audiences_for_verify():
+    out = []
+    seen = set()
+    env = (os.environ.get("GOOGLE_SIGNIN_WEB_CLIENT_ID") or "").strip()
+    if env:
+        out.append(env)
+        seen.add(env)
+    for x in _CURAX_GOOGLE_WEB_CLIENT_IDS_DEFAULT:
+        if x not in seen:
+            out.append(x)
+            seen.add(x)
+    return out
+
+
+def _verify_facebook_user_access_token(access_token: str) -> dict:
+    """
+    Validate a Facebook user access token for this app (FACEBOOK_APP_ID + FACEBOOK_APP_SECRET),
+    then load email from /me. Returns {"ok": True, "email": str} or {"ok": False, "error": str}.
+    """
+    import urllib.parse
+    import urllib.request
+
+    token = (access_token or "").strip()
+    if not token:
+        return {"ok": False, "error": "invalid_input"}
+    app_id = (os.environ.get("FACEBOOK_APP_ID") or "").strip()
+    app_secret = (os.environ.get("FACEBOOK_APP_SECRET") or "").strip()
+    if not app_id or not app_secret:
+        return {"ok": False, "error": "facebook_oauth_not_configured"}
+    app_access = f"{app_id}|{app_secret}"
+    dbg_url = "https://graph.facebook.com/debug_token?" + urllib.parse.urlencode(
+        {"input_token": token, "access_token": app_access}
+    )
+    try:
+        req = urllib.request.Request(dbg_url, headers={"User-Agent": "CuraxSignup/1"})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read().decode()
+        dbg = json.loads(raw)
+    except Exception:
+        return {"ok": False, "error": "invalid_facebook_token"}
+    data = dbg.get("data") or {}
+    if not data.get("is_valid"):
+        return {"ok": False, "error": "invalid_facebook_token"}
+    if str(data.get("app_id") or "") != app_id:
+        return {"ok": False, "error": "invalid_facebook_token"}
+    me_url = "https://graph.facebook.com/me?" + urllib.parse.urlencode(
+        {"fields": "email", "access_token": token}
+    )
+    try:
+        req2 = urllib.request.Request(me_url, headers={"User-Agent": "CuraxSignup/1"})
+        with urllib.request.urlopen(req2, timeout=12) as resp2:
+            raw2 = resp2.read().decode()
+        me = json.loads(raw2)
+    except Exception:
+        return {"ok": False, "error": "invalid_facebook_token"}
+    email = (me.get("email") or "").strip()
+    if not email or "@" not in email:
+        return {"ok": False, "error": "facebook_email_required"}
+    return {"ok": True, "email": email}
+
+
 def root(body, query, headers):
     """So visiting the backend URL in a browser shows something instead of 404."""
     from utils import dev_router
@@ -130,19 +238,48 @@ def connect_to_admin(body, query, headers):
 # ---- User signup flow (email -> OTP -> admin code); additive ----
 def signup_start(body, query, headers):
     """POST { email, password, first_name?, last_name? } -> OTP issued (see server log); optional dev_otp if SIGNUP_DEV_RETURN_OTP=1."""
-    data = body
+    data = body or {}
     email = (data.get("email") or "").strip()
     password = (data.get("password") or "").strip()
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
+    google_id_token = (data.get("google_id_token") or "").strip()
+    facebook_access_token = (data.get("facebook_access_token") or "").strip()
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
-    r = db.signup_flow_start(email, password, first_name=first_name, last_name=last_name)
+    if google_id_token:
+        vr = {"ok": False, "error": "invalid_google_token"}
+        for aud in _google_signin_audiences_for_verify():
+            vr = _verify_google_signin_id_token(google_id_token, aud)
+            if vr.get("ok"):
+                break
+        if not vr.get("ok"):
+            return (401, {"message": vr.get("error", "invalid_google_token")})
+        g_email = (vr.get("email") or "").strip()
+        if email and db._normalize_signup_email(email) != db._normalize_signup_email(g_email):
+            return (400, {"message": "google_email_mismatch"})
+        r = db.signup_flow_resend_otp_pending_email_oauth(g_email)
+    elif facebook_access_token:
+        fr = _verify_facebook_user_access_token(facebook_access_token)
+        if fr.get("error") == "facebook_oauth_not_configured":
+            return (503, {"message": "facebook_oauth_not_configured"})
+        if not fr.get("ok"):
+            return (401, {"message": fr.get("error", "invalid_facebook_token")})
+        fb_email = (fr.get("email") or "").strip()
+        if email and db._normalize_signup_email(email) != db._normalize_signup_email(fb_email):
+            return (400, {"message": "facebook_email_mismatch"})
+        r = db.signup_flow_resend_otp_pending_email_oauth(fb_email)
+    else:
+        r = db.signup_flow_start(email, password, first_name=first_name, last_name=last_name)
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 503 if err == "signup_not_configured" else 400
         if err in ("email_already_registered", "email_signup_in_progress"):
+            code = 409
+        if err == "session_not_found":
+            code = 404
+        if err == "wrong_state":
             code = 409
         payload = {"message": err, "detail": r.get("detail")}
         if err == "signup_not_configured":
@@ -168,12 +305,31 @@ def signup_start(body, query, headers):
 def signup_sign_in(body, query, headers):
     """POST { email, password } -> pending_email | pending_admin | active (with bot_id, api_key, admin fields)."""
     data = body or {}
-    email = (data.get("email") or "").strip()
-    password = (data.get("password") or "").strip()
+    google_id_token = (data.get("google_id_token") or "").strip()
+    facebook_access_token = (data.get("facebook_access_token") or "").strip()
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
-    r = db.signup_sign_in(email, password)
+    if google_id_token:
+        vr = {"ok": False, "error": "invalid_google_token"}
+        for aud in _google_signin_audiences_for_verify():
+            vr = _verify_google_signin_id_token(google_id_token, aud)
+            if vr.get("ok"):
+                break
+        if not vr.get("ok"):
+            return (401, {"message": vr.get("error", "invalid_google_token")})
+        r = db.signup_sign_in_oauth_email(vr.get("email") or "")
+    elif facebook_access_token:
+        fr = _verify_facebook_user_access_token(facebook_access_token)
+        if fr.get("error") == "facebook_oauth_not_configured":
+            return (503, {"message": "facebook_oauth_not_configured"})
+        if not fr.get("ok"):
+            return (401, {"message": fr.get("error", "invalid_facebook_token")})
+        r = db.signup_sign_in_oauth_email(fr.get("email") or "")
+    else:
+        email = (data.get("email") or "").strip()
+        password = (data.get("password") or "").strip()
+        r = db.signup_sign_in(email, password)
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 400
@@ -194,6 +350,8 @@ def signup_sign_in(body, query, headers):
         return (code, payload)
     phase = r.get("account_phase") or ""
     out = {"message": "ok", "account_phase": phase}
+    if r.get("email"):
+        out["email"] = r["email"]
     if phase == "active":
         for k in (
             "bot_id",
@@ -213,14 +371,33 @@ def signup_sign_in(body, query, headers):
 
 
 def signup_verify_email(body, query, headers):
-    """POST { email, otp } -> session moves to PENDING_ADMIN."""
-    data = body
+    """POST { email, otp } or { email, google_id_token } -> session moves to PENDING_ADMIN."""
+    data = body or {}
     email = (data.get("email") or "").strip()
     otp = (data.get("otp") or "").strip()
+    google_id_token = (data.get("google_id_token") or "").strip()
+    facebook_access_token = (data.get("facebook_access_token") or "").strip()
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
-    r = db.signup_flow_verify_email(email, otp)
+    if google_id_token:
+        vr = {"ok": False, "error": "invalid_google_token"}
+        for aud in _google_signin_audiences_for_verify():
+            vr = _verify_google_signin_id_token(google_id_token, aud)
+            if vr.get("ok"):
+                break
+        if not vr.get("ok"):
+            return (400, {"message": vr.get("error", "invalid_google_token")})
+        r = db.signup_flow_verify_email_google(email, vr.get("email") or "")
+    elif facebook_access_token:
+        fr = _verify_facebook_user_access_token(facebook_access_token)
+        if fr.get("error") == "facebook_oauth_not_configured":
+            return (503, {"message": "facebook_oauth_not_configured"})
+        if not fr.get("ok"):
+            return (400, {"message": fr.get("error", "invalid_facebook_token")})
+        r = db.signup_flow_verify_email_google(email, fr.get("email") or "")
+    else:
+        r = db.signup_flow_verify_email(email, otp)
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 503 if err == "signup_not_configured" else 400
@@ -228,8 +405,57 @@ def signup_verify_email(body, query, headers):
             code = 404
         if err in ("wrong_state",):
             code = 409
+        if err == "google_email_mismatch":
+            code = 400
         return (code, {"message": err, "account_status": r.get("account_status")})
     return (200, {"message": r.get("message", "ok"), "account_status": r.get("account_status")})
+
+
+def password_reset_start(body, query, headers):
+    """POST { email } -> OTP emailed for linked ACTIVE users (generic 200 if unknown)."""
+    data = body or {}
+    email = (data.get("email") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.password_reset_start(email)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 503 if err == "password_reset_not_configured" else 400
+        payload = {"message": err}
+        if r.get("detail"):
+            payload["detail"] = r["detail"]
+        return (code, payload)
+    out = {"message": r.get("message", "ok")}
+    if "email_sent" in r:
+        out["email_sent"] = bool(r["email_sent"])
+    if r.get("dev_otp"):
+        out["dev_otp"] = r["dev_otp"]
+    return (200, out)
+
+
+def password_reset_complete(body, query, headers):
+    """POST { email, otp, new_password } -> updates password after OTP check."""
+    data = body or {}
+    email = (data.get("email") or "").strip()
+    otp = (data.get("otp") or "").strip()
+    new_password = (data.get("new_password") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.password_reset_complete(email, otp, new_password)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 503 if err == "password_reset_not_configured" else 400
+        if err in ("invalid_or_expired",):
+            code = 401
+        payload = {"message": err}
+        if r.get("detail"):
+            payload["detail"] = r["detail"]
+        return (code, payload)
+    return (200, {"message": r.get("message", "password_updated")})
+
+
 def signup_link_admin(body, query, headers):
     """POST { email, connection_code, bot_id, api_key, name?, fcm_token? } -> same shape as /connect-to-admin after email steps."""
     data = body

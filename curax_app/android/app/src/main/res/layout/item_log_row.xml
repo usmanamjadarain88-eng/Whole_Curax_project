@@ -1,73 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:paddingVertical="0dp"
-    android:paddingStart="0dp"
-    android:paddingEnd="0dp"
+    android:layout_height="@dimen/dose_history_table_row_height"
     android:gravity="center_vertical"
-    android:background="?attr/selectableItemBackground">
+    android:orientation="horizontal">
 
     <TextView
         android:id="@+id/tvLogDate"
         android:layout_width="100dp"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
+        android:layout_height="@dimen/dose_history_table_row_height"
         android:background="@drawable/bg_table_cell"
+        android:ellipsize="end"
+        android:gravity="center_vertical"
+        android:maxLines="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:textColor="@color/text_primary"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        tools:text="2026-05-05" />
 
     <TextView
         android:id="@+id/tvLogTime"
         android:layout_width="56dp"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:gravity="center"
+        android:layout_height="@dimen/dose_history_table_row_height"
         android:background="@drawable/bg_table_cell"
+        android:gravity="center"
+        android:maxLines="1"
         android:textColor="@color/text_primary"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        tools:text="09:30" />
 
     <TextView
         android:id="@+id/tvLogMedicine"
         android:layout_width="140dp"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:ellipsize="end"
-        android:maxLines="1"
+        android:layout_height="@dimen/dose_history_table_row_height"
         android:background="@drawable/bg_table_cell"
+        android:ellipsize="end"
+        android:gravity="center_vertical"
+        android:maxLines="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:textColor="@color/text_primary"
         android:textSize="12sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        tools:text="Panadol" />
 
     <TextView
         android:id="@+id/tvLogStatus"
         android:layout_width="72dp"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:gravity="center"
+        android:layout_height="@dimen/dose_history_table_row_height"
         android:background="@drawable/bg_table_cell"
+        android:gravity="center"
+        android:maxLines="1"
         android:textSize="12sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        tools:text="Taken" />
 
     <TextView
         android:id="@+id/tvLogSource"
         android:layout_width="64dp"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:gravity="center"
+        android:layout_height="@dimen/dose_history_table_row_height"
         android:background="@drawable/bg_table_cell"
+        android:gravity="center"
+        android:maxLines="1"
         android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        tools:text="System" />
 
     <TextView
         android:id="@+id/tvLogUser"
         android:layout_width="100dp"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:ellipsize="end"
-        android:maxLines="1"
+        android:layout_height="@dimen/dose_history_table_row_height"
         android:background="@drawable/bg_table_cell"
+        android:ellipsize="end"
+        android:gravity="center_vertical"
+        android:maxLines="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:textColor="@color/text_primary"
-        android:textSize="12sp" />
+        android:textSize="12sp"
+        tools:text="You" />
 </LinearLayout>

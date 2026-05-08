@@ -1,5 +1,6 @@
 package com.curax.app
 
+import android.app.Activity
 import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
@@ -17,7 +18,6 @@ import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
-import androidx.core.graphics.ColorUtils
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -64,6 +64,8 @@ import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import androidx.viewpager2.widget.ViewPager2
 import android.content.res.Configuration
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
 
 class UserStandaloneActivity : AppCompatActivity() {
 
@@ -86,6 +88,14 @@ class UserStandaloneActivity : AppCompatActivity() {
 
     private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         if (ok && cameraCaptureUri != null) runProfileUploadFromUri(cameraCaptureUri!!)
+    }
+
+    private val esp32BlePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        if (res.resultCode == Activity.RESULT_OK) {
+            val addr = res.data?.getStringExtra(Esp32BlePickerActivity.EXTRA_MAC) ?: return@registerForActivityResult
+            val name = res.data?.getStringExtra(Esp32BlePickerActivity.EXTRA_NAME).orEmpty()
+            CuraxEsp32BleLink.connect(this, addr, name)
+        }
     }
 
     private var cameraCaptureUri: Uri? = null
@@ -113,6 +123,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     private lateinit var tvChevronAlerts: TextView
     private lateinit var tvChevronRealtime: TextView
     private lateinit var tvUserSidebarFullName: TextView
+    private lateinit var tvSidebarEsp32BleStatus: TextView
     private val mainHandler = Handler(Looper.getMainLooper())
     private var ambientPreviewTickSeq = 0
     private val ambientSidebarPreviewRunnable = object : Runnable {
@@ -123,12 +134,17 @@ class UserStandaloneActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.tvSidebarAmbientTemp1)?.text = f.tempZone1
             findViewById<TextView>(R.id.tvSidebarAmbientTemp2)?.text = f.tempZone2
             findViewById<TextView>(R.id.tvSidebarAmbientHumidity)?.text = f.humidity
-            findViewById<TextView>(R.id.tvSidebarAmbientUpdated)?.text = f.updatedLine
             mainHandler.postDelayed(this, 2000L)
         }
     }
     private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
+    /** Debounced: [LocalAlertsController.reschedule] + [DoseAutoMissedMarker.run] are heavy on the main thread. */
+    private val standaloneHeavyResumeRunnable = Runnable {
+        if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@Runnable
+        LocalAlertsController.reschedule(this@UserStandaloneActivity)
+        DoseAutoMissedMarker.run(this@UserStandaloneActivity)
+    }
     private var connectionService: AlertConnectionService? = null
     @Volatile
     private var databusResolveInFlight = false
@@ -164,6 +180,14 @@ class UserStandaloneActivity : AppCompatActivity() {
                 AlertEvents.ACTION_CONNECTION_STATE_CHANGED,
                 AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE,
                 -> refreshUserSidebar()
+            }
+        }
+    }
+    private var esp32BleReceiverRegistered = false
+    private val esp32BleConnectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == CuraxEsp32BleLink.ACTION_CONNECTION_STATE && !isFinishing) {
+                refreshSidebarEsp32BleUi()
             }
         }
     }
@@ -217,10 +241,18 @@ class UserStandaloneActivity : AppCompatActivity() {
                     AppLockState.grantUnlock()
                     prefs.themeMode = newMode
                     AppCompatDelegate.setDefaultNightMode(newMode)
-                    // Fade in/out so theme swap feels smoother than an instant cut (same activity tree).
-                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                    recreate()
-                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                    // Apply night mode in-place when possible (avoids full activity recreate + ViewPager rebuild).
+                    // Nested post: TabLayout / cards re-read XML after applyDayNight(); refresh must run after that pass
+                    // so default-mode tab strip does not briefly show standalone colors or a stale elevation shadow.
+                    window.decorView.post themeApply@{
+                        if (isFinishing) return@themeApply
+                        delegate.applyDayNight()
+                        invalidateOptionsMenu()
+                        window.decorView.post chromeRefresh@{
+                            if (isFinishing) return@chromeRefresh
+                            refreshUserShellChrome()
+                        }
+                    }
                     true
                 }
                 R.id.action_settings -> {
@@ -336,6 +368,15 @@ class UserStandaloneActivity : AppCompatActivity() {
             startActivity(Intent(this, UserAmbientMonitorActivity::class.java))
         }
 
+        tvSidebarEsp32BleStatus = findViewById(R.id.tvSidebarEsp32BleStatus)
+        findViewById<MaterialButton>(R.id.btnSidebarEsp32BleConnect).setOnClickListener {
+            esp32BlePickerLauncher.launch(Intent(this, Esp32BlePickerActivity::class.java))
+        }
+        findViewById<MaterialButton>(R.id.btnSidebarEsp32BleDisconnect).setOnClickListener {
+            CuraxEsp32BleLink.disconnect()
+            refreshSidebarEsp32BleUi()
+        }
+
         updateConnectionUi(false)
         // No cloud snapshot yet while waiting for admin approval — avoid blocking overlay + bogus /user/data logout.
         showLoading(!restored && !prefs.awaitingAdminLinkApproval)
@@ -355,14 +396,30 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        window.decorView.removeCallbacks(standaloneHeavyResumeRunnable)
+        super.onPause()
+    }
+
+    private fun scheduleStandaloneHeavyResumeDebounced() {
+        val decor = window.decorView
+        decor.removeCallbacks(standaloneHeavyResumeRunnable)
+        val delayMs =
+            if (StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(this)) 450L else 180L
+        decor.postDelayed(standaloneHeavyResumeRunnable, delayMs)
+    }
+
     override fun onResume() {
         super.onResume()
         refreshUserShellChrome()
+        if (!StandaloneUi.isUserStandalone(this)) {
+            CuraxEsp32BleLink.init(this)
+            CuraxEsp32BleLink.connectSavedDevice(this)
+        }
         refreshUserSidebar()
         AwaitingAdminLinkCoordinator.pollIfNeeded(this)
         if (StandaloneUi.isUserStandalone(this)) {
-            LocalAlertsController.reschedule(this)
-            DoseAutoMissedMarker.run(this)
+            scheduleStandaloneHeavyResumeDebounced()
             DoseNudgeController.tickDailyAdherenceIfNeeded(this)
             PendingSyncCoordinator.requestFlush(this)
         }
@@ -422,6 +479,43 @@ class UserStandaloneActivity : AppCompatActivity() {
         return mask == Configuration.UI_MODE_NIGHT_YES
     }
 
+    /**
+     * Right after [AppCompatDelegate.applyDayNight], [resources.configuration] can still report the previous
+     * UI mode for one frame, so [ContextCompat.getColor] on the Activity resolves the wrong values/values-night
+     * bucket (wrong tab strip / pager chrome until recreate).
+     */
+    private fun isAppNightPalette(): Boolean {
+        return when (prefs.themeMode) {
+            AppCompatDelegate.MODE_NIGHT_YES -> true
+            AppCompatDelegate.MODE_NIGHT_NO -> false
+            else -> isDarkModeEnabled()
+        }
+    }
+
+    private fun paletteContext(): Context {
+        val cfg = Configuration(resources.configuration)
+        cfg.uiMode = cfg.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv() or
+            if (isAppNightPalette()) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO
+        return createConfigurationContext(cfg)
+    }
+
+    private fun paletteColor(@ColorRes id: Int): Int =
+        ContextCompat.getColor(paletteContext(), id)
+
+    private fun paletteDrawable(@DrawableRes id: Int): android.graphics.drawable.Drawable? =
+        ContextCompat.getDrawable(paletteContext(), id)
+
+    /** M3 tab slots keep a themed ripple/surface behind labels unless stripped after theme changes. */
+    private fun clearTabSlotBackgrounds() {
+        if (tabLayout.childCount == 0) return
+        val strip = tabLayout.getChildAt(0) as? ViewGroup ?: return
+        for (i in 0 until strip.childCount) {
+            val tabSlot = strip.getChildAt(i)
+            tabSlot?.background = null
+            tabSlot?.setBackgroundColor(Color.TRANSPARENT)
+        }
+    }
+
     private fun shellDp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun scheduleDeferredHomeDialogs() {
@@ -458,23 +552,24 @@ class UserStandaloneActivity : AppCompatActivity() {
         val tabNavInner = findViewById<View>(R.id.userStandaloneTabNavInner)
         if (StandaloneUi.isUserStandalone(this)) {
             main.setBackgroundResource(R.drawable.bg_standalone_app_shell)
-            tabCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.standalone_tab_strip_bg))
+            tabCard.setCardBackgroundColor(paletteColor(R.color.standalone_tab_strip_bg))
             tabCard.strokeWidth = 0
             tabCard.strokeColor = Color.TRANSPARENT
             tabCard.radius = shellDp(20).toFloat()
-            pagerCard.setCardBackgroundColor(ContextCompat.getColor(this, R.color.standalone_tab_strip_bg))
+            tabCard.cardElevation = shellDp(5).toFloat()
+            pagerCard.setCardBackgroundColor(paletteColor(R.color.standalone_tab_strip_bg))
             tabNavInner.setBackgroundResource(R.drawable.bg_standalone_tab_nav_container)
             tabLayout.setBackgroundColor(Color.TRANSPARENT)
-            tabLayout.setSelectedTabIndicator(ContextCompat.getDrawable(this, R.drawable.tab_indicator_standalone))
+            tabLayout.setSelectedTabIndicator(paletteDrawable(R.drawable.tab_indicator_standalone))
             tabLayout.tabIndicatorAnimationMode = TabLayout.INDICATOR_ANIMATION_MODE_ELASTIC
             tabLayout.isTabIndicatorFullWidth = false
             tabLayout.setSelectedTabIndicatorHeight(shellDp(3))
             tabLayout.tabRippleColor = ColorStateList.valueOf(
-                ContextCompat.getColor(this, R.color.standalone_tab_ripple),
+                paletteColor(R.color.standalone_tab_ripple),
             )
             tabLayout.setTabTextColors(
-                ContextCompat.getColor(this, R.color.standalone_tab_text_normal),
-                ContextCompat.getColor(this, R.color.standalone_tab_text_selected),
+                paletteColor(R.color.standalone_tab_text_normal),
+                paletteColor(R.color.standalone_tab_text_selected),
             )
             (tabCard.layoutParams as LinearLayout.LayoutParams).apply {
                 marginStart = shellDp(8)
@@ -489,28 +584,27 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         } else {
             main.setBackgroundResource(R.drawable.bg_admin_dashboard_surface)
-            val shellBg = ContextCompat.getColor(this, R.color.surface_bg)
+            val shellBg = paletteColor(R.color.surface_bg)
             tabCard.setCardBackgroundColor(shellBg)
             tabCard.strokeWidth = shellDp(1)
-            tabCard.strokeColor = ContextCompat.getColor(this, R.color.summary_stroke)
+            tabCard.strokeColor = paletteColor(R.color.summary_stroke)
             tabCard.radius = shellDp(14).toFloat()
+            tabCard.cardElevation = 0f
             pagerCard.setCardBackgroundColor(shellBg)
             tabNavInner.background = null
             tabLayout.setBackgroundColor(Color.TRANSPARENT)
             // Admin-style “needle” strip: full-width underline on the summary card, not the standalone pill strip.
-            tabLayout.setSelectedTabIndicator(ContextCompat.getDrawable(this, R.drawable.tab_indicator_default))
+            tabLayout.setSelectedTabIndicator(paletteDrawable(R.drawable.tab_indicator_default))
             tabLayout.tabIndicatorAnimationMode = TabLayout.INDICATOR_ANIMATION_MODE_LINEAR
             tabLayout.isTabIndicatorFullWidth = true
             tabLayout.setSelectedTabIndicatorHeight(shellDp(3))
-            tabLayout.setSelectedTabIndicatorColor(ContextCompat.getColor(this, R.color.button_primary_bg))
-            val ripple = ColorUtils.setAlphaComponent(
-                ContextCompat.getColor(this, R.color.text_secondary),
-                0x33,
+            tabLayout.setSelectedTabIndicatorColor(paletteColor(R.color.button_primary_bg))
+            tabLayout.tabRippleColor = ColorStateList.valueOf(
+                paletteColor(R.color.smart_shell_tab_ripple),
             )
-            tabLayout.tabRippleColor = ColorStateList.valueOf(ripple)
             tabLayout.setTabTextColors(
-                ContextCompat.getColor(this, R.color.text_secondary),
-                ContextCompat.getColor(this, R.color.connection_panel_title),
+                paletteColor(R.color.text_secondary),
+                paletteColor(R.color.connection_panel_title),
             )
             (tabCard.layoutParams as LinearLayout.LayoutParams).apply {
                 marginStart = shellDp(14)
@@ -524,16 +618,26 @@ class UserStandaloneActivity : AppCompatActivity() {
                 bottomMargin = shellDp(12)
             }
         }
+        viewPager.setBackgroundColor(
+            if (StandaloneUi.isUserStandalone(this)) {
+                paletteColor(R.color.standalone_tab_strip_bg)
+            } else {
+                paletteColor(R.color.surface_bg)
+            },
+        )
+        clearTabSlotBackgrounds()
+        tabLayout.post { clearTabSlotBackgrounds() }
         tabCard.requestLayout()
         pagerCard.requestLayout()
         syncSidebarConnectButtonStyleWithRelayState()
         applySidebarAmbientVisibility()
     }
 
-    /** Default (Smart System) mode: hardware ambient entry above Connect; hidden in Personal Health standalone. */
+    /** Default (Smart System) mode: ESP32 bridge + hardware ambient above Connect; hidden in Personal Health standalone. */
     private fun applySidebarAmbientVisibility() {
-        val card = findViewById<View>(R.id.cardUserSidebarAmbient) ?: return
-        card.visibility = if (StandaloneUi.isUserStandalone(this)) View.GONE else View.VISIBLE
+        val show = !StandaloneUi.isUserStandalone(this)
+        findViewById<View>(R.id.cardUserSidebarAmbient)?.visibility = if (show) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.cardUserSidebarEsp32Ble)?.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     /** Sidebar Connect: Default mode = medicine-box green; Standalone = same gradient as Health hub hero. */
@@ -709,6 +813,15 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
             displayModeReceiverRegistered = true
         }
+        if (!esp32BleReceiverRegistered) {
+            val ef = IntentFilter(CuraxEsp32BleLink.ACTION_CONNECTION_STATE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(esp32BleConnectionReceiver, ef, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(esp32BleConnectionReceiver, ef)
+            }
+            esp32BleReceiverRegistered = true
+        }
         ensureUserDataBusConnected()
         UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
         bootstrapStandaloneDataOnce()
@@ -746,6 +859,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (displayModeReceiverRegistered) {
             try { unregisterReceiver(displayModeFromServerReceiver) } catch (_: Exception) {}
             displayModeReceiverRegistered = false
+        }
+        if (esp32BleReceiverRegistered) {
+            try { unregisterReceiver(esp32BleConnectionReceiver) } catch (_: Exception) {}
+            esp32BleReceiverRegistered = false
         }
         super.onStop()
     }
@@ -1012,9 +1129,14 @@ class UserStandaloneActivity : AppCompatActivity() {
         val padH = (20f * dm.density).toInt()
         val padV = (12f * dm.density).toInt()
         val gap = (8f * dm.density).toInt()
+        val panelBg = ContextCompat.getColor(this, R.color.summary_card)
+        val labelColor = ContextCompat.getColor(this, R.color.text_primary)
+        val outlineCol = ContextCompat.getColor(this, R.color.summary_stroke)
+        val rippleCol = ContextCompat.getColor(this, R.color.smart_shell_tab_ripple)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(padH, padV, padH, padV)
+            background = ColorDrawable(panelBg)
         }
         val rowLp = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -1025,12 +1147,18 @@ class UserStandaloneActivity : AppCompatActivity() {
             text = getString(R.string.user_profile_pick_camera)
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            setTextColor(labelColor)
+            strokeColor = ColorStateList.valueOf(outlineCol)
+            rippleColor = ColorStateList.valueOf(rippleCol)
         }
         val btnGallery = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             layoutParams = LinearLayout.LayoutParams(rowLp).apply { topMargin = gap }
             text = getString(R.string.user_profile_pick_gallery)
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
             textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            setTextColor(labelColor)
+            strokeColor = ColorStateList.valueOf(outlineCol)
+            rippleColor = ColorStateList.valueOf(rippleCol)
         }
         root.addView(btnCamera)
         root.addView(btnGallery)
@@ -1253,6 +1381,24 @@ class UserStandaloneActivity : AppCompatActivity() {
             0 -> getString(R.string.user_sidebar_detail_realtime_connected)
             1 -> getString(R.string.user_sidebar_detail_realtime_reconnecting)
             else -> getString(R.string.user_sidebar_detail_realtime_disconnected)
+        }
+
+        refreshSidebarEsp32BleUi()
+    }
+
+    private fun refreshSidebarEsp32BleUi() {
+        if (!::tvSidebarEsp32BleStatus.isInitialized) return
+        if (StandaloneUi.isUserStandalone(this)) return
+        if (CuraxEsp32BleLink.isConnected()) {
+            val name = CuraxEsp32BleLink.connectedDeviceName().ifEmpty {
+                prefs.esp32BleDeviceAddress
+            }
+            tvSidebarEsp32BleStatus.text = getString(
+                R.string.dose_ble_status_connected,
+                name.ifEmpty { "ESP32" },
+            )
+        } else {
+            tvSidebarEsp32BleStatus.text = getString(R.string.dose_ble_status_disconnected)
         }
     }
 

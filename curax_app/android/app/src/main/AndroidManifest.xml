@@ -110,6 +110,13 @@
             android:windowSoftInputMode="adjustNothing" />
 
         <activity
+            android:name=".ForgotPasswordActivity"
+            android:exported="false"
+            android:parentActivityName=".SignInActivity"
+            android:theme="@style/Theme.Curax.AuthOnboarding"
+            android:windowSoftInputMode="adjustNothing" />
+
+        <activity
             android:name=".SignUpRegistrationActivity"
             android:exported="false"
             android:parentActivityName=".SignInActivity"

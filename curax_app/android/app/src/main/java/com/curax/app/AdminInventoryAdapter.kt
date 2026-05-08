@@ -7,8 +7,8 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 
+/** Table rows (same layout as admin/default mode) for all variants — matches inventory header columns. */
 class AdminInventoryAdapter(
-    private val useStandaloneCards: Boolean,
     private val onItemClick: (AdminOverviewFragment.InventoryItem) -> Unit,
     private val computedStatus: (AdminOverviewFragment.InventoryItem) -> String
 ) : RecyclerView.Adapter<AdminInventoryAdapter.ViewHolder>() {
@@ -28,13 +28,8 @@ class AdminInventoryAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val layout = if (useStandaloneCards) {
-            R.layout.item_admin_inventory_standalone
-        } else {
-            R.layout.item_admin_inventory
-        }
-        val view = LayoutInflater.from(parent.context).inflate(layout, parent, false)
-        return ViewHolder(view, useStandaloneCards)
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_admin_inventory, parent, false)
+        return ViewHolder(view)
     }
 
     override fun getItemCount(): Int = items.size
@@ -43,7 +38,7 @@ class AdminInventoryAdapter(
         holder.bind(items[position], items[position].id == selectedId)
     }
 
-    inner class ViewHolder(itemView: View, private val standalone: Boolean) : RecyclerView.ViewHolder(itemView) {
+    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val tvMedicine: TextView = itemView.findViewById(R.id.tvRowMedicine)
         private val tvBox: TextView = itemView.findViewById(R.id.tvRowBox)
         private val tvStock: TextView = itemView.findViewById(R.id.tvRowStock)
@@ -52,55 +47,30 @@ class AdminInventoryAdapter(
         private val tvExpiry: TextView = itemView.findViewById(R.id.tvRowExpiry)
         private val tvStatus: TextView = itemView.findViewById(R.id.tvRowStatus)
         private val root: View = itemView.findViewById(R.id.layoutRowRoot)
-        private val strip: View? = if (standalone) itemView.findViewById(R.id.viewInventoryStrip) else null
 
         fun bind(item: AdminOverviewFragment.InventoryItem, selected: Boolean) {
             val status = computedStatus(item)
-            tvMedicine.text = item.name
-            if (standalone) {
-                tvBox.text = "Slot ${item.box}"
-            } else {
-                tvBox.text = item.box
-            }
+            tvMedicine.text = item.name.ifBlank { "—" }
+            tvBox.text = item.box.ifBlank { "—" }
             tvStock.text = item.stock.toString()
             tvDose.text = item.dosePerDay.toString()
-            tvTime.text = if (standalone) "Next · ${item.exactTime}" else item.exactTime
-            tvExpiry.text = if (standalone) "Expires ${item.expiry}" else item.expiry
+            tvTime.text = item.exactTime.ifBlank { "—" }
+            tvExpiry.text = item.expiry.ifBlank { "—" }
             tvStatus.text = status
 
-            if (standalone) {
-                val statusColor = when (status) {
+            tvStatus.setTextColor(
+                when (status) {
                     "Expiring" -> ContextCompat.getColor(itemView.context, R.color.standalone_inventory_strip_exp)
                     "Low" -> ContextCompat.getColor(itemView.context, R.color.standalone_inventory_strip_low)
                     "Normal" -> ContextCompat.getColor(itemView.context, R.color.standalone_inventory_strip_normal)
                     else -> ContextCompat.getColor(itemView.context, R.color.text_secondary)
-                }
-                tvStatus.setTextColor(statusColor)
-                strip?.setBackgroundColor(statusColor)
-            } else {
-                tvStatus.setTextColor(
-                    when (status) {
-                        "Expiring" -> 0xFFDC2626.toInt()
-                        "Low" -> 0xFFD97706.toInt()
-                        "Normal" -> 0xFF0E7A57.toInt()
-                        else -> ContextCompat.getColor(itemView.context, R.color.text_secondary)
-                    }
-                )
-            }
+                },
+            )
 
-            if (standalone) {
-                (root as? com.google.android.material.card.MaterialCardView)?.strokeWidth =
-                    if (selected) (2 * itemView.resources.displayMetrics.density).toInt().coerceAtLeast(2) else 1
-                (root as? com.google.android.material.card.MaterialCardView)?.strokeColor = ContextCompat.getColor(
-                    itemView.context,
-                    if (selected) R.color.standalone_tab_indicator else R.color.standalone_inventory_row_stroke
-                )
+            root.background = if (selected) {
+                ContextCompat.getDrawable(itemView.context, R.drawable.bg_inventory_selected)
             } else {
-                root.background = if (selected) {
-                    ContextCompat.getDrawable(itemView.context, R.drawable.bg_inventory_selected)
-                } else {
-                    null
-                }
+                null
             }
 
             itemView.setOnClickListener { onItemClick(item) }

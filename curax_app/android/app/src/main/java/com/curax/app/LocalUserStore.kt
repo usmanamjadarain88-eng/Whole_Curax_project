@@ -64,6 +64,12 @@ class LocalUserStore(context: Context) {
         const val ROLE_USER = "user"
         const val ROLE_ADMIN = "admin"
 
+        /**
+         * Stored after Google/Facebook sign-in when the real account password is not available on device.
+         * Satisfies [hasUser] and matches server-backed OAuth flows that do not require typing the password.
+         */
+        const val OAUTH_LOCAL_PASSWORD_PLACEHOLDER = "\u0001curax_oauth_local"
+
         private const val KEY_EMAIL = "email"
         private const val KEY_PASSWORD = "password"
         private const val KEY_ROLE = "role"

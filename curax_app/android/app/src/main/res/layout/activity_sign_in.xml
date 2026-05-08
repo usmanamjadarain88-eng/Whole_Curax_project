@@ -80,11 +80,21 @@
                 app:layout_constraintTop_toBottomOf="@id/tvTitleLine2"
                 tools:text="Enter your email to get started and manage your medication schedule." />
 
+            <!-- Restores breathing room between subtitle block and fields (sign-up keeps tighter inline spacing). -->
+            <Space
+                android:id="@+id/spacerSignInSubtitleToFields"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:importantForAccessibility="no"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tvSubtitle" />
+
             <TextView
                 android:id="@+id/labelEmail"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="16dp"
                 android:includeFontPadding="false"
                 android:labelFor="@id/etEmail"
                 android:letterSpacing="-0.08"
@@ -94,7 +104,7 @@
                 android:textStyle="bold"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
+                app:layout_constraintTop_toBottomOf="@id/spacerSignInSubtitleToFields"
                 tools:text="Email address" />
 
             <com.google.android.material.textfield.TextInputLayout
@@ -105,7 +115,8 @@
                 android:layout_marginBottom="6dp"
                 android:clipChildren="false"
                 android:clipToOutline="false"
-                android:minHeight="48dp"
+                android:clipToPadding="false"
+                android:minHeight="@dimen/auth_outlined_edit_min_height"
                 app:boxBackgroundColor="@android:color/white"
                 app:boxBackgroundMode="outline"
                 app:boxCollapsedPaddingTop="0dp"
@@ -129,14 +140,15 @@
                     android:layout_height="wrap_content"
                     android:autofillHints="emailAddress"
                     android:gravity="center_vertical"
+                    android:includeFontPadding="true"
                     android:hint="@string/placeholder_email"
                     android:importantForAutofill="yes"
                     android:inputType="textEmailAddress"
-                    android:minHeight="50dp"
+                    android:minHeight="@dimen/auth_outlined_edit_min_height"
                     android:paddingStart="12dp"
-                    android:paddingTop="12dp"
+                    android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                     android:paddingEnd="12dp"
-                    android:paddingBottom="18dp"
+                    android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
                     android:textColor="@color/auth_field_text"
                     android:textColorHighlight="@color/sign_in_text_highlight"
                     android:textColorHint="@color/auth_hint_email_muted"
@@ -170,7 +182,7 @@
                 android:clipChildren="false"
                 android:clipToOutline="false"
                 android:clipToPadding="false"
-                android:minHeight="48dp"
+                android:minHeight="@dimen/auth_outlined_edit_min_height"
                 app:boxBackgroundColor="@android:color/white"
                 app:boxBackgroundMode="outline"
                 app:boxCollapsedPaddingTop="0dp"
@@ -196,20 +208,20 @@
                     android:id="@+id/etPassword"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:minHeight="50dp"
+                    android:minHeight="@dimen/auth_outlined_edit_min_height"
                     android:autofillHints="password"
                     android:gravity="center_vertical"
                     android:hint="@string/sign_in_password_hint_dots"
                     android:importantForAutofill="yes"
-                    android:includeFontPadding="false"
+                    android:includeFontPadding="true"
                     android:inputType="textPassword"
                     android:lineSpacingExtra="0dp"
                     android:maxLines="1"
                     android:overScrollMode="never"
                     android:paddingStart="12dp"
-                    android:paddingTop="12dp"
+                    android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                     android:paddingEnd="44dp"
-                    android:paddingBottom="18dp"
+                    android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
                     android:scrollbars="none"
                     android:textColor="@color/auth_field_text"
                     android:textColorHighlight="@color/sign_in_text_highlight"
@@ -311,16 +323,85 @@
                     tools:text="Reset password" />
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/rowOrSocialSignIn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/auth_signin_forgot_to_or_social"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/rowForgotPassword">
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#D9D9D9" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="@string/sign_in_or_social"
+                    android:textColor="@color/auth_subtitle"
+                    android:textSize="12sp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#D9D9D9" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rowSocialButtonsSignIn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/auth_or_social_to_buttons_gap"
+                android:orientation="horizontal"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/rowOrSocialSignIn">
+
+                <!-- Same sizing as activity_sign_up_register: 52dp height, 16dp / 8dp / 16dp margins, weight 1+1 -->
+                <ImageButton
+                    android:id="@+id/btnGoogleSignIn"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/signup_social_button_height"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_signup_social_button"
+                    android:contentDescription="@string/sign_in_with_google"
+                    android:padding="12dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_social_google" />
+
+                <ImageButton
+                    android:id="@+id/btnFacebookSignIn"
+                    android:layout_width="0dp"
+                    android:layout_height="@dimen/signup_social_button_height"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_signup_social_button"
+                    android:contentDescription="@string/sign_in_with_facebook"
+                    android:padding="12dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_social_facebook" />
+            </LinearLayout>
+
             <!-- Fills remaining scroll height so there is no long empty drag below Forgot (fillViewport). -->
             <Space
                 android:id="@+id/spacerBelowForgot"
                 android:layout_width="0dp"
                 android:layout_height="0dp"
+                android:layout_marginTop="16dp"
                 android:importantForAccessibility="no"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/rowForgotPassword" />
+                app:layout_constraintTop_toBottomOf="@id/rowSocialButtonsSignIn" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.core.widget.NestedScrollView>
 

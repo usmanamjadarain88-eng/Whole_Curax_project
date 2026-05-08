@@ -17,8 +17,7 @@
     <string name="tab_dose_tracking">Dose tracking</string>
     <string name="dose_tracking_screen_title">Dose tracking</string>
     <string name="dose_tracking_instruction">Tap B1–B3, then mark your dose; late and missed doses log automatically.</string>
-    <string name="dose_tracking_instruction_default">Tap a box B1–B6 (same grid as the dashboard), then mark your dose. Late and missed doses log automatically.</string>
-    <string name="dose_tracking_boxes_hint">Tap a box to select it. The outline shows which box is active.</string>
+    <string name="dose_tracking_instruction_default">Tap a box (B1–B6), then Mark dose. Late and missed doses log automatically.</string>
     <string name="dose_box_empty_label">Empty</string>
     <string name="dose_box_qty_left">%d left</string>
     <string name="dose_tracking_mark_taken">Mark dose taken</string>
@@ -44,6 +43,12 @@
     <string name="dose_hist_header_medicine">Medicine</string>
     <string name="dose_hist_header_dose">Dose</string>
     <string name="dose_hist_header_remaining">Left</string>
+    <string name="log_table_header_date">Date</string>
+    <string name="log_table_header_time">Time</string>
+    <string name="log_table_header_medicine">Medicine</string>
+    <string name="log_table_header_status">Status</string>
+    <string name="log_table_header_source">Source</string>
+    <string name="log_table_header_user">User</string>
     <string name="dose_tracking_select_box">Select a box that has medicine first.</string>
     <string name="dose_tracking_saved">Dose recorded. Further local alerts for this medicine today are off.</string>
     <string name="dose_tracking_err_no_time">This medicine has no valid schedule time.</string>
@@ -103,6 +108,7 @@
     <string name="local_alert_plan_in_5_min">starts in 5 minutes</string>
     <string name="local_alert_plan_in_30_min">starts in 30 minutes</string>
     <string name="local_alert_plan_in_15_min">starts in 15 minutes</string>
+    <string name="standalone_connect_admin_first">Connect to an admin first.</string>
     <string name="standalone_alert_settings">Alert settings</string>
     <string name="standalone_alert_sound">Alert sound</string>
     <string name="standalone_alert_choose_sound">Choose sound</string>
@@ -169,7 +175,10 @@
     <string name="user_ambient_humidity_label">Humidity</string>
     <string name="user_ambient_last_updated">Last updated: %1$s</string>
     <string name="tab_temp_adjustment">T Adjustment</string>
+    <string name="user_temp_adjust_screen_title">Temperature adjustment</string>
     <string name="user_temp_adjust_intro">Set target ranges for each Peltier zone (same as desktop). Commands will be sent when hardware is linked.</string>
+    <string name="admin_logs_screen_title">Logs</string>
+    <string name="admin_logs_screen_subtitle">Each alert received (FCM or relay) appears here as a log entry.</string>
     <string name="user_temp_peltier1_title">Peltier 1 — boxes B1–B4</string>
     <string name="user_temp_peltier2_title">Peltier 2 — boxes B5–B6</string>
     <string name="user_temp_range_c">Range (°C)</string>
@@ -192,6 +201,9 @@
     <string name="dose_ble_status_connected">Bluetooth: connected (%1$s)</string>
     <string name="dose_ble_connect">Connect ESP32</string>
     <string name="dose_ble_disconnect">Disconnect</string>
+    <!-- Drawer-only: one-line labels beside Disconnect -->
+    <string name="user_sidebar_esp32_title">Medicine box · ESP32</string>
+    <string name="user_sidebar_esp32_connect">Connect</string>
     <string name="user_temp_ble_sent">Sent to ESP32 over Bluetooth.</string>
     <string name="user_sidebar_detail_admin_linked">Your data is tied to this admin. Medicines, reminders, and settings sync from their workspace.\n\n• Live updates need Realtime (DataBus) online.\n\n• Admin: %1$s</string>
     <string name="user_sidebar_detail_admin_not_linked">You are not linked to an admin yet. Without a link, Curax cannot load your care plan from the server.\n\n• Complete sign-up or sign-in and enter the admin connection code when asked.\n\n• Ask your clinic for their Curax connection code.</string>
@@ -308,7 +320,18 @@
     <string name="auto_lock_selected_10m">Auto-lock: 10 min</string>
     <string name="auto_lock_selected_30m">Auto-lock: 30 min</string>
     <string name="set_pin">Set PIN</string>
+    <string name="set_pin_screen_subtitle">Update or remove your app lock PIN.</string>
     <string name="change_pin">Change PIN</string>
+    <string name="pin_toolbar_title">PIN</string>
+    <string name="pin_setup_back_content_description">Go back</string>
+    <string name="pin_setup_heading_line1">Set optional</string>
+    <string name="pin_setup_heading_line2">PIN</string>
+    <string name="pin_setup_subtitle">Use a 4-digit PIN for quick access on this device. Skip if you prefer — you can add one anytime in Settings.</string>
+    <string name="pin_setup_save_cta">Save PIN</string>
+    <string name="pin_setup_skip_cta">Skip for now</string>
+    <string name="pin_setup_change_heading_line1">Change</string>
+    <string name="pin_setup_change_heading_line2">PIN</string>
+    <string name="pin_hint_4_digit">4-digit PIN</string>
     <string name="remove_pin">Remove PIN</string>
     <string name="save">Save</string>
     <string name="pin_hint">Enter 4-8 digit PIN</string>
@@ -323,6 +346,7 @@
     <string name="biometric_not_available">Fingerprint is not available on this device.</string>
     <string name="pin_incorrect">Incorrect PIN. Try again.</string>
     <string name="pin_validation">PIN must be 4 to 8 digits.</string>
+    <string name="pin_must_be_four_digits">PIN must be exactly 4 digits.</string>
     <string name="pin_mismatch">PIN and confirm PIN do not match.</string>
     <string name="pin_saved">PIN saved.</string>
     <string name="pin_removed">PIN removed.</string>
@@ -358,6 +382,24 @@
     <string name="sign_in_privacy_line">We\'ll never share your email with anyone</string>
     <string name="sign_in_forgotten_password">Forgotten your password?</string>
     <string name="sign_in_reset_password">Reset password</string>
+    <string name="forgot_password_title">Reset password</string>
+    <string name="forgot_password_nav_back_cd">Back</string>
+    <string name="forgot_password_step_email_title">Your email</string>
+    <string name="forgot_password_step_email_body">Enter the email for your Curax account. We\'ll send a code to confirm it\'s you.</string>
+    <string name="forgot_password_send_code">Send code</string>
+    <string name="forgot_password_step_otp_title">Check your email</string>
+    <string name="forgot_password_step_otp_body">Enter the 6-digit code we sent to %1$s.</string>
+    <string name="forgot_password_otp_hint">6-digit code</string>
+    <string name="forgot_password_continue">Continue</string>
+    <string name="forgot_password_step_pw_title">New password</string>
+    <string name="forgot_password_step_pw_body">Choose a new password for your account.</string>
+    <string name="forgot_password_new_hint">New password</string>
+    <string name="forgot_password_confirm_hint">Confirm new password</string>
+    <string name="forgot_password_save">Save password</string>
+    <string name="forgot_password_success">Your password was updated. Sign in with your new password.</string>
+    <string name="forgot_password_password_mismatch">New password and confirmation do not match.</string>
+    <string name="forgot_password_email_maybe_sent">If this email has an account, a code was sent. Also check spam. Server email must be configured.</string>
+    <string name="forgot_password_admin_register">Need admin registration?</string>
     <string name="auth_reset_sheet_hint">Use the button below if you need admin registration on this device.</string>
     <string name="sign_in_password_hint_dots">******</string>
     <string name="cd_show_password">Show password</string>
@@ -383,6 +425,10 @@
     <string name="signup_placeholder_password">Password</string>
     <string name="signup_placeholder_confirm_password">Confirm Password</string>
     <string name="sign_up_or_social">Or Sign up with</string>
+    <string name="sign_in_or_social">Or Sign in with</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="sign_in_with_facebook">Sign in with Facebook</string>
+    <string name="facebook_sign_in_server_not_configured">Facebook sign-in needs FACEBOOK_APP_ID and FACEBOOK_APP_SECRET on the server.</string>
     <string name="sign_up_marketing_opt_in">Send me helpful emails with medication reminders and health tips.</string>
     <string name="sign_up_terms_prefix">Yes, I understand and agree to the Task terms of service, including the User agreement and </string>
     <string name="sign_up_terms_privacy">Privacy Policy</string>
@@ -390,15 +436,26 @@
     <string name="sign_up_social_coming_soon">That option is not available right now.</string>
     <string name="sign_up_google">Google</string>
     <string name="sign_up_facebook">Facebook</string>
-    <!-- Replace with your Meta app id and client token (App Dashboard → Settings → Basic). -->
-    <string name="facebook_app_id" translatable="false">1234567890123456</string>
-    <string name="facebook_client_token" translatable="false">abcdefghijklmnopqrstuvwxyz123456</string>
+    <!-- Meta for Developers → Your App → Settings → Basic: paste App ID and Client Token here (not App Secret). -->
+    <string name="facebook_app_id" translatable="false">1365374282094935</string>
+    <string name="facebook_client_token" translatable="false">ad67e8063977cc4e1e46cb7a9b7d8a84</string>
+    <!-- Matches Firebase default_web_client_id for curax-bfacb; server accepts this + Android-linked client for token verify. -->
+    <string name="google_web_client_id" translatable="false">428598576836-lgo255b9oqhejb3vf91tn8la5cor1lcl.apps.googleusercontent.com</string>
     <string name="social_profile_filled">We filled your name and email from your account. Choose a password and tap Sign up to continue.</string>
     <string name="social_email_required_for_signup">We need an email from your account to create your Curax login. Allow email permission or use email sign-up.</string>
-    <string name="social_signup_auto_body">A secure password is shown in both password fields for this email. Sending your verification code…</string>
+    <string name="social_signup_auto_body">A secure password is filled for this email. Completing registration…</string>
     <string name="social_google_failed">Google sign-in could not finish: %1$s</string>
     <string name="social_facebook_failed">Facebook sign-in could not finish: %1$s</string>
     <string name="social_google_status_code">Error code %1$d</string>
+    <string name="social_google_developer_error">Developer setup: add this app\'s SHA-1 in Firebase Console → Project settings → Your Android app, download the new google-services.json (or set google_web_client_id to the Web OAuth client ID). Error 10 usually means OAuth client / fingerprint is missing.</string>
+    <string name="google_signin_fix_dialog_title">Finish Google sign-in setup</string>
+    <string name="google_signin_fix_dialog_message">Your Firebase project must know this Android app\'s fingerprint (error 10).\n\n• Firebase → Project settings → Your apps → Android (%1$s) → Add fingerprint\n• Authentication → Sign-in method → Google → Enable\n• Download google-services.json and replace android/app/google-services.json (oauth_client must not be empty), then rebuild.\n• Optional: set string google_web_client_id to the Web OAuth client ID.\n\nSHA-1 for this installed APK:\n%2$s</string>
+    <string name="google_signin_fix_dialog_sha_unknown">(Could not read from package — run: gradlew signingReport)</string>
+    <string name="google_signin_copy_sha1">Copy SHA-1</string>
+    <string name="google_signin_open_firebase">Open Firebase</string>
+    <string name="google_signin_copied_sha1">SHA-1 copied</string>
+    <!-- Must match project_id in google-services.json -->
+    <string name="firebase_console_project_settings_url" translatable="false">https://console.firebase.google.com/project/curax-bfacb/settings/general</string>
     <string name="privacy_open_failed">Could not open the privacy link.</string>
     <string name="privacy_policy_url" translatable="false">https://curax.app/privacy</string>
     <string name="label_confirm_password">Confirm password</string>

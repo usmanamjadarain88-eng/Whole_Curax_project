@@ -15,8 +15,10 @@ import java.util.Locale
 
 class AdminAlertsAdapter(
     private val useStandaloneCards: Boolean,
+    private val allowBulkMutations: Boolean = true,
+    private val onBulkMutationBlocked: (() -> Unit)? = null,
     private val onClick: (AlertItem) -> Unit,
-    private val onSelectionChanged: (Int) -> Unit
+    private val onSelectionChanged: (Int) -> Unit,
 ) : RecyclerView.Adapter<AdminAlertsAdapter.Holder>() {
 
     private val items = mutableListOf<AlertItem>()
@@ -97,6 +99,10 @@ class AdminAlertsAdapter(
         }
 
         holder.itemView.setOnLongClickListener {
+            if (!allowBulkMutations) {
+                onBulkMutationBlocked?.invoke()
+                return@setOnLongClickListener true
+            }
             if (!selectionMode) selectionMode = true
             toggleSelection(item)
             true

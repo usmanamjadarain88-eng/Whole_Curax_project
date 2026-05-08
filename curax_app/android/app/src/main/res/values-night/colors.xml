@@ -25,6 +25,7 @@
     <color name="text_primary">#F2F8F5</color>
     <color name="connection_panel_title">#F2F8F5</color>
     <color name="text_secondary">#A1B9AF</color>
+    <color name="smart_shell_tab_ripple">#33A1B9AF</color>
     <color name="subtitle_grey">#94A3B8</color>
 
     <color name="chart_status_normal">#2E7A5A</color>
@@ -39,6 +40,8 @@
     <color name="med_box_stroke">#2CA77F</color>
     <color name="med_box_label">#D7F5EA</color>
     <color name="med_box_text">#FFFFFF</color>
+    <color name="dose_box_led_ring">#5EFFC9</color>
+    <color name="dose_box_bg_selected">#157A52</color>
     <!-- Match Health Hub / inventory cards (standalone_inventory_card); avoid blue-tinted slate + cyan stroke -->
     <color name="med_box_standalone_bg">@color/standalone_inventory_card</color>
     <color name="med_box_standalone_stroke">@color/standalone_inventory_row_stroke</color>

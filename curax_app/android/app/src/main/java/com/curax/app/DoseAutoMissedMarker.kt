@@ -17,6 +17,7 @@ object DoseAutoMissedMarker {
     fun run(context: Context) {
         val app = context.applicationContext
         if (!StandaloneUi.isUserStandalone(app) || !AppRole.isUser(app)) return
+        if (StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(app)) return
         val dayKey = LocalAlertsController.localDayKeyToday()
         val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
         val now = System.currentTimeMillis()

@@ -2,29 +2,41 @@
 <resources>
     <!-- Auth headings: responsive top inset (was 102dp — caused clipping on short phones). -->
     <dimen name="auth_screen_title_margin_top">64dp</dimen>
+    <!-- Outlined fields: compact row height; hint clipping handled mainly via EditText includeFontPadding. -->
+    <dimen name="auth_outlined_edit_min_height">56dp</dimen>
+    <dimen name="auth_outlined_edit_padding_top">14dp</dimen>
+    <!-- Slight extra bottom pad stops outlined hint/text clipping without tall fields. -->
+    <dimen name="auth_outlined_edit_padding_bottom">24dp</dimen>
     <!-- Decorative bottom WebView / asset strip on sign-up (keep modest so form stays visible). -->
     <dimen name="auth_bottom_decoration_height">120dp</dimen>
-    <!-- Sign up register: subtitle first line from content top (design px → dp). -->
-    <dimen name="signup_subtitle_margin_top">150dp</dimen>
     <!-- Sign-up mock: field row height -->
-    <!-- Min inner height; vertical padding keeps hint/cursor inside outline on double-tap -->
-    <dimen name="signup_field_height">42dp</dimen>
+    <dimen name="signup_field_height">50dp</dimen>
+    <!-- Verify OTP: tiny gaps between 6 equal segments of one full-width rule. -->
+    <dimen name="verify_otp_segment_gap">4dp</dimen>
+    <dimen name="verify_otp_rule_thickness">2dp</dimen>
+    <!-- Social G/F blocks on sign-up & sign-in (same tap target). -->
+    <dimen name="signup_social_button_height">52dp</dimen>
     <dimen name="signup_field_corner">5dp</dimen>
-    <!-- Sign-up register: vertical anchors from content top (equal 60dp steps). -->
-    <dimen name="signup_guide_names">208dp</dimen>
-    <dimen name="signup_guide_email">268dp</dimen>
-    <dimen name="signup_guide_password">328dp</dimen>
-    <dimen name="signup_guide_confirm">388dp</dimen>
-    <dimen name="signup_guide_or_social">458dp</dimen>
-    <dimen name="signup_guide_social">508dp</dimen>
-    <dimen name="signup_guide_marketing">592dp</dimen>
-    <dimen name="signup_guide_terms">624dp</dimen>
-    <dimen name="signup_guide_button">678dp</dimen>
-    <dimen name="signup_footer_margin_top">760dp</dimen>
+    <!-- Sign-up register: vertical anchors (60dp between rows). Shifted −40dp so subtitle hugs title. -->
+    <dimen name="signup_guide_names">168dp</dimen>
+    <dimen name="signup_guide_email">228dp</dimen>
+    <dimen name="signup_guide_password">288dp</dimen>
+    <dimen name="signup_guide_confirm">348dp</dimen>
+    <dimen name="signup_guide_or_social">418dp</dimen>
+    <dimen name="signup_guide_social">468dp</dimen>
+    <dimen name="signup_guide_marketing">552dp</dimen>
+    <dimen name="signup_guide_terms">584dp</dimen>
+    <dimen name="signup_guide_button">638dp</dimen>
+    <!-- Visual gap below "Or … with" row before G/F buttons: matches sign-up (guide span minus ~divider row height). -->
+    <dimen name="auth_or_social_to_buttons_gap">26dp</dimen>
+    <!-- Space above "Or … with" on sign-in (after forgot-password row). -->
+    <dimen name="auth_signin_forgot_to_or_social">28dp</dimen>
     <!-- Health hub insight strip: one title line + one subtitle line per card. -->
     <dimen name="health_hub_insight_card_width">158dp</dimen>
     <!-- Content column: stock snapshot card inner padding matches this gutter. -->
     <dimen name="standalone_dashboard_content_padding">12dp</dimen>
     <dimen name="standalone_sound_card_stroke">1dp</dimen>
     <dimen name="standalone_sound_card_stroke_selected">2dp</dimen>
+    <!-- Dose history + header: fixed row height so every column aligns like the medicine inventory grid. -->
+    <dimen name="dose_history_table_row_height">40dp</dimen>
 </resources>

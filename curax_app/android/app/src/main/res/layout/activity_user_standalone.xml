@@ -32,6 +32,8 @@
                     app:titleTextColor="@android:color/white" />
             </com.google.android.material.appbar.AppBarLayout>
 
+            <!-- Tab strip: XML baseline = Smart System (default) chrome so DayNight rebind matches light/dark.
+                 Personal Health mode applies standalone pill + colors in UserStandaloneActivity.refreshUserShellChrome. -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/userStandaloneTabStripCard"
                 android:layout_width="match_parent"
@@ -40,15 +42,15 @@
                 android:layout_marginTop="10dp"
                 android:layout_marginEnd="12dp"
                 app:cardBackgroundColor="@android:color/transparent"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="5dp"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
                 app:strokeWidth="0dp">
 
                 <FrameLayout
                     android:id="@+id/userStandaloneTabNavInner"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_standalone_tab_nav_container"
+                    android:background="@android:color/transparent"
                     android:paddingTop="4dp"
                     android:paddingBottom="4dp">
 
@@ -58,21 +60,22 @@
                         android:layout_height="wrap_content"
                         android:background="@android:color/transparent"
                         android:minHeight="48dp"
+                        app:tabBackground="@android:color/transparent"
                         app:tabGravity="fill"
-                        app:tabIndicator="@drawable/tab_indicator_standalone"
-                        app:tabIndicatorAnimationMode="elastic"
-                        app:tabIndicatorColor="@color/standalone_tab_indicator"
-                        app:tabIndicatorFullWidth="false"
+                        app:tabIndicator="@drawable/tab_indicator_default"
+                        app:tabIndicatorAnimationMode="linear"
+                        app:tabIndicatorColor="@color/button_primary_bg"
+                        app:tabIndicatorFullWidth="true"
                         app:tabIndicatorGravity="bottom"
                         app:tabIndicatorHeight="3dp"
                         app:tabMode="scrollable"
                         app:tabPaddingEnd="14dp"
                         app:tabPaddingStart="14dp"
-                        app:tabRippleColor="@color/standalone_tab_ripple"
+                        app:tabRippleColor="@color/smart_shell_tab_ripple"
                         app:tabSelectedTextAppearance="@style/TextAppearance.Curax.Tab.Selected"
-                        app:tabSelectedTextColor="@color/standalone_tab_text_selected"
+                        app:tabSelectedTextColor="@color/connection_panel_title"
                         app:tabTextAppearance="@style/TextAppearance.Curax.Tab"
-                        app:tabTextColor="@color/standalone_tab_text_normal" />
+                        app:tabTextColor="@color/text_secondary" />
                 </FrameLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -524,6 +527,102 @@
         </ScrollView>
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardUserSidebarEsp32Ble"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="10dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="@string/user_sidebar_esp32_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvSidebarEsp32BleStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="@string/dose_ble_status_disconnected"
+                    android:textColor="@color/text_primary"
+                    android:textSize="11sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSidebarEsp32BleConnect"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:maxLines="1"
+                        android:minHeight="36dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:text="@string/user_sidebar_esp32_connect"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        app:strokeColor="@color/summary_stroke"
+                        app:strokeWidth="1dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSidebarEsp32BleDisconnect"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:gravity="center"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:maxLines="1"
+                        android:minHeight="36dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:text="@string/dose_ble_disconnect"
+                        android:textAllCaps="false"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        app:strokeColor="@color/summary_stroke"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardUserSidebarAmbient"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -542,9 +641,9 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:paddingStart="12dp"
-                android:paddingTop="12dp"
+                android:paddingTop="10dp"
                 android:paddingEnd="12dp"
-                android:paddingBottom="10dp">
+                android:paddingBottom="8dp">
 
                 <TextView
                     android:layout_width="match_parent"
@@ -664,22 +763,6 @@
                         </LinearLayout>
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
-
-                <TextView
-                    android:id="@+id/tvSidebarAmbientUpdated"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="10sp" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/user_sidebar_ambient_open_hint"
-                    android:textColor="@color/button_primary_bg"
-                    android:textSize="11sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

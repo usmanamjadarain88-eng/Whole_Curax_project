@@ -122,14 +122,7 @@ class AdminOverviewFragment : Fragment() {
                     }
                 }
                 AlertEvents.ACTION_ADMIN_DATA_SYNCED -> {
-                    view?.post {
-                        refreshStandaloneFromMemory()
-                        // ViewPager/fragment rendering can lag one frame behind the data-bus apply.
-                        // Rebind once more on the next loop so medicine cards and inventory repaint immediately.
-                        view?.post {
-                            refreshStandaloneFromMemory()
-                        }
-                    }
+                    view?.post { refreshStandaloneFromMemory() }
                 }
                 AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_STARTED -> {
                     view?.post {
@@ -440,8 +433,12 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun ensureInventorySeeded() {
-        if (isUserApp() && !Prefs(requireContext()).userStandaloneDataReady) {
-            return
+        val prefs = Prefs(requireContext())
+        if (isUserApp()) {
+            val linked = prefs.linkedAdminId.trim().isNotEmpty()
+            val snapshotReady = prefs.userStandaloneDataReady
+            // Avoid injecting demo rows while linked and the first server snapshot is still loading.
+            if (linked && !snapshotReady) return
         }
         if (allItems.isEmpty() && AdminDemoData.medicines.isNotEmpty()) {
             seedInventory()
@@ -462,14 +459,12 @@ class AdminOverviewFragment : Fragment() {
         refreshInventoryList(v)
         refreshDashboard(v)
         adherenceChart?.data = computeAdherenceData()
-        if (StandaloneUi.isUserStandalone(requireContext())) {
-            StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
-        }
+        // Do not persist snapshot here: tab switches call this every resume and would rewrite prefs +
+        // reschedule all local alarms on the main thread (jank). Persist runs after real data changes/sync.
     }
 
     private fun setupInventory(view: View) {
         adapter = AdminInventoryAdapter(
-            useStandaloneCards = StandaloneUi.isUserStandalone(requireContext()),
             onItemClick = { item ->
                 selectedItemId = item.id
                 adapter.setSelectedId(selectedItemId)
@@ -947,7 +942,10 @@ class AdminOverviewFragment : Fragment() {
             view.findViewById<MaterialButton>(R.id.btnAddMedicine)?.visibility = if (avail.isEmpty()) View.GONE else View.VISIBLE
         }
 
-        if (view.findViewById<LinearLayout>(R.id.llStandaloneMedicineChips) != null) {
+        val chipsSection = view.findViewById<View>(R.id.standaloneMedicineChipsSection)
+        if (chipsSection?.visibility == View.VISIBLE &&
+            view.findViewById<LinearLayout>(R.id.llStandaloneMedicineChips) != null
+        ) {
             val chipList = if (StandaloneUi.isUserStandalone(requireContext())) {
                 val list = working.toMutableList()
                 var pad = 0
@@ -1976,7 +1974,8 @@ class AdminOverviewFragment : Fragment() {
         shell.findViewById<MaterialButton>(R.id.btn_sheet_primary).visibility = View.GONE
         shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_print).visibility = View.GONE
         val btnAdd = shell.findViewById<ImageButton>(R.id.btn_health_hub_sheet_add)
-        btnAdd.visibility = View.VISIBLE
+        val canMutatePlans = StandaloneUserMutationGate.allowMutations(ctx)
+        btnAdd.visibility = if (canMutatePlans) View.VISIBLE else View.GONE
 
         val flBody = shell.findViewById<FrameLayout>(R.id.fl_health_hub_sheet_body)
         layoutInflater.inflate(R.layout.sheet_body_planned_list, flBody, true)
@@ -2032,62 +2031,64 @@ class AdminOverviewFragment : Fragment() {
         plansAdapter = HealthHubPlansAdapter()
         rv.adapter = plansAdapter
 
-        ItemTouchHelper(
-            object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
-                override fun onMove(
-                    recyclerView: RecyclerView,
-                    viewHolder: RecyclerView.ViewHolder,
-                    target: RecyclerView.ViewHolder,
-                ): Boolean = false
+        if (canMutatePlans) {
+            ItemTouchHelper(
+                object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+                    override fun onMove(
+                        recyclerView: RecyclerView,
+                        viewHolder: RecyclerView.ViewHolder,
+                        target: RecyclerView.ViewHolder,
+                    ): Boolean = false
 
-                override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                    val pos = viewHolder.bindingAdapterPosition
-                    if (pos == RecyclerView.NO_POSITION) return
-                    val row = plansAdapter.itemAt(pos) ?: return
-                    plansAdapter.notifyItemChanged(pos)
-                    when (direction) {
-                        ItemTouchHelper.RIGHT -> {
-                            if (!row.isDone) {
-                                Thread {
-                                    val (ok, err) = UserPlansApi.patchPlanStatus(ctx.applicationContext, row.id, "done")
-                                    activity?.runOnUiThread {
-                                        if (ok) {
-                                            reloadPlansFromNetwork()
-                                        } else {
-                                            CuraxFeedback.warn(
-                                                requireActivity(),
-                                                getString(R.string.plan_update_failed) + (err?.let { ": $it" } ?: ""),
-                                            )
-                                        }
-                                    }
-                                }.start()
-                            }
-                        }
-                        ItemTouchHelper.LEFT -> {
-                            MaterialAlertDialogBuilder(ctx)
-                                .setTitle(R.string.plan_delete_title)
-                                .setNegativeButton(android.R.string.cancel, null)
-                                .setPositiveButton(R.string.plan_delete_confirm) { _, _ ->
+                    override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                        val pos = viewHolder.bindingAdapterPosition
+                        if (pos == RecyclerView.NO_POSITION) return
+                        val row = plansAdapter.itemAt(pos) ?: return
+                        plansAdapter.notifyItemChanged(pos)
+                        when (direction) {
+                            ItemTouchHelper.RIGHT -> {
+                                if (!row.isDone) {
                                     Thread {
-                                        val (ok, err) = UserPlansApi.deletePlan(ctx.applicationContext, row.id)
+                                        val (ok, err) = UserPlansApi.patchPlanStatus(ctx.applicationContext, row.id, "done")
                                         activity?.runOnUiThread {
                                             if (ok) {
                                                 reloadPlansFromNetwork()
                                             } else {
                                                 CuraxFeedback.warn(
                                                     requireActivity(),
-                                                    getString(R.string.plan_delete_failed) + (err?.let { ": $it" } ?: ""),
+                                                    getString(R.string.plan_update_failed) + (err?.let { ": $it" } ?: ""),
                                                 )
                                             }
                                         }
                                     }.start()
                                 }
-                                .show()
+                            }
+                            ItemTouchHelper.LEFT -> {
+                                MaterialAlertDialogBuilder(ctx)
+                                    .setTitle(R.string.plan_delete_title)
+                                    .setNegativeButton(android.R.string.cancel, null)
+                                    .setPositiveButton(R.string.plan_delete_confirm) { _, _ ->
+                                        Thread {
+                                            val (ok, err) = UserPlansApi.deletePlan(ctx.applicationContext, row.id)
+                                            activity?.runOnUiThread {
+                                                if (ok) {
+                                                    reloadPlansFromNetwork()
+                                                } else {
+                                                    CuraxFeedback.warn(
+                                                        requireActivity(),
+                                                        getString(R.string.plan_delete_failed) + (err?.let { ": $it" } ?: ""),
+                                                    )
+                                                }
+                                            }
+                                        }.start()
+                                    }
+                                    .show()
+                            }
                         }
                     }
-                }
-            },
-        ).attachToRecyclerView(rv)
+                },
+            ).attachToRecyclerView(rv)
+        }
 
         fun openCreatePlanFullScreen() {
             healthHubCreatePlanLauncher.launch(Intent(ctx, CreateHealthHubPlanActivity::class.java))

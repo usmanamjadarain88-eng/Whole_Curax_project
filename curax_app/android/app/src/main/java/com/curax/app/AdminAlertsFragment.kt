@@ -135,8 +135,13 @@ class AdminAlertsFragment : Fragment() {
         btnAdminSelectionSelectAll = view.findViewById(R.id.btnAdminSelectionSelectAll)
         btnAdminSelectionDelete = view.findViewById(R.id.btnAdminSelectionDelete)
 
+        val allowAlertMutations = StandaloneUserMutationGate.allowMutations(requireContext())
         adapter = AdminAlertsAdapter(
             useStandaloneCards = StandaloneUi.isUserStandalone(requireContext()),
+            allowBulkMutations = allowAlertMutations,
+            onBulkMutationBlocked = if (allowAlertMutations) null else {
+                { CuraxFeedback.warn(this, R.string.standalone_connect_admin_first) }
+            },
             onClick = { item ->
                 startActivity(Intent(requireContext(), AlertDetailActivity::class.java).apply {
                     putExtra(NotificationHelper.EXTRA_ALERT_ID, item.id)
@@ -452,6 +457,7 @@ class AdminAlertsFragment : Fragment() {
     }
 
     private fun confirmDeleteSelected() {
+        if (!StandaloneUserMutationGate.warnIfBlocked(this)) return
         val ids = adapter.getSelectedIds()
         if (ids.isEmpty()) return
         AlertDialog.Builder(requireContext())
@@ -464,6 +470,7 @@ class AdminAlertsFragment : Fragment() {
 
     private fun performDelete(ids: Set<Long>) {
         if (ids.isEmpty()) return
+        if (!StandaloneUserMutationGate.allowMutations(requireContext())) return
         val removed = getFilteredAlerts().filter { it.id in ids }
         if (removed.isEmpty()) return
 
@@ -507,6 +514,9 @@ class AdminAlertsFragment : Fragment() {
 
     fun refresh() {
         if (!isAdded) return
+        if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
+            AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
+        }
         val listAll = getFilteredAlerts()
         adapter.submitList(listAll)
 

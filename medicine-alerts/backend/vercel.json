@@ -59,6 +59,14 @@
       "destination": "/api/signup_sign_in"
     },
     {
+      "source": "/password-reset/start",
+      "destination": "/api/password_reset_start"
+    },
+    {
+      "source": "/password-reset/complete",
+      "destination": "/api/password_reset_complete"
+    },
+    {
       "source": "/user/account-status",
       "destination": "/api/user_account_status"
     },

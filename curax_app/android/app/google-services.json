@@ -12,7 +12,20 @@
           "package_name": "com.curax.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "428598576836-mjv3b8l0vmskvmbvkv0n19n69oim31ol.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.curax.app",
+            "certificate_hash": "25ccb60519d22fa91aa2ee57fdab9462ac1597e0"
+          }
+        },
+        {
+          "client_id": "428598576836-lgo255b9oqhejb3vf91tn8la5cor1lcl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDI9eic4QuZqeQ4PJ6T0sp02ZE9QrQtxxk"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "428598576836-lgo255b9oqhejb3vf91tn8la5cor1lcl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

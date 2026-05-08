@@ -35,7 +35,7 @@ class AdminLogsFragment : Fragment() {
             when (intent?.action) {
                 AlertEvents.ACTION_CONNECTION_STATE_CHANGED,
                 AlertEvents.ACTION_ALERTS_UPDATED,
-                AlertEvents.ACTION_ADMIN_DATA_SYNCED -> view?.let { bindLogs(it) }
+                AlertEvents.ACTION_ADMIN_DATA_SYNCED -> bindLogs()
             }
         }
     }
@@ -55,7 +55,7 @@ class AdminLogsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        logAdapter = LogEntriesAdapter(useTimelineLayout = StandaloneUi.isUserStandalone(requireContext()))
+        logAdapter = LogEntriesAdapter(useTimelineLayout = false)
         view.findViewById<RecyclerView>(R.id.rvLogEntries).apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = logAdapter
@@ -64,7 +64,7 @@ class AdminLogsFragment : Fragment() {
         btnLogsNext = view.findViewById(R.id.btnLogsNext)
         tvLogsPageInfo = view.findViewById(R.id.tvLogsPageInfo)
         setupPager()
-        bindLogs(view)
+        bindLogs()
 
         view.findViewById<MaterialButton>(R.id.btnPrintLogsReport).setOnClickListener {
             printLogsReport()
@@ -104,15 +104,18 @@ class AdminLogsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        view?.let { bindLogs(it) }
+        bindLogs()
     }
 
     fun refresh() {
-        view?.let { bindLogs(it) }
+        bindLogs()
     }
 
     /** Logs = all alerts admin receives (API + local), sorted newest first; each row includes user when from API. */
-    private fun bindLogs(view: View) {
+    private fun bindLogs() {
+        if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
+            AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
+        }
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         val alertDb = AlertDb(requireContext())
@@ -130,14 +133,14 @@ class AdminLogsFragment : Fragment() {
         btnLogsPrev.setOnClickListener {
             if (pageIndex > 0) {
                 pageIndex -= 1
-                view?.let { bindLogs(it) }
+                bindLogs()
             }
         }
         btnLogsNext.setOnClickListener {
             val totalPages = getTotalPages(getTotalCount())
             if (pageIndex < totalPages - 1) {
                 pageIndex += 1
-                view?.let { bindLogs(it) }
+                bindLogs()
             }
         }
     }
@@ -195,6 +198,9 @@ class AdminLogsFragment : Fragment() {
     }
 
     private fun printLogsReport() {
+        if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
+            AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
+        }
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         val apiAlerts = AdminDemoData.getApiAlerts()

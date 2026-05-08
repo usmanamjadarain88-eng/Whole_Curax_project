@@ -31,6 +31,8 @@ class SettingsActivity : AppCompatActivity() {
     /** Only needed for export; lazy avoids SQLite open on every Settings visit (standalone Alert settings path). */
     private val alertDb by lazy { AlertDb(this) }
     private lateinit var localUserStore: LocalUserStore
+    /** Avoid rebuilding connection rows on every [onResume] (back from child screens feels sluggish). */
+    private var lastConnectionSectionsSig: String = ""
 
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
     private val autoLockValues = intArrayOf(300, 600, 1800)
@@ -53,7 +55,7 @@ class SettingsActivity : AppCompatActivity() {
         btnSetPin = findViewById(R.id.btnSetPin)
         btnAutoLock = findViewById(R.id.btnAutoLock)
 
-        setupConnectionCodeSections()
+        refreshConnectionSectionsIfNeeded()
         btnSetPin.setOnClickListener {
             startActivity(Intent(this, SetPinActivity::class.java))
         }
@@ -64,6 +66,13 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnHelp).setOnClickListener {
             startActivity(Intent(this, HelpActivity::class.java))
         }
+    }
+
+    private fun refreshConnectionSectionsIfNeeded() {
+        val sig = "${prefs.linkedAdminId}|${StandaloneUi.isUserStandalone(this)}|${localUserStore.role}"
+        if (sig == lastConnectionSectionsSig) return
+        lastConnectionSectionsSig = sig
+        setupConnectionCodeSections()
     }
 
     private fun setupConnectionCodeSections() {
@@ -95,21 +104,17 @@ class SettingsActivity : AppCompatActivity() {
             sectionConnectToAdmin.visibility = android.view.View.GONE
             connectionCodeInputLayout.visibility = android.view.View.GONE
             btnLinkToAdmin.visibility = android.view.View.GONE
-            if (prefs.linkedAdminId.isNotEmpty()) {
-                val btnUserDesktopLink = findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode)
+            val btnUserDesktopLink = findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode)
+            if (StandaloneUi.isUserStandalone(this)) {
+                // Standalone mode only: on-device alert prefs (default Curax user app has no desktop linking).
                 btnUserDesktopLink.visibility = View.VISIBLE
-                if (StandaloneUi.isUserStandalone(this)) {
-                    btnUserDesktopLink.setText(R.string.standalone_alert_settings)
-                    btnUserDesktopLink.setOnClickListener {
-                        startActivity(Intent(this, StandaloneLocalAlertSettingsActivity::class.java))
-                        overridePendingTransition(0, 0)
-                    }
-                } else {
-                    btnUserDesktopLink.setText(R.string.desktop_linking_code)
-                    btnUserDesktopLink.setOnClickListener { showUserDesktopLinkCodeDialog() }
+                btnUserDesktopLink.setText(R.string.standalone_alert_settings)
+                btnUserDesktopLink.setOnClickListener {
+                    startActivity(Intent(this, StandaloneLocalAlertSettingsActivity::class.java))
+                    overridePendingTransition(0, 0)
                 }
             } else {
-                findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode).visibility = View.GONE
+                btnUserDesktopLink.visibility = View.GONE
             }
         }
     }
@@ -133,90 +138,6 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.ok, null)
             .show()
-    }
-
-    /** User: show description dialog; on Confirm generate code. */
-    private fun showUserDesktopLinkCodeDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.desktop_linking_code))
-            .setMessage(getString(R.string.desktop_link_code_user_instructions))
-            .setPositiveButton(getString(R.string.create_code)) { _, _ -> createUserDesktopLinkCode() }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun createUserDesktopLinkCode() {
-        val base = prefs.centralApiUrl.trim().removeSuffix("/")
-        if (base.isEmpty()) {
-            CuraxFeedback.warn(this, "Server URL not set")
-            return
-        }
-        val botId = prefs.id.trim()
-        val apiKey = prefs.apiKey.trim()
-        if (botId.isEmpty() || apiKey.isEmpty()) {
-            CuraxFeedback.warn(this, "Not linked to an admin")
-            return
-        }
-        val btn = findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode)
-        btn.isEnabled = false
-        Thread {
-            try {
-                val body = JSONObject().apply {
-                    put("bot_id", botId)
-                    put("api_key", apiKey)
-                }.toString().toRequestBody("application/json".toMediaType())
-                val req = Request.Builder()
-                    .url("$base/user/create-desktop-link-code")
-                    .post(body)
-                    .build()
-                val res = http.newCall(req).execute()
-                runOnUiThread {
-                    btn.isEnabled = true
-                    if (!isFinishing) handleUserDesktopLinkCodeResponse(res)
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    btn.isEnabled = true
-                    if (!isFinishing) CuraxFeedback.warn(this, "Error: ${e.message}")
-                }
-            }
-        }.start()
-    }
-
-    private fun handleUserDesktopLinkCodeResponse(response: okhttp3.Response) {
-        if (response.isSuccessful) {
-            val body = response.body?.string() ?: "{}"
-            val data = try { JSONObject(body) } catch (_: Exception) { JSONObject() }
-            val code = data.optString("code", "").trim()
-            val expiresIn = data.optInt("expires_in", 300)
-            val userName = data.optString("user_name", "").trim()
-            if (code.isEmpty()) {
-                CuraxFeedback.warn(this, "No code returned")
-                return
-            }
-            val msg = buildString {
-                append("Give this code to enter in the desktop app:\n\n")
-                append("Settings → System → Link this desktop to you\n\n")
-                append("Code: ")
-                append(code)
-                append("\n\nExpires in ")
-                append(expiresIn / 60)
-                append(" minutes. One-time use.")
-                if (userName.isNotEmpty()) append("\n\nUser: $userName")
-            }
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            AlertDialog.Builder(this)
-                .setTitle("Desktop link code")
-                .setMessage(msg)
-                .setPositiveButton("Copy code") { _, _ ->
-                    cm?.setPrimaryClip(ClipData.newPlainText("desktop_link_code", code))
-                    CuraxFeedback.success(this, "Copied")
-                }
-                .setNegativeButton(android.R.string.ok, null)
-                .show()
-        } else {
-            CuraxFeedback.warn(this, "Failed to create code")
-        }
     }
 
     /** Admin: show instructions first, then on Create code call API and show code. */
@@ -301,7 +222,7 @@ class SettingsActivity : AppCompatActivity() {
         val hasPin = prefs.appPin.isNotEmpty() || (localUserStore.pinEnabled && localUserStore.pinCode.isNotEmpty())
         btnSetPin.text = if (hasPin) getString(R.string.change_pin) else getString(R.string.set_pin)
         btnAutoLock.text = getAutoLockButtonText(prefs.autoLockSeconds)
-        setupConnectionCodeSections()
+        refreshConnectionSectionsIfNeeded()
     }
 
     private fun showAutoLockDialog() {

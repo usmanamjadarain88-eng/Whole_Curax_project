@@ -318,8 +318,8 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     private fun navigateHomeAndFinish() {
         if (isFinishing) return
         setResult(RESULT_OK)
-        startActivity(UserHomeIntent.forSignedInUser(this))
-        finishAffinity()
+        startActivity(UserHomeIntent.forSignedInUserClearingBackStack(this))
+        finish()
     }
 
     private fun onLinkAdminClicked() {
@@ -405,8 +405,8 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                 CuraxFeedback.successThen(this, R.string.linked_to_admin_success) {
                     if (!isFinishing) {
                         setResult(RESULT_OK)
-                        startActivity(UserHomeIntent.forSignedInUser(this))
-                        finishAffinity()
+                        startActivity(UserHomeIntent.forSignedInUserClearingBackStack(this))
+                        finish()
                     }
                 }
             },

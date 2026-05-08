@@ -101,7 +101,10 @@
                             android:layout_height="wrap_content"
                             android:layout_gravity="center_horizontal"
                             android:layout_marginTop="8dp"
-                            android:minHeight="42dp"
+                            android:clipChildren="false"
+                            android:clipToOutline="false"
+                            android:clipToPadding="false"
+                            android:minHeight="@dimen/auth_outlined_edit_min_height"
                             app:boxBackgroundColor="@android:color/white"
                             app:boxBackgroundMode="outline"
                             app:boxCornerRadiusBottomEnd="10dp"
@@ -123,12 +126,13 @@
                                 android:gravity="center_vertical"
                                 android:hint="@string/placeholder_email"
                                 android:importantForAutofill="yes"
+                                android:includeFontPadding="true"
                                 android:inputType="textEmailAddress"
-                                android:minHeight="46dp"
+                                android:minHeight="@dimen/auth_outlined_edit_min_height"
                                 android:paddingStart="12dp"
-                                android:paddingTop="10dp"
+                                android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                                 android:paddingEnd="12dp"
-                                android:paddingBottom="14dp"
+                                android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
                                 android:textColor="@color/auth_field_text"
                                 android:textColorHint="@color/auth_subtitle"
                                 android:textCursorDrawable="@drawable/auth_text_cursor"
@@ -156,8 +160,9 @@
                             android:layout_gravity="center_horizontal"
                             android:layout_marginTop="8dp"
                             android:clipChildren="false"
+                            android:clipToOutline="false"
                             android:clipToPadding="false"
-                            android:minHeight="42dp"
+                            android:minHeight="@dimen/auth_outlined_edit_min_height"
                             app:boxBackgroundColor="@android:color/white"
                             app:boxBackgroundMode="outline"
                             app:boxCornerRadiusBottomEnd="10dp"
@@ -179,20 +184,20 @@
                                 android:id="@+id/etPassword"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:minHeight="46dp"
+                                android:minHeight="@dimen/auth_outlined_edit_min_height"
                                 android:autofillHints="newPassword"
                                 android:gravity="center_vertical"
                                 android:hint="@string/sign_in_password_hint_dots"
                                 android:importantForAutofill="yes"
-                                android:includeFontPadding="false"
+                                android:includeFontPadding="true"
                                 android:inputType="textPassword"
                                 android:lineSpacingExtra="0dp"
                                 android:maxLines="1"
                                 android:overScrollMode="never"
                                 android:paddingStart="12dp"
-                                android:paddingTop="10dp"
+                                android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                                 android:paddingEnd="44dp"
-                                android:paddingBottom="16dp"
+                                android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
                                 android:scrollbars="none"
                                 android:textColor="@color/auth_field_text"
                                 android:textColorHint="@color/auth_password_hint"
@@ -263,28 +268,30 @@
                             android:layout_height="wrap_content"
                             android:orientation="vertical">
 
-                            <!-- Digits above each dash; dashes stay; etOtp is invisible overlay for tap + keyboard -->
+                            <!-- Digits above a full-width rule split into 6 segments; etOtp overlay for tap + keyboard -->
                             <FrameLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="14dp"
                                 android:minHeight="92dp">
 
+                                <!-- One full-width rule split into 6 equal segments; tiny gaps = "cuts". -->
                                 <LinearLayout
                                     android:id="@+id/otpSlotsContainer"
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
                                     android:layout_gravity="center_vertical"
+                                    android:baselineAligned="false"
+                                    android:clipChildren="false"
+                                    android:clipToPadding="false"
                                     android:gravity="center_vertical"
                                     android:minHeight="92dp"
-                                    android:orientation="horizontal"
-                                    android:paddingStart="2dp"
-                                    android:paddingEnd="2dp">
-
+                                    android:orientation="horizontal">
                                     <LinearLayout
                                         android:layout_width="0dp"
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
+                                        android:layout_marginEnd="@dimen/verify_otp_segment_gap"
                                         android:gravity="center_horizontal"
                                         android:orientation="vertical">
 
@@ -292,6 +299,7 @@
                                             android:id="@+id/tvOtpDigit0"
                                             android:layout_width="match_parent"
                                             android:layout_height="wrap_content"
+                                            android:layout_marginBottom="6dp"
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
@@ -300,22 +308,16 @@
                                             android:textSize="28sp"
                                             android:textStyle="bold" />
 
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:fontFamily="monospace"
-                                            android:gravity="center"
-                                            android:includeFontPadding="false"
-                                            android:text="—"
-                                            android:textColor="@color/auth_heading"
-                                            android:textSize="24sp"
-                                            android:textStyle="bold" />
+                                        <View
+                                            android:layout_width="match_parent"
+                                            android:layout_height="@dimen/verify_otp_rule_thickness"
+                                            android:background="@color/auth_field_border" />
                                     </LinearLayout>
-
                                     <LinearLayout
                                         android:layout_width="0dp"
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
+                                        android:layout_marginEnd="@dimen/verify_otp_segment_gap"
                                         android:gravity="center_horizontal"
                                         android:orientation="vertical">
 
@@ -323,6 +325,7 @@
                                             android:id="@+id/tvOtpDigit1"
                                             android:layout_width="match_parent"
                                             android:layout_height="wrap_content"
+                                            android:layout_marginBottom="6dp"
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
@@ -331,22 +334,16 @@
                                             android:textSize="28sp"
                                             android:textStyle="bold" />
 
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:fontFamily="monospace"
-                                            android:gravity="center"
-                                            android:includeFontPadding="false"
-                                            android:text="—"
-                                            android:textColor="@color/auth_heading"
-                                            android:textSize="24sp"
-                                            android:textStyle="bold" />
+                                        <View
+                                            android:layout_width="match_parent"
+                                            android:layout_height="@dimen/verify_otp_rule_thickness"
+                                            android:background="@color/auth_field_border" />
                                     </LinearLayout>
-
                                     <LinearLayout
                                         android:layout_width="0dp"
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
+                                        android:layout_marginEnd="@dimen/verify_otp_segment_gap"
                                         android:gravity="center_horizontal"
                                         android:orientation="vertical">
 
@@ -354,6 +351,7 @@
                                             android:id="@+id/tvOtpDigit2"
                                             android:layout_width="match_parent"
                                             android:layout_height="wrap_content"
+                                            android:layout_marginBottom="6dp"
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
@@ -362,22 +360,16 @@
                                             android:textSize="28sp"
                                             android:textStyle="bold" />
 
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:fontFamily="monospace"
-                                            android:gravity="center"
-                                            android:includeFontPadding="false"
-                                            android:text="—"
-                                            android:textColor="@color/auth_heading"
-                                            android:textSize="24sp"
-                                            android:textStyle="bold" />
+                                        <View
+                                            android:layout_width="match_parent"
+                                            android:layout_height="@dimen/verify_otp_rule_thickness"
+                                            android:background="@color/auth_field_border" />
                                     </LinearLayout>
-
                                     <LinearLayout
                                         android:layout_width="0dp"
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
+                                        android:layout_marginEnd="@dimen/verify_otp_segment_gap"
                                         android:gravity="center_horizontal"
                                         android:orientation="vertical">
 
@@ -385,6 +377,7 @@
                                             android:id="@+id/tvOtpDigit3"
                                             android:layout_width="match_parent"
                                             android:layout_height="wrap_content"
+                                            android:layout_marginBottom="6dp"
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
@@ -393,22 +386,16 @@
                                             android:textSize="28sp"
                                             android:textStyle="bold" />
 
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:fontFamily="monospace"
-                                            android:gravity="center"
-                                            android:includeFontPadding="false"
-                                            android:text="—"
-                                            android:textColor="@color/auth_heading"
-                                            android:textSize="24sp"
-                                            android:textStyle="bold" />
+                                        <View
+                                            android:layout_width="match_parent"
+                                            android:layout_height="@dimen/verify_otp_rule_thickness"
+                                            android:background="@color/auth_field_border" />
                                     </LinearLayout>
-
                                     <LinearLayout
                                         android:layout_width="0dp"
                                         android:layout_height="wrap_content"
                                         android:layout_weight="1"
+                                        android:layout_marginEnd="@dimen/verify_otp_segment_gap"
                                         android:gravity="center_horizontal"
                                         android:orientation="vertical">
 
@@ -416,6 +403,7 @@
                                             android:id="@+id/tvOtpDigit4"
                                             android:layout_width="match_parent"
                                             android:layout_height="wrap_content"
+                                            android:layout_marginBottom="6dp"
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
@@ -424,18 +412,11 @@
                                             android:textSize="28sp"
                                             android:textStyle="bold" />
 
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:fontFamily="monospace"
-                                            android:gravity="center"
-                                            android:includeFontPadding="false"
-                                            android:text="—"
-                                            android:textColor="@color/auth_heading"
-                                            android:textSize="24sp"
-                                            android:textStyle="bold" />
+                                        <View
+                                            android:layout_width="match_parent"
+                                            android:layout_height="@dimen/verify_otp_rule_thickness"
+                                            android:background="@color/auth_field_border" />
                                     </LinearLayout>
-
                                     <LinearLayout
                                         android:layout_width="0dp"
                                         android:layout_height="wrap_content"
@@ -447,6 +428,7 @@
                                             android:id="@+id/tvOtpDigit5"
                                             android:layout_width="match_parent"
                                             android:layout_height="wrap_content"
+                                            android:layout_marginBottom="6dp"
                                             android:fontFamily="monospace"
                                             android:gravity="center"
                                             android:includeFontPadding="false"
@@ -455,18 +437,13 @@
                                             android:textSize="28sp"
                                             android:textStyle="bold" />
 
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:fontFamily="monospace"
-                                            android:gravity="center"
-                                            android:includeFontPadding="false"
-                                            android:text="—"
-                                            android:textColor="@color/auth_heading"
-                                            android:textSize="24sp"
-                                            android:textStyle="bold" />
+                                        <View
+                                            android:layout_width="match_parent"
+                                            android:layout_height="@dimen/verify_otp_rule_thickness"
+                                            android:background="@color/auth_field_border" />
                                     </LinearLayout>
                                 </LinearLayout>
+
 
                                 <EditText
                                     android:id="@+id/etOtp"

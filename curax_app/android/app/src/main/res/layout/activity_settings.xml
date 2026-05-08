@@ -62,7 +62,7 @@
             android:layout_marginTop="8dp"
             android:background="@color/summary_stroke" />
 
-        <!-- 1) Change PIN first, 2) Desktop linking code second -->
+        <!-- PIN first; below is standalone-only local alerts (hidden for default Curax user app). -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSetPin"
             style="@style/Widget.MaterialComponents.Button"
@@ -79,7 +79,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="@string/desktop_linking_code"
+            android:text="@string/standalone_alert_settings"
             android:textColor="@color/text_primary"
             android:visibility="gone"
             app:strokeColor="@color/summary_stroke" />

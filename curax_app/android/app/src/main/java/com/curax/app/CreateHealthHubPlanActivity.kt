@@ -34,6 +34,10 @@ class CreateHealthHubPlanActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!StandaloneUserMutationGate.warnIfBlocked(this)) {
+            finish()
+            return
+        }
         setContentView(R.layout.activity_create_health_hub_plan)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 

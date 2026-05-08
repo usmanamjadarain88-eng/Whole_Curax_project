@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/auth_onboarding_bg"
-    android:fitsSystemWindows="true">
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -22,50 +23,19 @@
             android:paddingEnd="16dp"
             android:paddingBottom="24dp">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/tvPinRole"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="@dimen/auth_screen_title_margin_top"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:contentDescription="@null"
-                    android:scaleType="fitCenter"
-                    android:src="@drawable/curax_logo" />
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="Curax"
-                        android:textColor="@color/auth_heading"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvPinRole"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:textColor="@color/auth_subtitle"
-                        android:textSize="13sp"
-                        tools:text="Secure Access" />
-                </LinearLayout>
-            </LinearLayout>
+                android:layout_marginTop="20dp"
+                android:textColor="@color/auth_subtitle"
+                android:textSize="13sp"
+                tools:text="Secure Access" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="28dp"
+                android:layout_marginTop="20dp"
                 android:includeFontPadding="false"
                 android:letterSpacing="-0.031"
                 android:text="Enter PIN"
@@ -86,7 +56,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
-                android:minHeight="48dp"
+                android:clipChildren="false"
+                android:clipToOutline="false"
+                android:clipToPadding="false"
+                android:minHeight="@dimen/auth_outlined_edit_min_height"
                 app:boxBackgroundColor="@android:color/white"
                 app:boxBackgroundMode="outline"
                 app:boxCornerRadiusBottomEnd="10dp"
@@ -106,15 +79,16 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
+                    android:includeFontPadding="true"
                     android:hint="4-digit PIN"
                     android:inputType="numberPassword"
                     android:letterSpacing="0.12"
-                    android:maxLength="4"
-                    android:minHeight="48dp"
+                    android:maxLength="8"
+                    android:minHeight="@dimen/auth_outlined_edit_min_height"
                     android:paddingStart="12dp"
-                    android:paddingTop="12dp"
+                    android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                     android:paddingEnd="12dp"
-                    android:paddingBottom="12dp"
+                    android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
                     android:textColor="@color/auth_field_text"
                     android:textColorHint="@color/auth_subtitle"
                     android:textSize="16sp" />
@@ -171,4 +145,4 @@
                 android:textSize="12sp" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</LinearLayout>

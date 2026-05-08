@@ -1,8 +1,14 @@
 package com.curax.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.text.method.HideReturnsTransformationMethod
@@ -24,6 +30,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import androidx.core.widget.NestedScrollView
 import androidx.core.widget.doOnTextChanged
 import com.facebook.CallbackManager
 import com.facebook.FacebookCallback
@@ -36,8 +43,10 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
+import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.api.ApiException
 import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import okhttp3.MediaType.Companion.toMediaType
@@ -45,7 +54,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.UUID
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -66,6 +77,9 @@ class SignUpRegistrationActivity : AppCompatActivity() {
 
     private var imeInsetListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
+    /** Set after Google Sign-In when using requestIdToken; used to skip email OTP via /signup/verify-email. */
+    private var pendingGoogleIdToken: String? = null
+
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -76,11 +90,15 @@ class SignUpRegistrationActivity : AppCompatActivity() {
             onGoogleSignedIn(account)
         } catch (e: ApiException) {
             if (e.statusCode == GoogleSignInStatusCodes.SIGN_IN_CANCELLED) return@registerForActivityResult
-            CuraxFeedback.warn(
-                this,
-                getString(R.string.social_google_failed, googleErrorMessage(e)),
-                long = true,
-            )
+            if (e.statusCode == ConnectionResult.DEVELOPER_ERROR) {
+                showGoogleSignInDeveloperSetupDialog()
+            } else {
+                CuraxFeedback.warn(
+                    this,
+                    getString(R.string.social_google_failed, googleErrorMessage(e)),
+                    long = true,
+                )
+            }
         }
     }
 
@@ -96,11 +114,14 @@ class SignUpRegistrationActivity : AppCompatActivity() {
 
         prefs = Prefs(this)
 
-        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestProfile()
-            .build()
-        googleSignInClient = GoogleSignIn.getClient(this, gso)
+        val webClientId = resolveGoogleWebClientId()
+        if (webClientId.isNotEmpty()) {
+            gsoBuilder.requestIdToken(webClientId)
+        }
+        googleSignInClient = GoogleSignIn.getClient(this, gsoBuilder.build())
 
         facebookCallbackManager = CallbackManager.Factory.create()
         LoginManager.getInstance().registerCallback(
@@ -194,7 +215,18 @@ class SignUpRegistrationActivity : AppCompatActivity() {
         AuthPasswordToggle.bind(findViewById<TextInputLayout>(R.id.tilPasswordSignup), this)
         AuthPasswordToggle.bind(findViewById<TextInputLayout>(R.id.tilConfirmSignup), this)
 
-        bindImeOverlayBottomPadding(findViewById(R.id.signUpContent))
+        val scrollSignUp = findViewById<NestedScrollView>(R.id.scrollSignUpRegister)
+        val scrollChild = scrollSignUp.getChildAt(0)
+        bindImeOverlayBottomPadding(scrollSignUp)
+        bindScrollOnFieldFocus(
+            scrollSignUp,
+            scrollChild,
+            etFirstName,
+            etLastName,
+            etEmail,
+            etPassword,
+            etConfirmPassword,
+        )
 
         findViewById<TextView>(R.id.tvSignInHere).setOnClickListener { finish() }
 
@@ -249,12 +281,14 @@ class SignUpRegistrationActivity : AppCompatActivity() {
     }
 
     private fun onGoogleSignedIn(account: GoogleSignInAccount) {
+        val idToken = account.idToken?.trim()?.takeIf { it.isNotEmpty() }
         try {
             val email = account.email?.trim().orEmpty()
             if (email.isEmpty()) {
                 CuraxFeedback.warn(this, getString(R.string.social_email_required_for_signup), long = true)
                 return
             }
+            pendingGoogleIdToken = idToken
             completeSignupAfterSocial(email, account.givenName, account.familyName)
         } finally {
             googleSignInClient.signOut()
@@ -326,7 +360,82 @@ class SignUpRegistrationActivity : AppCompatActivity() {
         btnCreateAccount.isEnabled = fieldsOk && cbTermsAgree.isChecked
     }
 
+    /** Firebase Gradle plugin injects `default_web_client_id` after OAuth clients exist; optional override in strings.xml. */
+    private fun resolveGoogleWebClientId(): String {
+        val overrideId = getString(R.string.google_web_client_id).trim()
+        if (overrideId.isNotEmpty()) return overrideId
+        val resId = resources.getIdentifier("default_web_client_id", "string", packageName)
+        return if (resId != 0) getString(resId).trim() else ""
+    }
+
+    /** SHA-1 with colons (uppercase hex) for the installed APK — same value Firebase expects under fingerprints. */
+    private fun installApkSigningSha1ColonUpper(): String? {
+        return try {
+            val pm = packageManager
+            val pkg = packageName
+            val pi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(
+                    pkg,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
+            }
+            val sig: Signature = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val si = pi.signingInfo ?: return null
+                si.apkContentsSigners?.firstOrNull() ?: return null
+            } else {
+                @Suppress("DEPRECATION")
+                pi.signatures?.firstOrNull() ?: return null
+            }
+            val digest = MessageDigest.getInstance("SHA-1").digest(sig.toByteArray())
+            digest.joinToString(":") { "%02X".format(it) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun copySha1ToClipboard(shaColonUpper: String) {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        cm.setPrimaryClip(ClipData.newPlainText("SHA-1", shaColonUpper))
+        CuraxFeedback.success(this, getString(R.string.google_signin_copied_sha1))
+    }
+
+    private fun showGoogleSignInDeveloperSetupDialog() {
+        val sha = installApkSigningSha1ColonUpper()
+        val shaBlock = sha ?: getString(R.string.google_signin_fix_dialog_sha_unknown)
+        val msg = getString(
+            R.string.google_signin_fix_dialog_message,
+            packageName,
+            shaBlock,
+        )
+        val firebaseUrl = getString(R.string.firebase_console_project_settings_url)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.google_signin_fix_dialog_title)
+            .setMessage(msg)
+            .setPositiveButton(R.string.google_signin_copy_sha1) { _, _ ->
+                if (sha != null) {
+                    copySha1ToClipboard(sha)
+                } else {
+                    CuraxFeedback.warn(this, getString(R.string.google_signin_fix_dialog_sha_unknown), long = true)
+                }
+            }
+            .setNeutralButton(R.string.google_signin_open_firebase) { _, _ ->
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(firebaseUrl)))
+                } catch (_: Exception) {
+                    CuraxFeedback.warn(this, getString(R.string.privacy_open_failed))
+                }
+            }
+            .setNegativeButton(android.R.string.ok, null)
+            .show()
+    }
+
     private fun googleErrorMessage(e: ApiException): String {
+        if (e.statusCode == ConnectionResult.DEVELOPER_ERROR) {
+            return getString(R.string.social_google_developer_error)
+        }
         val m = e.message?.trim()?.takeIf { it.isNotEmpty() }
         return m ?: getString(R.string.social_google_status_code, e.statusCode)
     }
@@ -362,6 +471,30 @@ class SignUpRegistrationActivity : AppCompatActivity() {
         )
         tv.text = ss
         tv.movementMethod = LinkMovementMethod.getInstance()
+    }
+
+    /** Same pattern as [SignInActivity]: scroll focused field above IME when keyboard is open. */
+    private fun bindScrollOnFieldFocus(scroll: NestedScrollView, content: View, vararg fields: View) {
+        for (f in fields) {
+            f.setOnFocusChangeListener { v, hasFocus ->
+                if (hasFocus) scrollToShowDescendant(scroll, content, v)
+            }
+        }
+    }
+
+    private fun scrollToShowDescendant(scroll: NestedScrollView, content: View, descendant: View) {
+        scroll.post {
+            var top = 0
+            var v: View? = descendant
+            while (v != null && v !== content) {
+                top += v.top
+                v = v.parent as? View
+            }
+            val pad = (scroll.height * 0.04f).toInt().coerceIn(20, 40)
+            val targetY = (top - pad).coerceAtLeast(0)
+            val maxY = (content.height - scroll.height).coerceAtLeast(0)
+            scroll.scrollTo(0, targetY.coerceAtMost(maxY))
+        }
     }
 
     private fun bindImeOverlayBottomPadding(content: View) {
@@ -456,19 +589,130 @@ class SignUpRegistrationActivity : AppCompatActivity() {
                 }
                 val (code, jo) = postJson("/signup/start", json)
                 runOnUiThread {
-                    btnCreateAccount.isEnabled = true
-                    btnCreateAccount.text = label
                     if (code == 200) {
                         AutofillHelper.commit(this@SignUpRegistrationActivity)
-                        startActivity(
-                            Intent(this@SignUpRegistrationActivity, SignUpActivity::class.java)
-                                .putExtra(SignUpActivity.EXTRA_START_AT_OTP, true)
-                                .putExtra(SignUpActivity.EXTRA_EMAIL, email)
-                                .putExtra(SignUpActivity.EXTRA_PASSWORD, password)
-                                .putExtra(SignUpActivity.EXTRA_DISPLAY_NAME, displayName),
-                        )
-                        finish()
+                        val googleTok = pendingGoogleIdToken?.trim().orEmpty()
+                        if (googleTok.isNotEmpty()) {
+                            btnCreateAccount.text = getString(R.string.please_wait)
+                            Thread {
+                                try {
+                                    val verifyJson = JSONObject().apply {
+                                        put("email", email)
+                                        put("google_id_token", googleTok)
+                                    }
+                                    val (vCode, vJo) =
+                                        postJson("/signup/verify-email", verifyJson)
+                                    runOnUiThread {
+                                        pendingGoogleIdToken = null
+                                        btnCreateAccount.isEnabled = true
+                                        btnCreateAccount.text = label
+                                        if (vCode == 200) {
+                                            val botId =
+                                                UUID.randomUUID().toString().take(8)
+                                            val apiKey =
+                                                UUID.randomUUID().toString()
+                                                    .replace("-", "").take(16)
+                                            SignUpFlowState.set(
+                                                email,
+                                                password,
+                                                botId,
+                                                apiKey,
+                                                nameForLink = displayName,
+                                            )
+                                            SignUpFlowState.persistWipToPrefs(prefs)
+                                            startActivity(
+                                                Intent(
+                                                    this@SignUpRegistrationActivity,
+                                                    SignUpLinkAdminActivity::class.java,
+                                                ),
+                                            )
+                                            finish()
+                                        } else {
+                                            CuraxFeedback.warn(
+                                                this@SignUpRegistrationActivity,
+                                                ApiErrorMessages.userMessage(
+                                                    this@SignUpRegistrationActivity,
+                                                    vCode,
+                                                    vJo,
+                                                ),
+                                                long = true,
+                                            )
+                                            startActivity(
+                                                Intent(
+                                                    this@SignUpRegistrationActivity,
+                                                    SignUpActivity::class.java,
+                                                )
+                                                    .putExtra(
+                                                        SignUpActivity.EXTRA_START_AT_OTP,
+                                                        true,
+                                                    )
+                                                    .putExtra(
+                                                        SignUpActivity.EXTRA_EMAIL,
+                                                        email,
+                                                    )
+                                                    .putExtra(
+                                                        SignUpActivity.EXTRA_PASSWORD,
+                                                        password,
+                                                    )
+                                                    .putExtra(
+                                                        SignUpActivity.EXTRA_DISPLAY_NAME,
+                                                        displayName,
+                                                    ),
+                                            )
+                                            finish()
+                                        }
+                                    }
+                                } catch (_: Exception) {
+                                    runOnUiThread {
+                                        pendingGoogleIdToken = null
+                                        btnCreateAccount.isEnabled = true
+                                        btnCreateAccount.text = label
+                                        CuraxFeedback.warn(
+                                            this@SignUpRegistrationActivity,
+                                            getString(R.string.error_network_unreachable),
+                                            long = true,
+                                        )
+                                        startActivity(
+                                            Intent(
+                                                this@SignUpRegistrationActivity,
+                                                SignUpActivity::class.java,
+                                            )
+                                                .putExtra(
+                                                    SignUpActivity.EXTRA_START_AT_OTP,
+                                                    true,
+                                                )
+                                                .putExtra(
+                                                    SignUpActivity.EXTRA_EMAIL,
+                                                    email,
+                                                )
+                                                .putExtra(
+                                                    SignUpActivity.EXTRA_PASSWORD,
+                                                    password,
+                                                )
+                                                .putExtra(
+                                                    SignUpActivity.EXTRA_DISPLAY_NAME,
+                                                    displayName,
+                                                ),
+                                        )
+                                        finish()
+                                    }
+                                }
+                            }.start()
+                        } else {
+                            btnCreateAccount.isEnabled = true
+                            btnCreateAccount.text = label
+                            startActivity(
+                                Intent(this@SignUpRegistrationActivity, SignUpActivity::class.java)
+                                    .putExtra(SignUpActivity.EXTRA_START_AT_OTP, true)
+                                    .putExtra(SignUpActivity.EXTRA_EMAIL, email)
+                                    .putExtra(SignUpActivity.EXTRA_PASSWORD, password)
+                                    .putExtra(SignUpActivity.EXTRA_DISPLAY_NAME, displayName),
+                            )
+                            finish()
+                        }
                     } else {
+                        btnCreateAccount.isEnabled = true
+                        btnCreateAccount.text = label
                         CuraxFeedback.warn(
                             this@SignUpRegistrationActivity,
                             ApiErrorMessages.userMessage(this@SignUpRegistrationActivity, code, jo),

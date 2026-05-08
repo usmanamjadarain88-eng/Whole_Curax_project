@@ -349,14 +349,16 @@
             </LinearLayout>
         </HorizontalScrollView>
 
-        <!-- Your medicines: compact row; Stock snapshot sits close below -->
+        <!-- Horizontal medicine boxes + full inventory table below (demo fills chips when not linked). -->
         <LinearLayout
+            android:id="@+id/standaloneMedicineChipsSection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:clipChildren="false"
             android:clipToPadding="false"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="visible">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -933,18 +935,19 @@
                 <HorizontalScrollView
                     android:id="@+id/hsvStandaloneInventory"
                     android:layout_width="match_parent"
-                    android:layout_height="280dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="200dp"
                     android:layout_marginTop="8dp"
                     android:clipChildren="false"
                     android:clipToPadding="false"
-                    android:fillViewport="true"
+                    android:fillViewport="false"
                     android:overScrollMode="never"
                     android:paddingEnd="4dp"
                     android:scrollbars="horizontal">
 
                     <LinearLayout
                         android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
+                        android:layout_height="wrap_content"
                         android:orientation="vertical">
 
                         <LinearLayout
@@ -1041,8 +1044,8 @@
                         <androidx.recyclerview.widget.RecyclerView
                             android:id="@+id/rvInventory"
                             android:layout_width="wrap_content"
-                            android:layout_height="match_parent"
-                            android:layout_marginTop="6dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="0dp"
                             android:clipToPadding="false"
                             android:nestedScrollingEnabled="false"
                             android:paddingBottom="4dp" />
