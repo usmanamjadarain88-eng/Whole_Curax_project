@@ -12,6 +12,20 @@ def escape(s: str) -> str:
     return html_mod.escape((s or "").strip(), quote=True)
 
 
+def apply_urgent_notification_headers(msg) -> None:
+    """
+    Ask mail apps to treat the message as important so new-mail notifications are more
+    likely to pop up (heads-up). Still respects the user's OS / Gmail notification toggles.
+
+    Avoids Precedence: bulk and Auto-Submitted, which often suppress buzz / badge behavior.
+    Works with email.message.EmailMessage and email.mime.multipart.MIMEMultipart.
+    """
+    msg["Importance"] = "high"
+    msg["Priority"] = "urgent"
+    msg["X-Priority"] = "1"
+    msg["X-MSMail-Priority"] = "High"
+
+
 def curax_email_html(
     content_rows_html: str,
     *,

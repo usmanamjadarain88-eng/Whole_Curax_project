@@ -16,7 +16,12 @@ from email.mime.multipart import MIMEMultipart
 import os
 import schedule
 
-from utils.email_layout import curax_email_html, escape as curax_esc, plain_body_to_html_paragraphs
+from utils.email_layout import (
+    apply_urgent_notification_headers,
+    curax_email_html,
+    escape as curax_esc,
+    plain_body_to_html_paragraphs,
+)
 
 RELAY_URL = (os.environ.get("RELAY_URL") or "wss://curax-relay.onrender.com").strip()
 
@@ -290,6 +295,7 @@ class BackendAlertScheduler:
                     msg["From"] = sender_email
                     msg["To"] = rcpt
                     msg["Subject"] = subject
+                    apply_urgent_notification_headers(msg)
                     msg.attach(MIMEText(html, "html"))
                     try:
                         server.send_message(msg)

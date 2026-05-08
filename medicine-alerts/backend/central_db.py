@@ -36,7 +36,7 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
 
     Optional: SIGNUP_SMTP_HOST (default smtp.gmail.com), SIGNUP_SMTP_PORT (default 465),
     SIGNUP_EMAIL_FROM (defaults to SIGNUP_SMTP_USER), SIGNUP_EMAIL_FROM_NAME,
-    SIGNUP_OTP_EMAIL_SUBJECT, SIGNUP_EMAIL_REPLY_TO.
+    SIGNUP_OTP_EMAIL_SUBJECT (default "Verification code"), SIGNUP_EMAIL_REPLY_TO.
     """
     import smtplib
     import html as html_mod
@@ -55,13 +55,13 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
         port = 465
     from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
     from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
-    subject = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT") or "Curax — your verification code").strip()
+    subject = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT") or "Verification code").strip()
     reply_to = (os.environ.get("SIGNUP_EMAIL_REPLY_TO") or "").strip()
     to_addr = (to_addr or "").strip()
     if "@" not in to_addr:
         return False
 
-    from utils.email_layout import curax_email_html, escape as _email_esc
+    from utils.email_layout import apply_urgent_notification_headers, curax_email_html, escape as _email_esc
 
     otp_esc = html_mod.escape((otp_plain or "").strip())
     name_esc = html_mod.escape(from_name)
@@ -115,6 +115,7 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     msg["To"] = to_addr
     if reply_to and "@" in reply_to:
         msg["Reply-To"] = reply_to
+    apply_urgent_notification_headers(msg)
     msg.set_content(text_body, subtype="plain", charset="utf-8")
     msg.add_alternative(html_body, subtype="html", charset="utf-8")
 
