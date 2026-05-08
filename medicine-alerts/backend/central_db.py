@@ -23,20 +23,24 @@ except ImportError:
     RealDictCursor = None
 
 
-def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
+def _send_signup_otp_email(to_addr: str, otp_plain: str, *, purpose: str = "signup") -> bool:
     """
-    Deliver signup OTP by email when SMTP is configured (e.g. on Vercel set env vars).
+    Deliver OTP by email when SMTP is configured (e.g. on Vercel set env vars).
+
+    TTL / reuse (same as verification flows): codes are stored server-side with a **15-minute**
+    expiry; after a successful verify or password reset, the stored OTP hash is cleared so that
+    code cannot be reused.
 
     Use *your* mailbox to send (Gmail + app password is typical):
       SIGNUP_SMTP_USER, SIGNUP_SMTP_PASSWORD — login for SMTP (your email + app password).
 
-    Recipients see the friendly sender name (default **Curax system**), not your personal
-    address as the headline — From display name is SIGNUP_EMAIL_FROM_NAME; the technical
-    From address still defaults to SIGNUP_SMTP_USER (required by Gmail SMTP).
-
     Optional: SIGNUP_SMTP_HOST (default smtp.gmail.com), SIGNUP_SMTP_PORT (default 465),
-    SIGNUP_EMAIL_FROM (defaults to SIGNUP_SMTP_USER), SIGNUP_EMAIL_FROM_NAME,
-    SIGNUP_OTP_EMAIL_SUBJECT, SIGNUP_EMAIL_REPLY_TO.
+    SIGNUP_SMTP_TIMEOUT_SECONDS (default 22 — avoids long hangs on serverless),
+    SIGNUP_EMAIL_FROM, SIGNUP_EMAIL_FROM_NAME,
+    SIGNUP_OTP_EMAIL_SUBJECT (signup only), SIGNUP_PASSWORD_RESET_EMAIL_SUBJECT (reset only),
+    SIGNUP_EMAIL_REPLY_TO.
+
+    purpose: \"signup\" | \"password_reset\" — chooses subject and email headings only.
     """
     import smtplib
     import html as html_mod
@@ -53,9 +57,33 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
         port = int((os.environ.get("SIGNUP_SMTP_PORT") or "465").strip())
     except ValueError:
         port = 465
+    try:
+        smtp_timeout = float((os.environ.get("SIGNUP_SMTP_TIMEOUT_SECONDS") or "22").strip())
+    except ValueError:
+        smtp_timeout = 22.0
+    smtp_timeout = max(5.0, min(smtp_timeout, 120.0))
     from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
     from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
-    subject = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT") or "Curax — your verification code").strip()
+    purpose = (purpose or "signup").strip().lower()
+    if purpose == "password_reset":
+        subject = (
+            os.environ.get("SIGNUP_PASSWORD_RESET_EMAIL_SUBJECT") or "Curax — reset your password"
+        ).strip()
+        heading = "Reset your password"
+        intro_plain = "Use this code to confirm your email and set a new password."
+        intro_html = (
+            "Enter the code below to confirm it's you and finish resetting your password. "
+            "It expires in "
+            "<strong style=\"color:#374151;\">15 minutes</strong>."
+        )
+    else:
+        subject = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT") or "Curax — your verification code").strip()
+        heading = "Verify your email"
+        intro_plain = "Use this code to finish creating your account."
+        intro_html = (
+            "Use the code below to finish creating your account. It expires in "
+            "<strong style=\"color:#374151;\">15 minutes</strong>."
+        )
     reply_to = (os.environ.get("SIGNUP_EMAIL_REPLY_TO") or "").strip()
     to_addr = (to_addr or "").strip()
     if "@" not in to_addr:
@@ -66,6 +94,7 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     # One plain block + single sign-off (avoid repeating the sender / same sentence twice).
     text_body = (
         f"Your verification code is: {otp_plain}. This code expires in 15 minutes. "
+        f"{intro_plain} "
         "If you did not request this, you can ignore this email.\n\n"
         f"— {from_name}\n"
     )
@@ -80,11 +109,10 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
         '<tr><td style="padding:24px 28px 8px 28px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
         '<div style="font-size:13px;font-weight:600;letter-spacing:0.06em;color:#00a218;">CURAX</div>'
         '<div style="font-size:20px;font-weight:700;color:#111827;margin-top:12px;line-height:1.3;">'
-        "Verify your email"
+        f"{html_mod.escape(heading)}"
         "</div>"
         '<div style="font-size:14px;color:#6b7280;margin-top:8px;line-height:1.55;">'
-        "Use the code below to finish creating your account. It expires in "
-        "<strong style=\"color:#374151;\">15 minutes</strong>."
+        f"{intro_html}"
         "</div>"
         "</td></tr>"
         '<tr><td style="padding:8px 28px 24px 28px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
@@ -114,7 +142,7 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     msg.set_content(text_body, subtype="plain", charset="utf-8")
     msg.add_alternative(html_body, subtype="html", charset="utf-8")
 
-    with smtplib.SMTP_SSL(host, port) as server:
+    with smtplib.SMTP_SSL(host, port, timeout=smtp_timeout) as server:
         server.login(smtp_user, smtp_password)
         server.send_message(msg)
     return True
@@ -3012,7 +3040,7 @@ class CentralDB:
 
         email_sent = False
         try:
-            email_sent = bool(_send_signup_otp_email(email_n, otp))
+            email_sent = bool(_send_signup_otp_email(email_n, otp, purpose="password_reset"))
             if email_sent:
                 print(f"  [password reset OTP] email sent to {email_n} (expires in 15m)")
             else:
