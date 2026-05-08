@@ -22,6 +22,8 @@ SIMPLE = [
     ("signup_request_admin_link", {"POST": "signup_request_admin_link"}),
     ("signup_link_request_status", {"GET": "signup_link_request_status"}),
     ("signup_sign_in", {"POST": "signup_sign_in"}),
+    ("password_reset_start", {"POST": "password_reset_start"}),
+    ("password_reset_complete", {"POST": "password_reset_complete"}),
     ("user_account_status", {"GET": "user_account_status"}),
     ("maintenance_cleanup_pending", {"GET": "maintenance_cleanup_pending_cron", "POST": "maintenance_cleanup_pending"}),
     ("maintenance_run_alert_checks", {"POST": "maintenance_run_alert_checks"}),
@@ -150,6 +152,8 @@ def main() -> None:
         "signup_request_admin_link": "/signup/request-admin-link",
         "signup_link_request_status": "/signup/link-request-status",
         "signup_sign_in": "/signup/sign-in",
+        "password_reset_start": "/password-reset/start",
+        "password_reset_complete": "/password-reset/complete",
         "user_account_status": "/user/account-status",
         "maintenance_cleanup_pending": "/maintenance/cleanup-pending",
         "maintenance_run_alert_checks": "/maintenance/run-alert-checks",
@@ -287,11 +291,7 @@ def main() -> None:
             continue
         rewrites.append({"source": path, "destination": dest_url(stem)})
 
-    # Exact /api (no extra segment) → same handler as / (not api/index, which would own /api/*).
-    rewrites.insert(
-        2,
-        {"source": "/api", "destination": "/api/welcome"},
-    )
+    # Do not rewrite "/api" → welcome: on some routers "/api" matches every "/api/*" and breaks serverless routes.
 
     rewrites.append(
         {"source": "/admin/inventory", "destination": "/api/admin_medicines"}
@@ -304,6 +304,13 @@ def main() -> None:
         "$schema": "https://openapi.vercel.sh/vercel.json",
         "framework": "python",
         "rewrites": rewrites,
+        "redirects": [
+            {
+                "source": "/favicon.ico",
+                "destination": "/favicon.png",
+                "permanent": False,
+            },
+        ],
     }
     (ROOT / "vercel.json").write_text(json.dumps(vj, indent=2) + "\n", encoding="utf-8")
     print("Generated api/*.py, utils/dev_router.py, vercel.json")

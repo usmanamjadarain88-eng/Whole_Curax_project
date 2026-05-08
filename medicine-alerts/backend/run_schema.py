@@ -1,5 +1,5 @@
 """
-Run central_schema.sql (and migration) on the database given by DATABASE_URL.
+Run central_schema.sql on the database given by DATABASE_URL.
 Use this to set up your hosted DB (e.g. Neon) so the backend can use it.
 
 From repo root:  python -m backend.run_schema
@@ -44,6 +44,7 @@ if not url:
     print("ERROR: DATABASE_URL not set. Set it in env, backend/.env, or backend/database_url.txt")
     sys.exit(1)
 
+
 def main():
     try:
         import psycopg2
@@ -52,11 +53,6 @@ def main():
         sys.exit(1)
 
     schema_path = os.path.join(_backend_dir, "central_schema.sql")
-    migration_paths = [
-        os.path.join(_backend_dir, "central_migration_admin_access_code.sql"),
-        os.path.join(_backend_dir, "central_migration_admin_email_unique.sql"),
-        os.path.join(_backend_dir, "central_migration_desktop_password_hash.sql"),
-    ]
     if not os.path.isfile(schema_path):
         print(f"ERROR: {schema_path} not found")
         sys.exit(1)
@@ -69,7 +65,6 @@ def main():
     def run_sql_file(path):
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-        # Build statements: only split on ";" that ends a non-comment line (so we don't split inside comments)
         buf = []
         for line in lines:
             stripped = line.strip()
@@ -94,14 +89,6 @@ def main():
         print("Running central_schema.sql...")
         run_sql_file(schema_path)
         print("  central_schema.sql OK.")
-
-        for migration_path in migration_paths:
-            if os.path.isfile(migration_path):
-                name = os.path.basename(migration_path)
-                print(f"Running {name}...")
-                run_sql_file(migration_path)
-                print(f"  {name} OK.")
-
         print("Done. Database schema is ready. You can test the backend now.")
     except Exception as e:
         print(f"ERROR: {e}")
@@ -109,6 +96,7 @@ def main():
     finally:
         cur.close()
         conn.close()
+
 
 if __name__ == "__main__":
     main()

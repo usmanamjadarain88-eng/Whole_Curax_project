@@ -1,7 +1,7 @@
 Backend: REST API + Central DB (PostgreSQL).
 - Run API locally: cd this folder (medicine-alerts/backend) then  python api_server.py  (stdlib HTTP, no Flask).
   Set DATABASE_URL or CENTRAL_DB_URL for PostgreSQL.
-- Schema: apply central_schema.sql (and central_migration_admin_access_code.sql if needed) on your DB.
+- Schema: apply central_schema.sql on your DB (single file; safe to re-run).
 
 --- Vercel (serverless Python, /api/*.py) ---
 1. In Vercel: New Project -> import Git repo -> Root Directory:  medicine-alerts/backend

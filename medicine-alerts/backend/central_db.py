@@ -172,7 +172,7 @@ class CentralDB:
             return False
 
     def has_signup_sessions_table(self) -> bool:
-        """True if public.signup_sessions exists (migration_signup_sessions.sql was applied)."""
+        """True if public.signup_sessions exists (central_schema.sql applied)."""
         try:
             cur = self._ensure_conn().cursor()
             try:
@@ -2840,7 +2840,7 @@ class CentralDB:
         registration), returns email_already_registered and no mail.
 
         Optional first_name / last_name are stored when signup_sessions has those columns
-        (see migration_signup_sessions_names.sql).
+        (see signup_sessions.first_name / last_name in central_schema.sql).
         """
         email_n = self._normalize_signup_email(email)
         if not email_n or "@" not in email_n or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_n):
@@ -2911,7 +2911,7 @@ class CentralDB:
             conn.rollback()
             err = str(e).lower()
             if "signup_sessions" in err or "does not exist" in err or "relation" in err:
-                return {"ok": False, "error": "signup_not_configured", "detail": "Run migration_signup_sessions.sql"}
+                return {"ok": False, "error": "signup_not_configured", "detail": "Run central_schema.sql on Postgres (signup_sessions table)."}
             print(f"CentralDB signup_flow_start: {e}")
             return {"ok": False, "error": "database_error"}
         finally:
@@ -2967,7 +2967,7 @@ class CentralDB:
         if not row:
             return generic_ok
         st = str(row.get("account_status") or "ACTIVE").strip().upper()
-        # Same lifecycle values as users.account_status CHECK (see migration_user_signup_status.sql).
+        # Same lifecycle values as users.account_status CHECK (central_schema.sql).
         if st not in ("ACTIVE", "PENDING_ADMIN", "PENDING", "PENDING_EMAIL"):
             return generic_ok
         user_id = str(row.get("id") or "").strip()
@@ -3003,7 +3003,7 @@ class CentralDB:
                 return {
                     "ok": False,
                     "error": "password_reset_not_configured",
-                    "detail": "Run migration_password_reset_otp.sql on Postgres",
+                    "detail": "Run central_schema.sql on Postgres (password_reset_otp columns on users).",
                 }
             print(f"CentralDB password_reset_start update: {e}")
             return {"ok": False, "error": "database_error"}
@@ -3092,7 +3092,7 @@ class CentralDB:
                 return {
                     "ok": False,
                     "error": "password_reset_not_configured",
-                    "detail": "Run migration_password_reset_otp.sql on Postgres",
+                    "detail": "Run central_schema.sql on Postgres (password_reset_otp columns on users).",
                 }
             print(f"CentralDB password_reset_complete: {e}")
             return {"ok": False, "error": "database_error"}
@@ -3360,7 +3360,7 @@ class CentralDB:
             conn.rollback()
             err = str(e).lower()
             if "signup_sessions" in err or "does not exist" in err or "relation" in err:
-                return {"ok": False, "error": "signup_not_configured", "detail": "Run migration_signup_sessions.sql"}
+                return {"ok": False, "error": "signup_not_configured", "detail": "Run central_schema.sql on Postgres (signup_sessions table)."}
             print(f"CentralDB signup_flow_resend_otp_pending_email_oauth: {e}")
             return {"ok": False, "error": "database_error"}
         finally:

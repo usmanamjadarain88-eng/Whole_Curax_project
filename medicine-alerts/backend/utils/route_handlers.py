@@ -284,7 +284,7 @@ def signup_start(body, query, headers):
         payload = {"message": err, "detail": r.get("detail")}
         if err == "signup_not_configured":
             payload["hint"] = (
-                "Run migration_signup_sessions.sql on Postgres. "
+                "Run central_schema.sql on Postgres (signup_sessions table). "
                 "Until then, /signup/start cannot store pending signups."
             )
         if err == "email_already_registered" and r.get("detail"):

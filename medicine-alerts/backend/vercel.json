@@ -11,10 +11,6 @@
       "destination": "/api/admin_user_delete?user_id=:user_id"
     },
     {
-      "source": "/api",
-      "destination": "/api/welcome"
-    },
-    {
       "source": "/",
       "destination": "/api/welcome"
     },
@@ -213,6 +209,13 @@
     {
       "source": "/admin/settings",
       "destination": "/api/admin_alert_settings"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/favicon.png",
+      "permanent": false
     }
   ]
 }
