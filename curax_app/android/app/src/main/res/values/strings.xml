@@ -399,6 +399,7 @@
     <string name="forgot_password_success">Your password was updated. Sign in with your new password.</string>
     <string name="forgot_password_password_mismatch">New password and confirmation do not match.</string>
     <string name="forgot_password_email_maybe_sent">If this email has an account, a code was sent. Also check spam. Server email must be configured.</string>
+    <string name="forgot_password_email_not_registered">No account found for this email. Check spelling or use the email you signed up with.</string>
     <string name="auth_reset_sheet_hint">Use the button below if you need admin registration on this device.</string>
     <string name="sign_in_password_hint_dots">******</string>
     <string name="cd_show_password">Show password</string>
@@ -512,6 +513,7 @@
     <string name="api_err_invalid_email">Enter a valid email address.</string>
     <string name="api_err_password_too_short">Password must be at least 6 characters.</string>
     <string name="api_err_signup_not_configured">Sign-up is not configured on the server yet.</string>
+    <string name="api_err_password_reset_not_configured">Password reset is not ready on the server yet. Ask your admin to run the latest database update for forgot-password.</string>
     <string name="api_err_unknown_email">No account found for this email. Check spelling or sign up first.</string>
     <string name="api_err_invalid_password">Wrong password. Try again or reset via your admin.</string>
     <string name="api_err_invalid_state">This account is in an unexpected state. Try again or contact support.</string>

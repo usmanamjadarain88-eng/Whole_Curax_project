@@ -106,6 +106,8 @@ object ApiErrorMessages {
         "invalid_state" -> context.getString(R.string.api_err_invalid_state)
         "link_failed" -> context.getString(R.string.api_err_link_failed)
         "invalid_connection_code" -> context.getString(R.string.invalid_connection_code)
+        "password_reset_not_configured" ->
+            context.getString(R.string.api_err_password_reset_not_configured)
         else -> null
     }
 

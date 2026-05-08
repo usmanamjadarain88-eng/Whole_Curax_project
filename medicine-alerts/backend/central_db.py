@@ -327,19 +327,13 @@ class CentralDB:
 
     def get_user_by_desktop_link_code(self, code):
         """Validate user desktop link code, return user info and admin info; consume the code.
-        Returns { user_id, user_name, bot_id, api_key, admin_id, admin_name } or None.
-        Sets users.desktop_linked_at when code is used so admin can only save for users who linked desktop."""
+        Returns { user_id, user_name, bot_id, api_key, admin_id, admin_name } or None."""
         code = (code or "").strip().upper()
         if not code:
             return None
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
-            try:
-                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS desktop_linked_at TIMESTAMPTZ DEFAULT NULL")
-                conn.commit()
-            except Exception:
-                conn.rollback()
             cur.execute(
                 """SELECT d.user_id, u.name AS user_name, u.bot_id, u.api_key, u.admin_id, a.name AS admin_name
                    FROM user_desktop_link_codes d
@@ -357,10 +351,6 @@ class CentralDB:
             api_key = (row["api_key"] if hasattr(row, "keys") else row[3]) or ""
             admin_id = row["admin_id"] if hasattr(row, "keys") else row[4]
             admin_name = (row["admin_name"] if hasattr(row, "keys") else row[5]) or "Admin"
-            try:
-                cur.execute("UPDATE users SET desktop_linked_at = COALESCE(desktop_linked_at, NOW()) WHERE id = %s", (user_id,))
-            except Exception:
-                pass
             cur.execute("DELETE FROM user_desktop_link_codes WHERE code = %s", (code,))
             conn.commit()
             return {
@@ -2197,11 +2187,10 @@ class CentralDB:
         try:
             rows = None
             variant = 0
-            # 0=full+email+desktop+profile_picture | 1=full no pp | 2=no email | 3=no desktop_linked_at
+            # 0=email+profile_picture | 1=email no pp | 2=no email column
             for variant, sql in enumerate((
-                "SELECT id, name, email, bot_id, api_key, created_at, desktop_linked_at, profile_picture FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
-                "SELECT id, name, email, bot_id, api_key, created_at, desktop_linked_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
-                "SELECT id, name, bot_id, api_key, created_at, desktop_linked_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
+                "SELECT id, name, email, bot_id, api_key, created_at, profile_picture FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
+                "SELECT id, name, email, bot_id, api_key, created_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
                 "SELECT id, name, bot_id, api_key, created_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
             )):
                 try:
@@ -2215,47 +2204,36 @@ class CentralDB:
             result = []
             for row in rows:
                 if hasattr(row, "keys"):
-                    dlinked = row.get("desktop_linked_at")
                     em = (row.get("email") or "").strip() if variant in (0, 1) else ""
                     pp = (row.get("profile_picture") or "").strip() if variant == 0 else ""
                     result.append({
                         "id": str(row["id"]), "name": row["name"] or "", "email": em,
                         "bot_id": row["bot_id"] or "", "api_key": row["api_key"] or "",
-                        "desktop_linked": dlinked is not None,
+                        "desktop_linked": False,
                         "profile_picture": pp,
                     })
                 else:
                     if variant == 0:
                         em = (row[2] or "").strip() if len(row) > 2 else ""
-                        dlinked = row[6] if len(row) > 6 else None
-                        pp = (row[7] or "").strip() if len(row) > 7 else ""
+                        pp = (row[6] or "").strip() if len(row) > 6 else ""
                         result.append({
                             "id": str(row[0]), "name": row[1] or "", "email": em,
                             "bot_id": row[3] or "", "api_key": row[4] or "",
-                            "desktop_linked": dlinked is not None,
+                            "desktop_linked": False,
                             "profile_picture": pp,
                         })
                     elif variant == 1:
                         em = (row[2] or "").strip() if len(row) > 2 else ""
-                        dlinked = row[6] if len(row) > 6 else None
                         result.append({
                             "id": str(row[0]), "name": row[1] or "", "email": em,
                             "bot_id": row[3] or "", "api_key": row[4] or "",
-                            "desktop_linked": dlinked is not None,
-                            "profile_picture": "",
-                        })
-                    elif variant == 2:
-                        dlinked = row[5] if len(row) > 5 else None
-                        result.append({
-                            "id": str(row[0]), "name": row[1] or "", "email": "",
-                            "bot_id": row[2] or "", "api_key": row[3] or "",
-                            "desktop_linked": dlinked is not None,
+                            "desktop_linked": False,
                             "profile_picture": "",
                         })
                     else:
                         result.append({
                             "id": str(row[0]), "name": row[1] or "", "email": "",
-                            "bot_id": str(row[2] or ""), "api_key": str(row[3] or ""),
+                            "bot_id": row[2] or "", "api_key": row[3] or "",
                             "desktop_linked": False,
                             "profile_picture": "",
                         })
@@ -2267,18 +2245,10 @@ class CentralDB:
             cur.close()
 
     def user_has_desktop_linked(self, user_id):
-        """True if this user has linked a desktop at least once (desktop_linked_at set)."""
+        """Legacy gate removed (desktop_linked_at column dropped); always allow for real ids."""
         if not user_id:
             return False
-        conn = self._ensure_conn()
-        cur = conn.cursor()
-        try:
-            cur.execute("SELECT 1 FROM users WHERE id = %s::uuid AND desktop_linked_at IS NOT NULL LIMIT 1", (user_id,))
-            return cur.fetchone() is not None
-        except Exception:
-            return False
-        finally:
-            cur.close()
+        return True
 
     def user_belongs_to_admin(self, user_id, admin_id):
         """True if user_id is a non-dashboard user under this admin_id."""
@@ -2966,7 +2936,7 @@ class CentralDB:
         return out
 
     def password_reset_start(self, email):
-        """Send OTP to reset password for an ACTIVE linked user with a password. Generic OK if unknown."""
+        """Send OTP to prove inbox ownership; then client sets password on users row. Generic OK if email unknown."""
         email_n = self._normalize_signup_email(email)
         if not email_n or "@" not in email_n or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_n):
             return {"ok": False, "error": "invalid_email"}
@@ -2996,11 +2966,9 @@ class CentralDB:
         generic_ok = {"ok": True, "message": "if_registered", "email_sent": False}
         if not row:
             return generic_ok
-        pw_hash = row.get("password_hash") if hasattr(row, "get") else None
-        if not pw_hash or not str(pw_hash).strip():
-            return generic_ok
         st = str(row.get("account_status") or "ACTIVE").strip().upper()
-        if st != "ACTIVE":
+        # Same lifecycle values as users.account_status CHECK (see migration_user_signup_status.sql).
+        if st not in ("ACTIVE", "PENDING_ADMIN", "PENDING", "PENDING_EMAIL"):
             return generic_ok
         user_id = str(row.get("id") or "").strip()
         if not user_id:

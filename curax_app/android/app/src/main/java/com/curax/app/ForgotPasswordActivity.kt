@@ -199,20 +199,29 @@ class ForgotPasswordActivity : AppCompatActivity() {
                     btnSendCode.text = label
                     if (code == 200 && jo != null) {
                         val devOtp = jo.optString("dev_otp", "").trim()
-                        if (devOtp.isNotEmpty()) {
-                            CuraxFeedback.success(this, "Dev OTP: $devOtp")
-                        }
-                        val sent = jo.optBoolean("email_sent", true)
-                        if (!sent && devOtp.isEmpty()) {
+                        val msg = jo.optString("message", "").trim()
+                        if (msg == "if_registered" && devOtp.isEmpty()) {
                             CuraxFeedback.warn(
                                 this,
-                                getString(R.string.forgot_password_email_maybe_sent),
+                                getString(R.string.forgot_password_email_not_registered),
                                 long = true,
                             )
+                        } else {
+                            if (devOtp.isNotEmpty()) {
+                                CuraxFeedback.success(this, "Dev OTP: $devOtp")
+                            }
+                            val sent = jo.optBoolean("email_sent", true)
+                            if (!sent && devOtp.isEmpty()) {
+                                CuraxFeedback.warn(
+                                    this,
+                                    getString(R.string.forgot_password_email_maybe_sent),
+                                    long = true,
+                                )
+                            }
+                            etOtp.text = null
+                            btnOtpNext.isEnabled = false
+                            showStep(Step.OTP)
                         }
-                        etOtp.text = null
-                        btnOtpNext.isEnabled = false
-                        showStep(Step.OTP)
                     } else {
                         CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                     }

@@ -39,7 +39,6 @@ CREATE TABLE IF NOT EXISTS users (
     api_key VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'user',
     fcm_token VARCHAR(255),
-    desktop_linked_at TIMESTAMPTZ DEFAULT NULL,
     -- Signup lifecycle: see migration_user_signup_status.sql for existing DBs.
     account_status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     email_verified_at TIMESTAMPTZ DEFAULT NULL,
@@ -64,6 +63,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(120) DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(120) DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_display_mode VARCHAR(32) DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS health_hub_plans JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_otp_hash VARCHAR(128) DEFAULT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_otp_expires_at TIMESTAMPTZ DEFAULT NULL;
 
 -- Email-first signup (staging). Existing DBs: run migration_signup_sessions.sql
 CREATE TABLE IF NOT EXISTS signup_sessions (
@@ -87,9 +88,6 @@ CREATE INDEX IF NOT EXISTS idx_signup_sessions_cleanup ON signup_sessions (creat
 -- If you had UNIQUE(admin_id) and need many users per admin, run:
 -- ALTER TABLE users DROP CONSTRAINT IF EXISTS users_admin_id_key;
 -- ALTER TABLE users ADD CONSTRAINT users_bot_id_api_key_key UNIQUE (bot_id, api_key);
-
--- User has linked a desktop at least once (set when they use the 6-digit link code on desktop).
--- Migration for existing DBs: ALTER TABLE users ADD COLUMN IF NOT EXISTS desktop_linked_at TIMESTAMPTZ DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS medicines (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
