@@ -266,6 +266,53 @@ def admin_mobile_sign_in_verify(body, query, headers):
     return (200, {k: v for k, v in r.items() if k != "ok"})
 
 
+def admin_email_signup_start(body, query, headers):
+    """POST { email, password } → OTP emailed; creates admin row after /admin/email-signup/verify."""
+    data = body or {}
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.admin_email_signup_start(email, password)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err in ("admin_email_signup_not_configured", "database_error"):
+            code = 503
+        elif err == "email_already_registered":
+            code = 409
+        out = {"message": err}
+        if r.get("detail"):
+            out["detail"] = r["detail"]
+        return (code, out)
+    return (200, {k: v for k, v in r.items() if k != "ok"})
+
+
+def admin_email_signup_verify(body, query, headers):
+    """POST { email, otp } → new administrator on central DB."""
+    data = body or {}
+    email = (data.get("email") or "").strip()
+    otp = (data.get("otp") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.admin_email_signup_verify(email, otp)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err in ("admin_email_signup_not_configured", "database_error"):
+            code = 503
+        elif err in ("session_not_found", "invalid_otp"):
+            code = 401
+        elif err == "otp_expired":
+            code = 410
+        elif err == "email_already_registered":
+            code = 409
+        return (code, {"message": err})
+    return (200, {k: v for k, v in r.items() if k != "ok"})
+
+
 def connect_to_admin(body, query, headers):
     """POST { connection_code, bot_id, api_key, name?, email? } ΓåÆ link this app (user) to the admin with that connection_code.
     If email is sent, any previous user row for the same admin+email (e.g. old install) is removed so the same person has only one entry.

@@ -257,6 +257,113 @@ def _send_admin_mobile_otp_email(to_addr: str, otp_plain: str, admin_name: str =
     return True
 
 
+def _send_admin_email_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
+    """OTP for independent mobile administrator registration (new admin row after verify)."""
+    import smtplib
+    import ssl as ssl_mod
+    import html as html_mod
+    from email.message import EmailMessage
+    from email.policy import SMTP
+    from email.utils import formataddr
+
+    smtp_user = (os.environ.get("SIGNUP_SMTP_USER") or "").strip()
+    smtp_password = (os.environ.get("SIGNUP_SMTP_PASSWORD") or "").strip()
+    if not smtp_user or not smtp_password:
+        return False
+    host = (os.environ.get("SIGNUP_SMTP_HOST") or "smtp.gmail.com").strip()
+    try:
+        port = int((os.environ.get("SIGNUP_SMTP_PORT") or "465").strip())
+    except ValueError:
+        port = 465
+    try:
+        smtp_timeout = float((os.environ.get("SIGNUP_SMTP_TIMEOUT") or "25").strip())
+    except ValueError:
+        smtp_timeout = 25.0
+    smtp_timeout = max(5.0, min(smtp_timeout, 120.0))
+    from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
+    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
+    subject = (os.environ.get("ADMIN_EMAIL_SIGNUP_OTP_SUBJECT") or "Confirm administrator account").strip()
+    subj_prefix = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT_PREFIX") or "").strip()
+    if subj_prefix:
+        subject = f"{subj_prefix.rstrip()} {subject}".strip()
+    reply_to = (os.environ.get("SIGNUP_EMAIL_REPLY_TO") or "").strip()
+    to_addr = (to_addr or "").strip()
+    if "@" not in to_addr:
+        return False
+
+    from utils.email_layout import apply_urgent_notification_headers, curax_email_html, escape as _email_esc
+
+    otp_esc = html_mod.escape((otp_plain or "").strip())
+    name_esc = html_mod.escape(from_name)
+    text_body = (
+        "You are registering a new Curax administrator account on mobile.\n\n"
+        f"Your verification code is: {otp_plain}. This code expires in 15 minutes.\n"
+        "If you did not start this registration, ignore this email.\n\n"
+        f"— {from_name}\n"
+    )
+    sent_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    headline = "Administrator registration"
+    subhead = (
+        "Use the code below to finish creating your administrator account on mobile. "
+        "Code expires in <strong style=\"color:#374151;\">15 minutes</strong>."
+    )
+    content_rows = (
+        '<tr><td style="padding:24px 28px 8px 28px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
+        '<div style="font-size:20px;font-weight:700;color:#111827;line-height:1.3;">'
+        f"{html_mod.escape(headline)}"
+        "</div>"
+        '<div style="font-size:14px;color:#6b7280;margin-top:8px;line-height:1.55;">'
+        f"{subhead}"
+        "</div>"
+        "</td></tr>"
+        '<tr><td style="padding:8px 28px 8px 28px;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
+        '<div style="background:#f9fafb;border:1px dashed #d1d5db;border-radius:10px;padding:18px 16px;'
+        'text-align:center;">'
+        '<div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em;">'
+        "Your code"
+        "</div>"
+        f'<div style="font-size:28px;font-weight:700;letter-spacing:6px;color:#111827;margin-top:10px;">'
+        f"{otp_esc}</div>"
+        "</div>"
+        '<p style="font-size:13px;color:#9ca3af;margin:18px 0 0 0;line-height:1.5;">'
+        "If you did not register as an administrator, you can ignore this message."
+        "</p>"
+        f'<p style="font-size:12px;color:#9ca3af;margin:20px 0 0 0;">— {name_esc}</p>'
+        "</td></tr>"
+    )
+    html_body = curax_email_html(
+        content_rows,
+        footer_meta=[
+            ("Time", _email_esc(sent_ts)),
+            ("System", _email_esc("CuraX Intelligent Medicine System")),
+            ("Recipients", f'<span style="color:#2563eb;">{_email_esc(to_addr)}</span>'),
+        ],
+    )
+
+    msg = EmailMessage(policy=SMTP)
+    msg["Subject"] = subject
+    msg["From"] = formataddr((from_name, from_addr))
+    msg["To"] = to_addr
+    if reply_to and "@" in reply_to:
+        msg["Reply-To"] = reply_to
+    apply_urgent_notification_headers(msg)
+    msg.set_content(text_body, subtype="plain", charset="utf-8")
+    msg.add_alternative(html_body, subtype="html", charset="utf-8")
+
+    if port == 587:
+        with smtplib.SMTP(host, port, timeout=smtp_timeout) as server:
+            server.ehlo()
+            server.starttls(context=ssl_mod.create_default_context())
+            server.ehlo()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP_SSL(host, port, timeout=smtp_timeout) as server:
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+    return True
+
+
 def _get_connection_string(url=None, **kwargs):
     if url and str(url).strip():
         return url.strip()
@@ -334,6 +441,23 @@ class CentralDB:
                     """
                     SELECT 1 FROM information_schema.tables
                     WHERE table_schema = 'public' AND table_name = 'admin_mobile_login_challenges'
+                    LIMIT 1
+                    """
+                )
+                return cur.fetchone() is not None
+            finally:
+                cur.close()
+        except Exception:
+            return False
+
+    def has_admin_email_signup_sessions_table(self) -> bool:
+        try:
+            cur = self._ensure_conn().cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = 'public' AND table_name = 'admin_email_signup_sessions'
                     LIMIT 1
                     """
                 )
@@ -3157,6 +3281,169 @@ class CentralDB:
         except Exception as e:
             conn.rollback()
             print(f"CentralDB admin_mobile_sign_in_verify: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+
+    def admin_email_signup_start(self, email, password):
+        """Independent mobile admin registration: OTP email; verify creates admins row with desktop_password_hash."""
+        email_n = self._normalize_signup_email(email)
+        if not email_n or "@" not in email_n or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_n):
+            return {"ok": False, "error": "invalid_email"}
+        pw = (password or "").strip()
+        if len(pw) < 6:
+            return {"ok": False, "error": "password_too_short"}
+        if not self.has_admin_email_signup_sessions_table():
+            return {"ok": False, "error": "admin_email_signup_not_configured"}
+        if self._signup_email_already_registered(email_n):
+            return {
+                "ok": False,
+                "error": "email_already_registered",
+                "detail": "This email already has an account. Sign in instead.",
+            }
+        pw_h = self._hash_signup_password(pw)
+        otp = str(secrets.randbelow(900_000) + 100_000)
+        otp_h = self._hash_signup_otp(email_n, otp)
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                INSERT INTO admin_email_signup_sessions (
+                    email_normalized, password_hash, otp_hash, otp_expires_at, updated_at
+                ) VALUES (%s, %s, %s, NOW() + INTERVAL '15 minutes', NOW())
+                ON CONFLICT (email_normalized) DO UPDATE SET
+                    password_hash = EXCLUDED.password_hash,
+                    otp_hash = EXCLUDED.otp_hash,
+                    otp_expires_at = EXCLUDED.otp_expires_at,
+                    updated_at = NOW()
+                """,
+                (email_n, pw_h, otp_h),
+            )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            err = str(e).lower()
+            if "admin_email_signup_sessions" in err or "does not exist" in err or "relation" in err:
+                return {"ok": False, "error": "admin_email_signup_not_configured"}
+            print(f"CentralDB admin_email_signup_start: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+
+        email_sent = False
+        try:
+            email_sent = bool(_send_admin_email_signup_otp_email(email_n, otp))
+            if email_sent:
+                print(f"  [admin email signup OTP] sent to {email_n} (expires in 15m)")
+            else:
+                print(
+                    f"  [admin email signup OTP] {email_n} -> {otp} (expires in 15m; configure SMTP or "
+                    "SIGNUP_DEV_RETURN_OTP=1)"
+                )
+        except Exception as e:
+            print(f"  [admin email signup OTP] SMTP error for {email_n}: {e}; OTP logged: {otp}")
+            email_sent = False
+
+        out = {"ok": True, "message": "otp_sent", "email_sent": email_sent}
+        if (os.environ.get("SIGNUP_DEV_RETURN_OTP") or "").strip().lower() in ("1", "true", "yes"):
+            out["dev_otp"] = otp
+        return out
+
+    def admin_email_signup_verify(self, email, otp):
+        """Verify OTP and insert new admins row (mobile-created administrator)."""
+        email_n = self._normalize_signup_email(email)
+        otp_in = (otp or "").strip().replace(" ", "")
+        if not email_n or len(otp_in) < 6:
+            return {"ok": False, "error": "invalid_input"}
+        if not self.has_admin_email_signup_sessions_table():
+            return {"ok": False, "error": "admin_email_signup_not_configured"}
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT password_hash, otp_hash, otp_expires_at
+                FROM admin_email_signup_sessions
+                WHERE email_normalized = %s
+                LIMIT 1
+                """,
+                (email_n,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"ok": False, "error": "session_not_found"}
+            if hasattr(row, "keys"):
+                pw_hash = (row.get("password_hash") or "").strip()
+                otp_hash_stored = (row.get("otp_hash") or "").strip()
+                exp = row.get("otp_expires_at")
+            else:
+                pw_hash = (row[0] or "").strip()
+                otp_hash_stored = (row[1] or "").strip()
+                exp = row[2]
+            now = datetime.now(timezone.utc)
+            if exp is not None:
+                if getattr(exp, "tzinfo", None) is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                else:
+                    exp = exp.astimezone(timezone.utc)
+                if now > exp:
+                    cur.execute("DELETE FROM admin_email_signup_sessions WHERE email_normalized = %s", (email_n,))
+                    conn.commit()
+                    return {"ok": False, "error": "otp_expired"}
+            want = self._hash_signup_otp(email_n, otp_in)
+            if not otp_hash_stored or not secrets.compare_digest(want, otp_hash_stored):
+                return {"ok": False, "error": "invalid_otp"}
+            cur.execute("DELETE FROM admin_email_signup_sessions WHERE email_normalized = %s", (email_n,))
+
+            cur.execute(
+                "SELECT 1 FROM admins WHERE LOWER(TRIM(COALESCE(email, ''))) = %s LIMIT 1",
+                (email_n,),
+            )
+            if cur.fetchone():
+                conn.commit()
+                return {"ok": False, "error": "email_already_registered"}
+
+            local = email_n.split("@")[0][:120] if "@" in email_n else "Admin"
+            name_guess = (local[:1].upper() + local[1:]) if local else "Administrator"
+
+            bot_id = secrets.token_hex(4)[:8]
+            api_key = secrets.token_hex(8)
+            access_code = self._generate_admin_access_code()
+            connection_code = self._generate_connection_code()
+
+            cur.execute(
+                """
+                INSERT INTO admins (
+                    name, email, bot_id, api_key, admin_access_code, connection_code,
+                    fcm_token, is_admin, updated_at, desktop_password_hash
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, NULL, true, NOW(), %s)
+                RETURNING id, admin_access_code, connection_code
+                """,
+                (name_guess, email_n, bot_id, api_key, access_code, connection_code, pw_hash),
+            )
+            ins = cur.fetchone()
+            conn.commit()
+            if not ins:
+                return {"ok": False, "error": "database_error"}
+            if hasattr(ins, "keys"):
+                ac = (ins.get("admin_access_code") or "").strip()
+                cc = (ins.get("connection_code") or "").strip()
+            else:
+                ac = (ins[1] or "").strip()
+                cc = (ins[2] or "").strip()
+            return {
+                "ok": True,
+                "message": "ok",
+                "email": email_n,
+                "admin_access_code": ac,
+                "connection_code": cc,
+                "name": name_guess,
+            }
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB admin_email_signup_verify: {e}")
             return {"ok": False, "error": "database_error"}
         finally:
             cur.close()

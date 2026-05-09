@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/auth_onboarding_bg"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbarAdminSignUp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        android:minHeight="?attr/actionBarSize"
+        app:navigationContentDescription="@string/forgot_password_nav_back_cd"
+        app:navigationIcon="@android:drawable/ic_menu_revert"
+        app:navigationIconTint="@color/auth_heading"
+        app:title="@string/admin_sign_up_title"
+        app:titleTextColor="@color/auth_heading" />
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="32dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingMultiplier="1.15"
+                android:text="@string/admin_sign_up_subtitle"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilAdminSignUpEmail"
+                android:layout_width="260dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="18dp"
+                app:boxBackgroundColor="@color/key_value_bg"
+                app:boxCornerRadiusBottomEnd="14dp"
+                app:boxCornerRadiusBottomStart="14dp"
+                app:boxCornerRadiusTopEnd="14dp"
+                app:boxCornerRadiusTopStart="14dp"
+                app:boxStrokeColor="@color/key_value_stroke"
+                app:hintTextColor="@color/auth_hint_email_muted">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etAdminSignUpEmail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/hint_email"
+                    android:inputType="textEmailAddress"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/auth_hint_email_muted" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilAdminSignUpPassword"
+                android:layout_width="260dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                app:boxBackgroundColor="@color/key_value_bg"
+                app:boxCornerRadiusBottomEnd="14dp"
+                app:boxCornerRadiusBottomStart="14dp"
+                app:boxCornerRadiusTopEnd="14dp"
+                app:boxCornerRadiusTopStart="14dp"
+                app:boxStrokeColor="@color/key_value_stroke"
+                app:endIconMode="password_toggle"
+                app:hintTextColor="@color/auth_hint_password_muted">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etAdminSignUpPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/signup_placeholder_password"
+                    android:inputType="textPassword"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/auth_hint_password_muted" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilAdminSignUpConfirmPassword"
+                android:layout_width="260dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                app:boxBackgroundColor="@color/key_value_bg"
+                app:boxCornerRadiusBottomEnd="14dp"
+                app:boxCornerRadiusBottomStart="14dp"
+                app:boxCornerRadiusTopEnd="14dp"
+                app:boxCornerRadiusTopStart="14dp"
+                app:boxStrokeColor="@color/key_value_stroke"
+                app:endIconMode="password_toggle"
+                app:hintTextColor="@color/auth_hint_password_muted">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etAdminSignUpConfirmPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/signup_placeholder_confirm_password"
+                    android:inputType="textPassword"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/auth_hint_password_muted" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnAdminSignUpSendCode"
+                android:layout_width="260dp"
+                android:layout_height="50dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="18dp"
+                android:text="@string/admin_sign_up_send_code"
+                android:textColor="@color/button_primary_text"
+                android:textSize="15sp"
+                app:backgroundTint="@color/connect_button_bg"
+                app:cornerRadius="14dp" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</LinearLayout>

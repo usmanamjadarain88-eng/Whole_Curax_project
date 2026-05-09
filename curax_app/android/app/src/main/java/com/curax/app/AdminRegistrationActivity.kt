@@ -3,12 +3,12 @@ package com.curax.app
 import android.app.ProgressDialog
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -17,6 +17,9 @@ import org.json.JSONObject
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+/**
+ * Administrator sign in: email + password → email OTP → [AdminMobileVerifyActivity].
+ */
 class AdminRegistrationActivity : AppCompatActivity() {
 
     private val http = OkHttpClient.Builder()
@@ -24,57 +27,39 @@ class AdminRegistrationActivity : AppCompatActivity() {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private var desktopCodePathVisible = false
+    private lateinit var etEmail: TextInputEditText
+    private lateinit var etPassword: TextInputEditText
+    private lateinit var btnSignIn: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_admin_registration)
 
-        val store = LocalUserStore(this)
-        val prefs = Prefs(this)
-        val etEmail = findViewById<TextInputEditText>(R.id.etAdminEmail)
-        val etPassword = findViewById<TextInputEditText>(R.id.etAdminPassword)
-        val etConfirmPassword = findViewById<TextInputEditText>(R.id.etAdminConfirmPassword)
-        val etAccessCode = findViewById<TextInputEditText>(R.id.etAdminAccessCode)
-        val btnContinueEmail = findViewById<MaterialButton>(R.id.btnAdminContinueEmail)
-        val btnRegisterWithCode = findViewById<MaterialButton>(R.id.btnAdminRegisterWithCode)
-        val layoutDesktop = findViewById<LinearLayout>(R.id.layoutDesktopCodePath)
-        val tvToggle = findViewById<TextView>(R.id.tvToggleDesktopCodePath)
+        etEmail = findViewById(R.id.etAdminEmail)
+        etPassword = findViewById(R.id.etAdminPassword)
+        btnSignIn = findViewById(R.id.btnAdminSignIn)
 
-        findViewById<TextView>(R.id.tvAdminSignIn).setOnClickListener {
-            startActivity(Intent(this, SignInActivity::class.java))
+        applyFloatingHintColors()
+        applyPrefillFromIntent(intent)
+
+        findViewById<TextView>(R.id.tvAdminSignUp).setOnClickListener {
+            startActivity(Intent(this, AdminSignUpActivity::class.java))
         }
 
-        tvToggle.setOnClickListener {
-            desktopCodePathVisible = !desktopCodePathVisible
-            layoutDesktop.visibility = if (desktopCodePathVisible) View.VISIBLE else View.GONE
-            btnContinueEmail.visibility = if (desktopCodePathVisible) View.GONE else View.VISIBLE
-            tvToggle.text = getString(
-                if (desktopCodePathVisible) {
-                    R.string.admin_sign_in_toggle_email_path
-                } else {
-                    R.string.admin_sign_in_toggle_desktop_code
-                },
-            )
-        }
-
-        btnContinueEmail.setOnClickListener {
+        btnSignIn.setOnClickListener {
             val email = etEmail.text?.toString()?.trim().orEmpty()
             val password = etPassword.text?.toString()?.trim().orEmpty()
-            val confirmPassword = etConfirmPassword.text?.toString()?.trim().orEmpty()
             when {
-                email.isBlank() || password.isBlank() || confirmPassword.isBlank() -> {
-                    CuraxFeedback.warn(this, getString(R.string.sign_up_validation_all_required))
-                }
-                password != confirmPassword -> {
-                    CuraxFeedback.warn(this, getString(R.string.sign_up_password_mismatch))
+                email.isBlank() || password.isBlank() -> {
+                    CuraxFeedback.warn(this, getString(R.string.sign_in_all_fields_required))
                 }
                 password.length < 6 -> {
                     CuraxFeedback.warn(this, getString(R.string.sign_up_password_short))
                 }
                 else -> {
+                    val prefs = Prefs(this)
                     val base = prefs.centralApiUrl.trim().removeSuffix("/")
-                    btnContinueEmail.isEnabled = false
+                    btnSignIn.isEnabled = false
                     val progress = ProgressDialog(this).apply {
                         setMessage(getString(R.string.opening_curax))
                         setCancelable(false)
@@ -95,7 +80,7 @@ class AdminRegistrationActivity : AppCompatActivity() {
                             val jo = if (body.isNotBlank()) JSONObject(body) else JSONObject()
                             runOnUiThread {
                                 progress.dismiss()
-                                btnContinueEmail.isEnabled = true
+                                btnSignIn.isEnabled = true
                             }
                             if (!res.isSuccessful) {
                                 val codeKey = jo.optString("message", "").trim().lowercase(Locale.US)
@@ -134,7 +119,7 @@ class AdminRegistrationActivity : AppCompatActivity() {
                         } catch (_: Exception) {
                             runOnUiThread {
                                 progress.dismiss()
-                                btnContinueEmail.isEnabled = true
+                                btnSignIn.isEnabled = true
                                 CuraxFeedback.warn(this@AdminRegistrationActivity, getString(R.string.error_network_unreachable), long = true)
                             }
                         }
@@ -142,42 +127,24 @@ class AdminRegistrationActivity : AppCompatActivity() {
                 }
             }
         }
+    }
 
-        btnRegisterWithCode.setOnClickListener {
-            val email = etEmail.text?.toString()?.trim().orEmpty()
-            val password = etPassword.text?.toString()?.trim().orEmpty()
-            val confirmPassword = etConfirmPassword.text?.toString()?.trim().orEmpty()
-            val accessCode = etAccessCode.text?.toString()?.trim().orEmpty().uppercase(Locale.US)
-            when {
-                email.isBlank() || password.isBlank() || confirmPassword.isBlank() || accessCode.isBlank() -> {
-                    CuraxFeedback.warn(this, getString(R.string.sign_up_validation_all_required))
-                }
-                password != confirmPassword -> {
-                    CuraxFeedback.warn(this, getString(R.string.sign_up_password_mismatch))
-                }
-                else -> {
-                    val base = prefs.centralApiUrl.trim().removeSuffix("/")
-                    btnRegisterWithCode.isEnabled = false
-                    val progress = ProgressDialog(this).apply {
-                        setMessage(getString(R.string.opening_curax))
-                        setCancelable(false)
-                        show()
-                    }
-                    AdminRegistrationHelper.provisionAdminMobileSession(
-                        activity = this,
-                        prefs = prefs,
-                        store = store,
-                        baseRaw = base,
-                        email = email,
-                        password = password,
-                        accessCode = accessCode,
-                        adminDisplayName = "",
-                        connectionCode = "",
-                        progress = progress,
-                        onErrorEnableUi = Runnable { btnRegisterWithCode.isEnabled = true },
-                    )
-                }
-            }
+    private fun applyFloatingHintColors() {
+        val hintEmail = ContextCompat.getColorStateList(this, R.color.auth_hint_email_muted)
+        val hintPassword = ContextCompat.getColorStateList(this, R.color.auth_hint_password_muted)
+        hintEmail?.let { findViewById<TextInputLayout>(R.id.tilAdminEmail).defaultHintTextColor = it }
+        hintPassword?.let { findViewById<TextInputLayout>(R.id.tilAdminPassword).defaultHintTextColor = it }
+    }
+
+    private fun applyPrefillFromIntent(incoming: Intent) {
+        val email = incoming.getStringExtra(EXTRA_PREFILL_EMAIL)?.trim().orEmpty()
+        if (email.isNotEmpty()) {
+            etEmail.setText(email)
         }
+        incoming.removeExtra(EXTRA_PREFILL_EMAIL)
+    }
+
+    companion object {
+        const val EXTRA_PREFILL_EMAIL = "prefill_email"
     }
 }

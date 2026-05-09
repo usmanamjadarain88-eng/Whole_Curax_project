@@ -3,260 +3,166 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/auth_onboarding_bg">
+    android:background="@color/auth_onboarding_bg"
+    android:fitsSystemWindows="true">
 
-    <LinearLayout
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="24dp">
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="32dp">
 
-        <ScrollView
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:fillViewport="true">
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="28dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:gravity="center"
                 android:orientation="vertical"
-                android:paddingTop="28dp"
-                android:paddingBottom="24dp">
+                android:paddingBottom="8dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <ImageView
+                    android:layout_width="96dp"
+                    android:layout_height="96dp"
+                    android:layout_gravity="center_horizontal"
+                    android:contentDescription="@string/admin_header_sign_in"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/curax_logo" />
+
+                <TextView
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:orientation="vertical"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp">
+                    android:text="@string/admin_header_sign_in"
+                    android:textColor="@color/subtitle_grey"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium" />
+            </LinearLayout>
 
-                    <ImageView
-                        android:layout_width="96dp"
-                        android:layout_height="96dp"
-                        android:layout_gravity="center_horizontal"
-                        android:contentDescription="Curax logo"
-                        android:scaleType="fitCenter"
-                        android:src="@drawable/curax_logo" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="0dp"
-                        android:gravity="center"
-                        android:text="@string/admin_screen_tagline"
-                        android:textColor="@color/subtitle_grey"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:fontFamily="sans-serif-medium" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="320dp"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginTop="4dp"
-                    android:layout_marginBottom="16dp"
-                    android:background="@drawable/bg_auth_card"
-                    android:orientation="vertical">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="20dp">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center"
-                            android:text="@string/admin_sign_in_card_title"
-                            android:textColor="@color/text_primary"
-                            android:textSize="20sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:gravity="center"
-                            android:text="@string/admin_sign_in_card_subtitle"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="13sp" />
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="260dp"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center"
-                            android:layout_marginTop="14dp"
-                            app:boxBackgroundColor="@color/key_value_bg"
-                            app:boxCornerRadiusBottomEnd="14dp"
-                            app:boxCornerRadiusBottomStart="14dp"
-                            app:boxCornerRadiusTopEnd="14dp"
-                            app:boxCornerRadiusTopStart="14dp"
-                            app:boxStrokeColor="@color/key_value_stroke">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etAdminEmail"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:hint="Email"
-                                android:inputType="textEmailAddress"
-                                android:textColor="@color/text_primary"
-                                android:textColorHint="@color/text_secondary" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="260dp"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center"
-                            android:layout_marginTop="8dp"
-                            app:boxBackgroundColor="@color/key_value_bg"
-                            app:boxCornerRadiusBottomEnd="14dp"
-                            app:boxCornerRadiusBottomStart="14dp"
-                            app:boxCornerRadiusTopEnd="14dp"
-                            app:boxCornerRadiusTopStart="14dp"
-                            app:boxStrokeColor="@color/key_value_stroke"
-                            app:endIconMode="password_toggle">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etAdminPassword"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:hint="Password"
-                                android:inputType="textPassword"
-                                android:textColor="@color/text_primary"
-                                android:textColorHint="@color/text_secondary" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="260dp"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center"
-                            android:layout_marginTop="8dp"
-                            app:boxBackgroundColor="@color/key_value_bg"
-                            app:boxCornerRadiusBottomEnd="14dp"
-                            app:boxCornerRadiusBottomStart="14dp"
-                            app:boxCornerRadiusTopEnd="14dp"
-                            app:boxCornerRadiusTopStart="14dp"
-                            app:boxStrokeColor="@color/key_value_stroke"
-                            app:endIconMode="password_toggle">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etAdminConfirmPassword"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:hint="Confirm Password"
-                                android:inputType="textPassword"
-                                android:textColor="@color/text_primary"
-                                android:textColorHint="@color/text_secondary" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnAdminContinueEmail"
-                            android:layout_width="260dp"
-                            android:layout_height="50dp"
-                            android:layout_gravity="center"
-                            android:layout_marginTop="14dp"
-                            android:text="@string/admin_sign_in_continue"
-                            android:textColor="@color/button_primary_text"
-                            android:textSize="15sp"
-                            app:backgroundTint="@color/connect_button_bg"
-                            app:cornerRadius="14dp" />
-
-                        <TextView
-                            android:id="@+id/tvToggleDesktopCodePath"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center_horizontal"
-                            android:layout_marginTop="12dp"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:gravity="center"
-                            android:paddingVertical="8dp"
-                            android:text="@string/admin_sign_in_toggle_desktop_code"
-                            android:textColor="@color/auth_heading"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-
-                        <LinearLayout
-                            android:id="@+id/layoutDesktopCodePath"
-                            android:layout_width="260dp"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center_horizontal"
-                            android:layout_marginTop="4dp"
-                            android:orientation="vertical"
-                            android:visibility="gone">
-
-                            <com.google.android.material.textfield.TextInputLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                app:boxBackgroundColor="@color/key_value_bg"
-                                app:boxCornerRadiusBottomEnd="14dp"
-                                app:boxCornerRadiusBottomStart="14dp"
-                                app:boxCornerRadiusTopEnd="14dp"
-                                app:boxCornerRadiusTopStart="14dp"
-                                app:boxStrokeColor="@color/key_value_stroke">
-
-                                <com.google.android.material.textfield.TextInputEditText
-                                    android:id="@+id/etAdminAccessCode"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:hint="@string/admin_access_code_hint"
-                                    android:inputType="textCapCharacters"
-                                    android:textColor="@color/text_primary"
-                                    android:textColorHint="@color/text_secondary" />
-                            </com.google.android.material.textfield.TextInputLayout>
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnAdminRegisterWithCode"
-                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                                android:layout_width="match_parent"
-                                android:layout_height="50dp"
-                                android:layout_marginTop="12dp"
-                                android:text="@string/admin_register_with_code"
-                                android:textColor="@color/connect_button_bg"
-                                android:textSize="15sp"
-                                app:cornerRadius="14dp"
-                                app:strokeColor="@color/connect_button_bg"
-                                app:strokeWidth="1dp" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
+            <LinearLayout
+                android:layout_width="320dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_auth_card"
+                android:orientation="vertical">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:gravity="center_horizontal"
-                    android:orientation="horizontal"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="16dp">
+                    android:orientation="vertical"
+                    android:padding="20dp">
 
                     <TextView
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="@string/admin_registration_sign_in_prompt"
-                        android:textColor="@color/auth_promo_muted"
-                        android:textSize="14sp" />
+                        android:gravity="center"
+                        android:lineSpacingMultiplier="1.12"
+                        android:text="@string/admin_sign_in_short_hint"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
 
-                    <TextView
-                        android:id="@+id/tvAdminSignIn"
-                        android:layout_width="wrap_content"
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilAdminEmail"
+                        android:layout_width="260dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:includeFontPadding="false"
-                        android:paddingVertical="6dp"
-                        android:text="@string/admin_registration_sign_in_action"
-                        android:textColor="@color/auth_heading"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:layout_gravity="center"
+                        android:layout_marginTop="14dp"
+                        app:boxBackgroundColor="@color/key_value_bg"
+                        app:boxCornerRadiusBottomEnd="14dp"
+                        app:boxCornerRadiusBottomStart="14dp"
+                        app:boxCornerRadiusTopEnd="14dp"
+                        app:boxCornerRadiusTopStart="14dp"
+                        app:boxStrokeColor="@color/key_value_stroke"
+                        app:hintTextColor="@color/auth_hint_email_muted">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etAdminEmail"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="@string/hint_email"
+                            android:inputType="textEmailAddress"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/auth_hint_email_muted" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilAdminPassword"
+                        android:layout_width="260dp"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:layout_marginTop="8dp"
+                        app:boxBackgroundColor="@color/key_value_bg"
+                        app:boxCornerRadiusBottomEnd="14dp"
+                        app:boxCornerRadiusBottomStart="14dp"
+                        app:boxCornerRadiusTopEnd="14dp"
+                        app:boxCornerRadiusTopStart="14dp"
+                        app:boxStrokeColor="@color/key_value_stroke"
+                        app:endIconMode="password_toggle"
+                        app:hintTextColor="@color/auth_hint_password_muted">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etAdminPassword"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="@string/signup_placeholder_password"
+                            android:inputType="textPassword"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/auth_hint_password_muted" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnAdminSignIn"
+                        android:layout_width="260dp"
+                        android:layout_height="50dp"
+                        android:layout_gravity="center"
+                        android:layout_marginTop="14dp"
+                        android:text="@string/admin_sign_in_button"
+                        android:textColor="@color/button_primary_text"
+                        android:textSize="15sp"
+                        app:backgroundTint="@color/connect_button_bg"
+                        app:cornerRadius="14dp" />
                 </LinearLayout>
             </LinearLayout>
-        </ScrollView>
-    </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_horizontal"
+                android:orientation="horizontal"
+                android:paddingTop="8dp"
+                android:paddingBottom="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="@string/admin_footer_no_account"
+                    android:textColor="@color/auth_promo_muted"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tvAdminSignUp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:includeFontPadding="false"
+                    android:paddingVertical="6dp"
+                    android:text="@string/admin_footer_sign_up_admin"
+                    android:textColor="@color/auth_heading"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

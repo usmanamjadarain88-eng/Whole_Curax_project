@@ -31,6 +31,14 @@
       "destination": "/api/admin_mobile_sign_in_verify"
     },
     {
+      "source": "/admin/email-signup/start",
+      "destination": "/api/admin_email_signup_start"
+    },
+    {
+      "source": "/admin/email-signup/verify",
+      "destination": "/api/admin_email_signup_verify"
+    },
+    {
       "source": "/connect-to-admin",
       "destination": "/api/connect_to_admin"
     },

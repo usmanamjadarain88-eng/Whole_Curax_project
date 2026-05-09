@@ -142,14 +142,28 @@
             android:exported="false"
             android:parentActivityName=".LaunchActivity"
             android:theme="@style/Theme.Curax.AuthOnboarding"
-            android:windowSoftInputMode="adjustNothing" />
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".AdminMobileVerifyActivity"
             android:exported="false"
             android:parentActivityName=".AdminRegistrationActivity"
             android:theme="@style/Theme.Curax.AuthOnboarding"
-            android:windowSoftInputMode="adjustNothing" />
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".AdminSignUpActivity"
+            android:exported="false"
+            android:parentActivityName=".AdminRegistrationActivity"
+            android:theme="@style/Theme.Curax.AuthOnboarding"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".AdminEmailSignupVerifyActivity"
+            android:exported="false"
+            android:parentActivityName=".AdminSignUpActivity"
+            android:theme="@style/Theme.Curax.AuthOnboarding"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".PinSetupActivity"

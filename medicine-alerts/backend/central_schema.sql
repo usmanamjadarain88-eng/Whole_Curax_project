@@ -59,6 +59,21 @@ CREATE INDEX IF NOT EXISTS admin_mobile_login_challenges_exp_idx
     ON admin_mobile_login_challenges (expires_at);
 
 -- ---------------------------------------------------------------------------
+-- admin_email_signup_sessions (mobile-only independent admin registration)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS admin_email_signup_sessions (
+    email_normalized VARCHAR(320) PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    otp_hash VARCHAR(128) NOT NULL,
+    otp_expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS admin_email_signup_sessions_exp_idx
+    ON admin_email_signup_sessions (otp_expires_at);
+
+-- ---------------------------------------------------------------------------
 -- users
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
