@@ -37,6 +37,16 @@
             android:textStyle="bold" />
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/tvAdminAlertsSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:lineSpacingMultiplier="1.15"
+        android:text="@string/admin_alerts_screen_subtitle"
+        android:textColor="@color/text_secondary"
+        android:textSize="13sp" />
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

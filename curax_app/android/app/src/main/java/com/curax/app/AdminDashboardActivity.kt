@@ -184,9 +184,9 @@ class AdminDashboardActivity : AppCompatActivity() {
         btnAdminConnect.setOnClickListener {
             if (connectionService?.isConnected() == true) {
                 disconnectService()
-                CuraxFeedback.info(this, "Disconnected")
+                CuraxFeedback.info(this, getString(R.string.admin_relay_disconnected_toast))
             } else {
-                CuraxFeedback.info(this, "Registering FCM and connecting to relay…")
+                CuraxFeedback.info(this, getString(R.string.admin_relay_registering))
                 askNotificationPermission()
                 ensureFullScreenIntentPermission()
                 requestBatteryOptimizationExemption()
@@ -199,7 +199,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) {
-            tvSidebarUsersHint.text = "Sign in as admin to see users"
+            tvSidebarUsersHint.text = getString(R.string.sidebar_users_need_admin_session)
             return
         }
         Thread {
@@ -214,20 +214,33 @@ class AdminDashboardActivity : AppCompatActivity() {
                     runOnUiThread {
                         sidebarUsersList.removeAllViews()
                         if (usersArr.length() == 0) {
-                            tvSidebarUsersHint.text = "No users yet. Share your connection code."
+                            tvSidebarUsersHint.text = getString(R.string.sidebar_users_empty)
                         } else {
-                            tvSidebarUsersHint.text = "Tap a user to load their data"
+                            tvSidebarUsersHint.text = getString(R.string.sidebar_users_tap_hint)
                             for (i in 0 until usersArr.length()) {
                                 val u = usersArr.optJSONObject(i) ?: continue
                                 val userId = u.optString("id", "").trim()
                                 val email = u.optString("email", "").trim()
-                                val name = u.optString("name", "").ifEmpty { "User" }
+                                val name = u.optString("name", "").ifEmpty { getString(R.string.admin_user_display_fallback) }
                                 val botId = u.optString("bot_id", "").trim()
                                 val desktopLinked = botId.isNotEmpty()
                                 val isManaging = userId == prefs.actAsUserId
+                                val line = buildString {
+                                    append("• ")
+                                    append(email.ifEmpty { getString(R.string.admin_hub_no_email) })
+                                    if (!desktopLinked) {
+                                        append(" (")
+                                        append(getString(R.string.sidebar_user_device_pending_short))
+                                        append(")")
+                                    }
+                                    if (isManaging) {
+                                        append(" ")
+                                        append(getString(R.string.sidebar_user_managing_marker))
+                                    }
+                                }
                                 val tv = android.widget.TextView(this).apply {
                                     tag = userId
-                                    text = "• $email" + if (!desktopLinked) " (desktop not linked)" else "" + if (isManaging) " ★" else ""
+                                    text = line
                                     setTextColor(ContextCompat.getColor(this@AdminDashboardActivity, R.color.text_primary))
                                     textSize = 14f
                                     setPadding(0, 12, 0, 12)
@@ -236,21 +249,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                                     setBackgroundResource(android.R.drawable.list_selector_background)
                                 }
                                 tv.setOnClickListener {
-                                    if (!desktopLinked) {
-                                        CuraxFeedback.warn(this@AdminDashboardActivity, getString(R.string.user_link_desktop_first_title), long = true)
-                                        androidx.appcompat.app.AlertDialog.Builder(this@AdminDashboardActivity)
-                                            .setTitle(getString(R.string.user_link_desktop_first_title))
-                                            .setMessage(getString(R.string.user_link_desktop_first_message))
-                                            .setPositiveButton(android.R.string.ok, null)
-                                            .show()
-                                        drawerLayout.closeDrawer(android.view.Gravity.START)
-                                        return@setOnClickListener
-                                    }
-                                    prefs.actAsUserId = userId
-                                    prefs.actAsUserName = name
-                                    drawerLayout.closeDrawer(android.view.Gravity.START)
-                                    CuraxFeedback.info(this@AdminDashboardActivity, "Loading $name's data…")
-                                    fetchActAsUserDataThenNotify()
+                                    openLinkedUserForManagement(userId, name, desktopLinked)
                                 }
                                 sidebarUsersList.addView(tv)
                             }
@@ -258,10 +257,10 @@ class AdminDashboardActivity : AppCompatActivity() {
                         updateReturnToAdminBar()
                     }
                 } else {
-                    runOnUiThread { tvSidebarUsersHint.text = "Could not load users" }
+                    runOnUiThread { tvSidebarUsersHint.text = getString(R.string.sidebar_users_load_failed) }
                 }
             } catch (_: Exception) {
-                runOnUiThread { tvSidebarUsersHint.text = "Could not load users" }
+                runOnUiThread { tvSidebarUsersHint.text = getString(R.string.sidebar_users_load_failed) }
             }
         }.start()
     }
@@ -288,6 +287,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             runOnUiThread {
                 refreshTabsForActAsUser()
                 updateReturnToAdminBar()
+                updateToolbarSubtitle()
             }
             return
         }
@@ -298,14 +298,19 @@ class AdminDashboardActivity : AppCompatActivity() {
             }
             refreshTabsForActAsUser()
             updateReturnToAdminBar()
+            updateToolbarSubtitle()
             when (result) {
                 AdminDataBusClient.SnapshotResult.APPLIED ->
                     CuraxFeedback.success(
                         this@AdminDashboardActivity,
-                        if (actAsUserName.isNotEmpty()) "Loaded $actAsUserName's data" else "Loaded user data",
+                        if (actAsUserName.isNotEmpty()) {
+                            getString(R.string.admin_loaded_user_care_data, actAsUserName)
+                        } else {
+                            getString(R.string.admin_loaded_user_care_data_generic)
+                        },
                     )
                 AdminDataBusClient.SnapshotResult.FAILED ->
-                    CuraxFeedback.warn(this@AdminDashboardActivity, "Could not load user data")
+                    CuraxFeedback.warn(this@AdminDashboardActivity, getString(R.string.admin_load_user_care_failed), long = true)
                 AdminDataBusClient.SnapshotResult.SKIPPED_STALE -> { /* newer selection or return-to-admin */ }
             }
         }
@@ -335,7 +340,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
     }
 
-    /** Shows "Return to Admin" in sidebar and highlights the managed user in the list. Main content shows only tabs. */
+    /** Shows "Return to Admin" in sidebar and highlights the managed user in the list. */
     private fun updateReturnToAdminBar() {
         val container = findViewById<android.view.View>(R.id.sidebarReturnToAdminContainer)
         if (prefs.actAsUserId.isNotEmpty()) {
@@ -355,24 +360,38 @@ class AdminDashboardActivity : AppCompatActivity() {
                 }
             }
         }
+        updateToolbarSubtitle()
     }
 
-    /**
-     * Call from Connected Users tab after loading a user's data so the tab strip matches drawer behavior
-     * (3 tabs while managing a user).
-     */
+    private fun updateToolbarSubtitle() {
+        val tb = findViewById<androidx.appcompat.widget.Toolbar>(R.id.adminToolbar)
+        tb.subtitle = if (prefs.actAsUserId.isNotEmpty()) {
+            getString(
+                R.string.admin_toolbar_managing,
+                prefs.actAsUserName.ifEmpty { getString(R.string.admin_user_display_fallback) },
+            )
+        } else {
+            getString(R.string.admin_toolbar_home)
+        }
+        tb.setSubtitleTextColor(Color.argb(230, 255, 255, 255))
+    }
+
+    /** Call from child fragments after act-as-user changes so the tab strip updates. */
     fun applyActAsUserUiFromChild() {
         refreshTabsForActAsUser()
         updateReturnToAdminBar()
     }
 
-    /** When acting as a user: only 3 tabs (Dashboard, Reminders, Settings). When admin: all 6 tabs. */
+    /**
+     * Acting as user: Dashboard + Reminders + Settings for that user’s care plan.
+     * Pure admin: Overview (hub) + Alerts + Settings — no admin-local medicine tabs.
+     */
     private fun refreshTabsForActAsUser() {
         val tl = tabLayout ?: return
         val vp = viewPager ?: return
         tabMediator?.detach()
         val actingAsUser = prefs.actAsUserId.isNotEmpty()
-        val count = if (actingAsUser) 3 else 6
+        val count = 3
         vp.adapter = object : FragmentStateAdapter(this) {
             override fun getItemCount(): Int = count
             override fun createFragment(position: Int): androidx.fragment.app.Fragment {
@@ -384,11 +403,8 @@ class AdminDashboardActivity : AppCompatActivity() {
                     }
                 } else {
                     when (position) {
-                        0 -> AdminOverviewFragment()
+                        0 -> AdminHubFragment()
                         1 -> AdminAlertsFragment()
-                        2 -> AdminMedicalRemindersFragment()
-                        3 -> AdminLogsFragment()
-                        4 -> AdminReportsFragment()
                         else -> AdminSettingsFragment()
                     }
                 }
@@ -397,22 +413,40 @@ class AdminDashboardActivity : AppCompatActivity() {
         tabMediator = TabLayoutMediator(tl, vp) { tab, position ->
             tab.text = if (actingAsUser) {
                 when (position) {
-                    0 -> "Dashboard"
-                    1 -> "Reminders"
-                    else -> "Settings"
+                    0 -> getString(R.string.admin_tab_user_dashboard)
+                    1 -> getString(R.string.admin_tab_user_reminders)
+                    else -> getString(R.string.admin_tab_settings)
                 }
             } else {
                 when (position) {
-                    0 -> "Dashboard"
-                    1 -> "Alerts"
-                    2 -> "Reminders"
-                    3 -> "Logs"
-                    4 -> "Reports"
-                    else -> "Settings"
+                    0 -> getString(R.string.admin_tab_overview)
+                    1 -> getString(R.string.admin_tab_alerts)
+                    else -> getString(R.string.admin_tab_settings)
                 }
             }
         }.apply { attach() }
         vp.setCurrentItem(0, false)
+        updateToolbarSubtitle()
+    }
+
+    /** Open per-user management (same rules as drawer list). Callable from [AdminHubFragment]. */
+    fun openLinkedUserForManagement(userId: String, name: String, desktopLinked: Boolean) {
+        if (!desktopLinked) {
+            drawerLayout.closeDrawer(android.view.Gravity.START)
+            CuraxFeedback.warn(this, getString(R.string.user_link_desktop_first_title), long = true)
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(getString(R.string.user_link_desktop_first_title))
+                .setMessage(getString(R.string.user_link_desktop_first_message))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+            return
+        }
+        prefs.actAsUserId = userId
+        prefs.actAsUserName = name
+        drawerLayout.closeDrawer(android.view.Gravity.START)
+        updateToolbarSubtitle()
+        CuraxFeedback.info(this, getString(R.string.admin_hub_loading_user_data, name))
+        fetchActAsUserDataThenNotify()
     }
 
     override fun onStart() {
@@ -602,6 +636,12 @@ class AdminDashboardActivity : AppCompatActivity() {
         tvAdminConnectionStatus.text = getString(R.string.disconnected)
         tvAdminConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
         btnAdminConnect.text = getString(R.string.connect)
+        sendBroadcast(
+            Intent(AlertEvents.ACTION_CONNECTION_STATE_CHANGED).apply {
+                putExtra(AlertEvents.EXTRA_CONNECTED, false)
+                setPackage(packageName)
+            },
+        )
     }
 
     fun isAdminConnected(): Boolean = connectionService?.isConnected() == true
@@ -621,7 +661,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     private fun copyToClipboard(text: String) {
         (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
             .setPrimaryClip(ClipData.newPlainText("", text))
-        CuraxFeedback.success(this, "Copied")
+        CuraxFeedback.success(this, getString(R.string.clipboard_generic_copied))
     }
 
     override fun onDestroy() {

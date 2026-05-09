@@ -68,7 +68,6 @@ object AdminRegistrationHelper {
                 val dataUrl = "$base/admin/data?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
                 val dataReq = Request.Builder().url(dataUrl).get().build()
                 val dataRes = http.newCall(dataReq).execute()
-                var medicinesCount = 0
                 if (dataRes.isSuccessful) {
                     val dataBody = dataRes.body?.string() ?: "{}"
                     try {
@@ -109,7 +108,6 @@ object AdminRegistrationHelper {
                             AdminDemoData.replaceAlertSettings(
                                 AdminDemoData.fromApiAlertSettings(alertSettingsObj),
                             )
-                            medicinesCount = AdminDemoData.medicines.size
                         }
                     } catch (_: Exception) {
                     }
@@ -145,11 +143,7 @@ object AdminRegistrationHelper {
                 activity.runOnUiThread {
                     progress.dismiss()
                     store.saveUser(email, password, LocalUserStore.ROLE_ADMIN)
-                    val msg = if (medicinesCount > 0) {
-                        activity.getString(R.string.admin_import_success_medicines, medicinesCount)
-                    } else {
-                        activity.getString(R.string.admin_import_success_no_medicines)
-                    }
+                    val msg = activity.getString(R.string.admin_welcome_signed_in)
                     CuraxFeedback.successThen(activity, msg) {
                         activity.startActivity(
                             Intent(activity, PinSetupActivity::class.java)
