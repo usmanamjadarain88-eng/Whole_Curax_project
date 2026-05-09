@@ -2468,14 +2468,19 @@ class CentralDB:
             uuid.UUID(str(admin_id))
         except (ValueError, TypeError):
             return []
+        try:
+            self._ensure_users_profile_picture_column()
+            self._ensure_users_display_mode_column()
+        except Exception:
+            pass
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
             rows = None
             variant = 0
-            # 0=email+profile_picture | 1=email no pp | 2=no email column
+            # 0=email+profile_picture+user_display_mode | 1=email no pp | 2=no email column
             for variant, sql in enumerate((
-                "SELECT id, name, email, bot_id, api_key, created_at, profile_picture FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
+                "SELECT id, name, email, bot_id, api_key, created_at, profile_picture, COALESCE(user_display_mode, '') AS user_display_mode FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
                 "SELECT id, name, email, bot_id, api_key, created_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
                 "SELECT id, name, bot_id, api_key, created_at FROM users WHERE admin_id = %s::uuid AND bot_id != 'dashboard' ORDER BY created_at DESC",
             )):
@@ -2492,21 +2497,26 @@ class CentralDB:
                 if hasattr(row, "keys"):
                     em = (row.get("email") or "").strip() if variant in (0, 1) else ""
                     pp = (row.get("profile_picture") or "").strip() if variant == 0 else ""
+                    dm = (row.get("user_display_mode") or "").strip().lower() if variant == 0 else ""
                     result.append({
                         "id": str(row["id"]), "name": row["name"] or "", "email": em,
                         "bot_id": row["bot_id"] or "", "api_key": row["api_key"] or "",
                         "desktop_linked": False,
                         "profile_picture": pp,
+                        "user_display_mode": dm if dm in ("standalone", "default") else "",
                     })
                 else:
                     if variant == 0:
                         em = (row[2] or "").strip() if len(row) > 2 else ""
                         pp = (row[6] or "").strip() if len(row) > 6 else ""
+                        raw_dm = (row[7] or "").strip().lower() if len(row) > 7 else ""
+                        dm = raw_dm if raw_dm in ("standalone", "default") else ""
                         result.append({
                             "id": str(row[0]), "name": row[1] or "", "email": em,
                             "bot_id": row[3] or "", "api_key": row[4] or "",
                             "desktop_linked": False,
                             "profile_picture": pp,
+                            "user_display_mode": dm,
                         })
                     elif variant == 1:
                         em = (row[2] or "").strip() if len(row) > 2 else ""
@@ -2515,6 +2525,7 @@ class CentralDB:
                             "bot_id": row[3] or "", "api_key": row[4] or "",
                             "desktop_linked": False,
                             "profile_picture": "",
+                            "user_display_mode": "",
                         })
                     else:
                         result.append({
@@ -2522,6 +2533,7 @@ class CentralDB:
                             "bot_id": row[2] or "", "api_key": row[3] or "",
                             "desktop_linked": False,
                             "profile_picture": "",
+                            "user_display_mode": "",
                         })
             return result
         except Exception as e:
@@ -2880,6 +2892,34 @@ class CentralDB:
         except Exception as e:
             conn.rollback()
             print(f"CentralDB set_user_display_mode_by_bot: {e}")
+            return False
+        finally:
+            cur.close()
+
+    def set_user_display_mode_for_admin(self, admin_id, user_id, mode):
+        """Admin overrides linked user's shell mode (standalone vs default). User app picks up via GET /user/data + databus."""
+        m = (mode or "").strip().lower()
+        if m not in ("standalone", "default"):
+            return False
+        uid = str(user_id or "").strip()
+        aid = str(admin_id or "").strip()
+        if not uid or not aid:
+            return False
+        if not self.user_belongs_to_admin(uid, aid):
+            return False
+        self._ensure_users_display_mode_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE users SET user_display_mode = %s, updated_at = NOW() WHERE id = %s::uuid AND admin_id = %s::uuid AND bot_id != 'dashboard'",
+                (m, uid, aid),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB set_user_display_mode_for_admin: {e}")
             return False
         finally:
             cur.close()
@@ -4682,6 +4722,41 @@ class CentralDB:
             sess["fn"],
             sess["ln"],
         )
+
+    def admin_reject_user_link_request(self, access_code, request_id):
+        """Mark a pending directory link request as rejected (admin declines)."""
+        admin = self.get_admin_by_access_code(access_code)
+        if not admin:
+            return {"ok": False, "error": "invalid_access_code"}
+        admin_id = admin.get("id")
+        rid = (request_id or "").strip()
+        try:
+            uuid.UUID(rid)
+        except (ValueError, TypeError):
+            return {"ok": False, "error": "invalid_request_id"}
+        self._ensure_user_admin_link_requests_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                UPDATE user_admin_link_requests
+                SET status = 'rejected', updated_at = NOW()
+                WHERE id = %s::uuid AND admin_id = %s::uuid AND status = 'pending'
+                """,
+                (rid, admin_id),
+            )
+            if cur.rowcount == 0:
+                conn.rollback()
+                return {"ok": False, "error": "request_not_found"}
+            conn.commit()
+            return {"ok": True}
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB admin_reject_user_link_request: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
 
     def _touch_user_password_and_active(self, user_id, password_hash_session=None):
         conn = self._ensure_conn()

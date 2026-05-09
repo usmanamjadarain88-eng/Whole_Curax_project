@@ -336,4 +336,37 @@ object AdminDemoData {
             ${logs().joinToString("\n")}
         """.trimIndent()
     }
+
+    /** Sample alerts for admin Alerts tab + dashboard until real relay/API alerts exist (not persisted in apiAlertsStore). */
+    fun adminPreviewAlerts(now: Long = System.currentTimeMillis()): List<AlertItem> {
+        val hour = 3_600_000L
+        val day = 86_400_000L
+        return listOf(
+            AlertItem(-8_010_000_000_001L, "dose_taken", "Dose marked taken: Panadol from box B1", now - hour, "Usman"),
+            AlertItem(-8_010_000_000_002L, "dose_missed", "Missed dose reminder: Metformin from box B2", now - hour * 3, "Hamad"),
+            AlertItem(-8_010_000_000_003L, "dose_taken", "Dose marked taken: Amoxil from box A1", now - day / 2, "Abdullah"),
+            AlertItem(-8_010_000_000_004L, "refill_reminder", "Refill soon: Vitamin D from box B4", now - day, "Zara"),
+            AlertItem(-8_010_000_000_005L, "dose_taken", "Dose marked taken: Insulin from box B3", now - day - hour, "Usman"),
+            AlertItem(-8_010_000_000_006L, "sync", "Handoff sync completed for linked device", now - day - hour * 2, "System"),
+        )
+    }
+
+    fun adminPreviewMedicinesForReport(seed: Int): List<Medicine> {
+        val base = medicineStore.toList()
+        if (base.isEmpty()) return emptyList()
+        return base.mapIndexed { i, m ->
+            val shift = (seed + i * 3) % 7
+            m.copy(stock = (m.stock + shift - 3).coerceIn(0, 120))
+        }
+    }
+
+    fun adminPreviewAlertsForReport(userLabel: String, now: Long = System.currentTimeMillis()): List<AlertItem> {
+        val hour = 3_600_000L
+        val day = 86_400_000L
+        return listOf(
+            AlertItem(-8_020_000_000_001L, "dose_taken", "Dose marked taken: Panadol from box B1", now - hour, userLabel),
+            AlertItem(-8_020_000_000_002L, "dose_missed", "Missed dose: evening Metformin", now - day / 3, userLabel),
+            AlertItem(-8_020_000_000_003L, "dose_taken", "Dose marked taken: Vitamin D from box B4", now - day, userLabel),
+        )
+    }
 }

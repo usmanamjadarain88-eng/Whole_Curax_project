@@ -130,6 +130,12 @@
                 android:textSize="15sp"
                 app:backgroundTint="@color/connect_button_bg"
                 app:cornerRadius="14dp" />
+
+            <com.curax.app.AdminAuthBottomDecorationView
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/admin_auth_footer_decoration_height"
+                android:layout_marginTop="28dp"
+                android:layout_marginBottom="8dp" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

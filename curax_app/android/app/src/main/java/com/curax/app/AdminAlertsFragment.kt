@@ -397,7 +397,14 @@ class AdminAlertsFragment : Fragment() {
 
     private fun getFilteredAlerts(): List<AlertItem> {
         val query = etSearch.text?.toString()?.trim()?.lowercase().orEmpty()
-        val combined = AdminDemoData.getApiAlerts() + alertDb.getAllAlerts()
+        val api = AdminDemoData.getApiAlerts()
+        val db = alertDb.getAllAlerts()
+        val apiForUi = if (AppRole.isAdmin(requireContext()) && api.isEmpty() && db.isEmpty()) {
+            AdminDemoData.adminPreviewAlerts()
+        } else {
+            api
+        }
+        val combined = apiForUi + db
 
         var list = combined.filter { item ->
             val useCustomRange = timeMode == TimeMode.CUSTOM
@@ -520,7 +527,13 @@ class AdminAlertsFragment : Fragment() {
         val listAll = getFilteredAlerts()
         adapter.submitList(listAll)
 
-        val totalAvailable = (AdminDemoData.getApiAlerts() + alertDb.getAllAlerts()).size
+        val api = AdminDemoData.getApiAlerts()
+        val db = alertDb.getAllAlerts()
+        val totalAvailable = if (AppRole.isAdmin(requireContext()) && api.isEmpty() && db.isEmpty()) {
+            AdminDemoData.adminPreviewAlerts().size
+        } else {
+            api.size + db.size
+        }
         if (listAll.isEmpty()) {
             tvEmpty.text = if (totalAvailable == 0) {
                 "No alerts yet for admin dashboard"

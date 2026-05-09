@@ -230,6 +230,12 @@
             android:configChanges="uiMode"
             android:theme="@style/Theme.Curax" />
 
+        <activity
+            android:name=".AdminCareSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".AdminDashboardActivity"
+            android:theme="@style/Theme.Curax" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

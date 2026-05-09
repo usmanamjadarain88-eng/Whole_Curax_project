@@ -20,7 +20,9 @@ import android.os.Bundle
 import android.os.IBinder
 import android.view.Menu
 import android.view.MenuItem
+import android.view.Gravity
 import android.widget.TextView
+import org.json.JSONArray
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
@@ -48,8 +50,12 @@ class AdminDashboardActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var tvAdminConnectionStatus: TextView
     private lateinit var btnAdminConnect: MaterialButton
-    private lateinit var sidebarUsersList: android.widget.LinearLayout
-    private lateinit var tvSidebarUsersHint: TextView
+    private lateinit var tvSidebarStatRelay: TextView
+    private lateinit var tvSidebarStatLinked: TextView
+    private lateinit var tvSidebarStatPending: TextView
+    private lateinit var tvSidebarStatAlerts: TextView
+    private lateinit var tvSidebarStatSync: TextView
+    private lateinit var btnSidebarOpenUsers: MaterialButton
     private var tabLayout: TabLayout? = null
     private var viewPager: ViewPager2? = null
     private var tabMediator: TabLayoutMediator? = null
@@ -62,7 +68,10 @@ class AdminDashboardActivity : AppCompatActivity() {
     private val adminDataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
-                runOnUiThread { updateReturnToAdminBar() }
+                runOnUiThread {
+                    updateReturnToAdminBar()
+                    fetchSidebarHealthOverview()
+                }
             }
         }
     }
@@ -73,6 +82,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                 supportFragmentManager.fragments
                     .filterIsInstance<AdminAlertsFragment>()
                     .forEach { it.refresh() }
+                runOnUiThread { applySidebarLocalStats() }
             }
         }
     }
@@ -125,22 +135,35 @@ class AdminDashboardActivity : AppCompatActivity() {
         drawerLayout = findViewById(R.id.adminDrawerLayout)
         tvAdminConnectionStatus = findViewById(R.id.tvAdminConnectionStatus)
         btnAdminConnect = findViewById(R.id.btnAdminConnect)
-        sidebarUsersList = findViewById(R.id.sidebarConnectedUsersList)
-        tvSidebarUsersHint = findViewById(R.id.tvSidebarUsersHint)
+        tvSidebarStatRelay = findViewById(R.id.tvSidebarStatRelay)
+        tvSidebarStatLinked = findViewById(R.id.tvSidebarStatLinked)
+        tvSidebarStatPending = findViewById(R.id.tvSidebarStatPending)
+        tvSidebarStatAlerts = findViewById(R.id.tvSidebarStatAlerts)
+        tvSidebarStatSync = findViewById(R.id.tvSidebarStatSync)
+        btnSidebarOpenUsers = findViewById(R.id.btnSidebarOpenUsers)
+
+        btnSidebarOpenUsers.setOnClickListener {
+            drawerLayout.closeDrawer(Gravity.START)
+            if (prefs.actAsUserId.isNotEmpty()) {
+                CuraxFeedback.info(this, getString(R.string.admin_sidebar_open_users_blocked))
+                return@setOnClickListener
+            }
+            viewPager?.setCurrentItem(1, true)
+        }
 
         findViewById<MaterialButton>(R.id.btnSidebarReturnToAdmin).setOnClickListener {
             prefs.actAsUserId = ""
             prefs.actAsUserName = ""
             refreshTabsForActAsUser()
             updateReturnToAdminBar()
-            fetchSidebarConnectedUsers()
+            fetchSidebarHealthOverview()
             fetchAdminSnapshotFromServer()
         }
         updateReturnToAdminBar()
 
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.adminToolbar)
         setSupportActionBar(toolbar)
-        toolbar.title = "Curax"
+        toolbar.title = getString(R.string.admin_dashboard_toolbar_title)
         toolbar.setTitleTextColor(Color.WHITE)
         val toggle = androidx.appcompat.app.ActionBarDrawerToggle(
             this,
@@ -179,7 +202,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             prefs.apiKey = apiKey
         }
 
-        fetchSidebarConnectedUsers()
+        fetchSidebarHealthOverview()
 
         btnAdminConnect.setOnClickListener {
             if (connectionService?.isConnected() == true) {
@@ -195,72 +218,60 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
     }
 
-    private fun fetchSidebarConnectedUsers() {
+    private fun applySidebarLocalStats() {
+        if (!this::tvSidebarStatRelay.isInitialized) return
+        val relayOn = connectionService?.isConnected() == true
+        tvSidebarStatRelay.text = if (relayOn) getString(R.string.admin_hub_relay_on) else getString(R.string.admin_hub_relay_off)
+        tvSidebarStatRelay.setTextColor(
+            ContextCompat.getColor(
+                this,
+                if (relayOn) android.R.color.holo_green_dark else android.R.color.holo_red_dark,
+            ),
+        )
+        tvSidebarStatAlerts.text = alertDb.getAllAlerts().size.toString()
+        val placeholder = getString(R.string.admin_sidebar_stat_placeholder)
+        tvSidebarStatSync.text = prefs.lastSyncTime.trim().ifEmpty { placeholder }
+    }
+
+    /** Sidebar care overview: relay + local alerts/sync + linked/pending counts from API when signed in. */
+    private fun fetchSidebarHealthOverview() {
+        applySidebarLocalStats()
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
+        val placeholder = getString(R.string.admin_sidebar_stat_placeholder)
         if (base.isEmpty() || accessCode.isEmpty()) {
-            tvSidebarUsersHint.text = getString(R.string.sidebar_users_need_admin_session)
+            tvSidebarStatLinked.text = placeholder
+            tvSidebarStatPending.text = placeholder
             return
         }
         Thread {
+            var linked = placeholder
+            var pending = placeholder
             try {
-                val url = "$base/admin/linked-users?access_code=${java.net.URLEncoder.encode(accessCode, "UTF-8")}"
-                val req = Request.Builder().url(url).get().build()
-                val res = http.newCall(req).execute()
-                if (res.isSuccessful) {
-                    val body = res.body?.string() ?: "{}"
-                    val data = JSONObject(body)
-                    val usersArr = data.optJSONArray("users") ?: org.json.JSONArray()
-                    runOnUiThread {
-                        sidebarUsersList.removeAllViews()
-                        if (usersArr.length() == 0) {
-                            tvSidebarUsersHint.text = getString(R.string.sidebar_users_empty)
-                        } else {
-                            tvSidebarUsersHint.text = getString(R.string.sidebar_users_tap_hint)
-                            for (i in 0 until usersArr.length()) {
-                                val u = usersArr.optJSONObject(i) ?: continue
-                                val userId = u.optString("id", "").trim()
-                                val email = u.optString("email", "").trim()
-                                val name = u.optString("name", "").ifEmpty { getString(R.string.admin_user_display_fallback) }
-                                val botId = u.optString("bot_id", "").trim()
-                                val desktopLinked = botId.isNotEmpty()
-                                val isManaging = userId == prefs.actAsUserId
-                                val line = buildString {
-                                    append("• ")
-                                    append(email.ifEmpty { getString(R.string.admin_hub_no_email) })
-                                    if (!desktopLinked) {
-                                        append(" (")
-                                        append(getString(R.string.sidebar_user_device_pending_short))
-                                        append(")")
-                                    }
-                                    if (isManaging) {
-                                        append(" ")
-                                        append(getString(R.string.sidebar_user_managing_marker))
-                                    }
-                                }
-                                val tv = android.widget.TextView(this).apply {
-                                    tag = userId
-                                    text = line
-                                    setTextColor(ContextCompat.getColor(this@AdminDashboardActivity, R.color.text_primary))
-                                    textSize = 14f
-                                    setPadding(0, 12, 0, 12)
-                                    isClickable = true
-                                    isFocusable = true
-                                    setBackgroundResource(android.R.drawable.list_selector_background)
-                                }
-                                tv.setOnClickListener {
-                                    openLinkedUserForManagement(userId, name, desktopLinked)
-                                }
-                                sidebarUsersList.addView(tv)
-                            }
-                        }
-                        updateReturnToAdminBar()
-                    }
-                } else {
-                    runOnUiThread { tvSidebarUsersHint.text = getString(R.string.sidebar_users_load_failed) }
+                val usersUrl = "$base/admin/linked-users?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
+                val usersRes = http.newCall(Request.Builder().url(usersUrl).get().build()).execute()
+                if (usersRes.isSuccessful) {
+                    val usersBody = usersRes.body?.string().orEmpty()
+                    val data = if (usersBody.isNotBlank()) JSONObject(usersBody) else JSONObject()
+                    val usersArr = data.optJSONArray("users") ?: JSONArray()
+                    linked = usersArr.length().toString()
+                }
+
+                val pendUrl = "$base/admin/pending-user-link-requests?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
+                val pendRes = http.newCall(Request.Builder().url(pendUrl).get().build()).execute()
+                if (pendRes.isSuccessful) {
+                    val pendBody = pendRes.body?.string().orEmpty()
+                    val jo = if (pendBody.isNotBlank()) JSONObject(pendBody) else JSONObject()
+                    val arr = jo.optJSONArray("requests") ?: JSONArray()
+                    pending = arr.length().toString()
                 }
             } catch (_: Exception) {
-                runOnUiThread { tvSidebarUsersHint.text = getString(R.string.sidebar_users_load_failed) }
+            }
+            runOnUiThread {
+                tvSidebarStatLinked.text = linked
+                tvSidebarStatPending.text = pending
+                applySidebarLocalStats()
+                updateReturnToAdminBar()
             }
         }.start()
     }
@@ -268,7 +279,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateReturnToAdminBar()
-        fetchSidebarConnectedUsers()
+        applySidebarLocalStats()
         fetchAdminSnapshotFromServer()
         ConnectionManager.requestReconnectRelayNow(this)
     }
@@ -340,25 +351,13 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
     }
 
-    /** Shows "Return to Admin" in sidebar and highlights the managed user in the list. */
+    /** Shows "Return to Admin" in sidebar when acting as a linked user (Care mode). */
     private fun updateReturnToAdminBar() {
         val container = findViewById<android.view.View>(R.id.sidebarReturnToAdminContainer)
         if (prefs.actAsUserId.isNotEmpty()) {
             container?.visibility = android.view.View.VISIBLE
         } else {
             container?.visibility = android.view.View.GONE
-        }
-        for (i in 0 until sidebarUsersList.childCount) {
-            val child = sidebarUsersList.getChildAt(i)
-            if (child is android.widget.TextView) {
-                val userId = child.tag?.toString() ?: ""
-                val highlight = userId == prefs.actAsUserId
-                if (highlight) {
-                    child.setBackgroundColor(ContextCompat.getColor(this, R.color.inventory_row_selected_bg))
-                } else {
-                    child.setBackgroundResource(android.R.drawable.list_selector_background)
-                }
-            }
         }
         updateToolbarSubtitle()
     }
@@ -383,15 +382,15 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * Acting as user: Dashboard + Reminders + Settings for that user’s care plan.
-     * Pure admin: Overview (hub) + Alerts + Settings — no admin-local medicine tabs.
+     * Acting as user: Care dashboard + Reminders + Settings for that user’s plan.
+     * Pure admin: Dashboard · Users · Alerts · Reports; alert prefs from toolbar menu.
      */
     private fun refreshTabsForActAsUser() {
         val tl = tabLayout ?: return
         val vp = viewPager ?: return
         tabMediator?.detach()
         val actingAsUser = prefs.actAsUserId.isNotEmpty()
-        val count = 3
+        val count = if (actingAsUser) 3 else 4
         vp.adapter = object : FragmentStateAdapter(this) {
             override fun getItemCount(): Int = count
             override fun createFragment(position: Int): androidx.fragment.app.Fragment {
@@ -404,8 +403,9 @@ class AdminDashboardActivity : AppCompatActivity() {
                 } else {
                     when (position) {
                         0 -> AdminHubFragment()
-                        1 -> AdminAlertsFragment()
-                        else -> AdminSettingsFragment()
+                        1 -> AdminUsersFragment()
+                        2 -> AdminAlertsFragment()
+                        else -> AdminReportsFragment()
                     }
                 }
             }
@@ -420,17 +420,23 @@ class AdminDashboardActivity : AppCompatActivity() {
             } else {
                 when (position) {
                     0 -> getString(R.string.admin_tab_overview)
-                    1 -> getString(R.string.admin_tab_alerts)
-                    else -> getString(R.string.admin_tab_settings)
+                    1 -> getString(R.string.admin_tab_users)
+                    2 -> getString(R.string.admin_tab_alerts)
+                    else -> getString(R.string.admin_tab_reports)
                 }
             }
         }.apply { attach() }
         vp.setCurrentItem(0, false)
         updateToolbarSubtitle()
+        invalidateOptionsMenu()
     }
 
-    /** Open per-user management (same rules as drawer list). Callable from [AdminHubFragment]. */
-    fun openLinkedUserForManagement(userId: String, name: String, desktopLinked: Boolean) {
+    /** Open per-user management (same rules as drawer list). Callable from [AdminUsersFragment]. */
+    fun openLinkedUserForManagement(userId: String, name: String, desktopLinked: Boolean, isDemo: Boolean = false) {
+        if (isDemo || userId.startsWith("demo_")) {
+            CuraxFeedback.info(this, getString(R.string.admin_demo_user_open_blocked))
+            return
+        }
         if (!desktopLinked) {
             drawerLayout.closeDrawer(android.view.Gravity.START)
             CuraxFeedback.warn(this, getString(R.string.user_link_desktop_first_title), long = true)
@@ -496,6 +502,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         val themeItem = menu.findItem(R.id.action_toggle_theme)
         themeItem?.setIcon(if (isDark) R.drawable.ic_theme_sun else R.drawable.ic_theme_moon)
         themeItem?.title = if (isDark) getString(R.string.light_mode) else getString(R.string.dark_mode)
+        menu.findItem(R.id.action_admin_care_settings)?.isVisible = prefs.actAsUserId.isEmpty()
         findViewById<androidx.appcompat.widget.Toolbar>(R.id.adminToolbar).overflowIcon?.setTint(Color.WHITE)
         return super.onPrepareOptionsMenu(menu)
     }
@@ -508,6 +515,10 @@ class AdminDashboardActivity : AppCompatActivity() {
                 prefs.themeMode = newMode
                 AppCompatDelegate.setDefaultNightMode(newMode)
                 window.decorView.post { recreate() }
+                true
+            }
+            R.id.action_admin_care_settings -> {
+                startActivity(Intent(this, AdminCareSettingsActivity::class.java))
                 true
             }
             R.id.action_settings -> {
@@ -636,6 +647,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         tvAdminConnectionStatus.text = getString(R.string.disconnected)
         tvAdminConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
         btnAdminConnect.text = getString(R.string.connect)
+        applySidebarLocalStats()
         sendBroadcast(
             Intent(AlertEvents.ACTION_CONNECTION_STATE_CHANGED).apply {
                 putExtra(AlertEvents.EXTRA_CONNECTED, false)
@@ -656,6 +668,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             )
         )
         btnAdminConnect.text = if (connected) getString(R.string.disconnect) else getString(R.string.connect)
+        applySidebarLocalStats()
     }
 
     private fun copyToClipboard(text: String) {

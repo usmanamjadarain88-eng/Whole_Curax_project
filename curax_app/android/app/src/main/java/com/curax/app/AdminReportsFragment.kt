@@ -176,14 +176,15 @@ class AdminReportsFragment : Fragment() {
                     if (id.isNotEmpty()) list.add(id to display)
                 }
                 activity?.runOnUiThread {
-                    linkedUsers = list
+                    val finalList = if (list.isEmpty()) demoReportUserPairs() else list
+                    linkedUsers = finalList
                     view?.findViewById<View>(R.id.panelReportUserNav)?.visibility =
-                        if (list.isEmpty()) View.GONE else View.VISIBLE
-                    if (list.isNotEmpty()) {
+                        if (finalList.isEmpty()) View.GONE else View.VISIBLE
+                    if (finalList.isNotEmpty()) {
                         selectedReportIndex = 0
                         view?.findViewById<TextView>(R.id.tvReportForUser)?.text =
-                            "Report for: Loading… (1 of ${list.size})"
-                        fetchUserReportData(list[0].first, list[0].second)
+                            "Report for: Loading… (1 of ${finalList.size})"
+                        fetchUserReportData(finalList[0].first, finalList[0].second)
                     } else {
                         bindMetrics(view!!)
                     }
@@ -192,7 +193,29 @@ class AdminReportsFragment : Fragment() {
         }.start()
     }
 
+    private fun demoReportUserPairs(): List<Pair<String, String>> = listOf(
+        "demo_usman" to getString(R.string.admin_demo_name_usman),
+        "demo_hamad" to getString(R.string.admin_demo_name_hamad),
+        "demo_abdullah" to getString(R.string.admin_demo_name_abdullah),
+        "demo_zara" to getString(R.string.admin_demo_name_zara),
+    )
+
     private fun fetchUserReportData(userId: String, userName: String) {
+        if (userId.startsWith("demo_")) {
+            val meds = AdminDemoData.adminPreviewMedicinesForReport(userId.hashCode())
+            val alerts = AdminDemoData.adminPreviewAlertsForReport(userName)
+            activity?.runOnUiThread {
+                reportMedicines = meds
+                reportAlerts = alerts
+                reportUserName = userName
+                val idx = selectedReportIndex + 1
+                val total = linkedUsers.size.coerceAtLeast(1)
+                view?.findViewById<TextView>(R.id.tvReportForUser)?.text =
+                    "Report for: $userName ($idx of $total)"
+                view?.let { bindMetrics(it) }
+            }
+            return
+        }
         val prefs = Prefs(requireContext())
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val accessCode = prefs.adminAccessCode.trim()

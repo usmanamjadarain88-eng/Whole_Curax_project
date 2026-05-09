@@ -168,8 +168,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
                 showLoading(false)
-                refreshVisibleDashboard()
+                refreshAllUserShellFragments()
                 refreshUserSidebar()
+                mainHandler.removeCallbacks(standaloneHeavyResumeRunnable)
+                mainHandler.post(standaloneHeavyResumeRunnable)
             }
         }
     }
@@ -779,8 +781,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         UserDataBusClient.setOnUserDataAppliedListener {
             runOnUiThread {
                 showLoading(false)
-                refreshVisibleDashboard()
+                refreshAllUserShellFragments()
                 refreshUserSidebar()
+                mainHandler.removeCallbacks(standaloneHeavyResumeRunnable)
+                mainHandler.post(standaloneHeavyResumeRunnable)
             }
         }
         if (!dataSyncReceiverRegistered) {
@@ -1612,36 +1616,53 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshVisibleDashboard() {
-        overviewFragmentRef?.let { fragment ->
-            if (fragment.isAdded && fragment.view != null) {
-                fragment.refreshStandaloneFromMemory()
-                fragment.view?.requestLayout()
-                fragment.view?.invalidate()
-                fragment.view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvInventory)?.apply {
-                    requestLayout()
-                    invalidate()
-                    adapter?.notifyDataSetChanged()
-                }
-                return
+    /**
+     * After WebSocket/user/data applies [AdminDemoData], refresh every user-shell tab that currently has a view.
+     * ViewPager2 destroys far off-screen fragments; those repaint from memory when opened. Tabs that stay alive must not depend on tab switches.
+     */
+    private fun refreshAllUserShellFragments() {
+        fun notifyFragment(f: androidx.fragment.app.Fragment) {
+            when (f) {
+                is AdminOverviewFragment ->
+                    if (f.isAdded && f.view != null) {
+                        f.refreshStandaloneFromMemory()
+                        f.view?.requestLayout()
+                        f.view?.invalidate()
+                        f.view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvInventory)?.apply {
+                            requestLayout()
+                            invalidate()
+                            adapter?.notifyDataSetChanged()
+                        }
+                    }
+                is DoseTrackingFragment -> f.applyRemoteUserDataSync()
+                is AdminMedicalRemindersFragment ->
+                    if (f.isAdded && f.view != null) {
+                        f.view?.post { f.refresh() }
+                    }
+                is AdminSettingsFragment ->
+                    if (f.isAdded && f.view != null) {
+                        f.view?.post { f.refresh() }
+                    }
+                is AdminAlertsFragment ->
+                    if (f.isAdded && f.view != null) {
+                        f.view?.post { f.refresh() }
+                    }
+                is AdminLogsFragment ->
+                    if (f.isAdded && f.view != null) {
+                        f.view?.post { f.refresh() }
+                    }
+                is AdminReportsFragment ->
+                    if (f.isAdded && f.view != null) {
+                        f.view?.post { f.refresh() }
+                    }
+                else -> { }
+            }
+            for (c in f.childFragmentManager.fragments) {
+                notifyFragment(c)
             }
         }
-        val targets = linkedSetOf<AdminOverviewFragment>()
-        (supportFragmentManager.findFragmentByTag("f0") as? AdminOverviewFragment)?.let { targets.add(it) }
-        supportFragmentManager.fragments
-            .filterIsInstance<AdminOverviewFragment>()
-            .filter { it.isAdded && it.view != null }
-            .forEach { targets.add(it) }
-
-        targets.forEach { fragment ->
-            fragment.refreshStandaloneFromMemory()
-            fragment.view?.requestLayout()
-            fragment.view?.invalidate()
-            fragment.view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvInventory)?.apply {
-                requestLayout()
-                invalidate()
-                adapter?.notifyDataSetChanged()
-            }
+        for (top in supportFragmentManager.fragments) {
+            notifyFragment(top)
         }
     }
 }

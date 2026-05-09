@@ -7,6 +7,11 @@
         android:title="@string/dark_mode"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/action_admin_care_settings"
+        android:title="@string/admin_menu_care_settings"
+        android:visible="false"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_settings"
         android:title="@string/settings_screen_title"
         app:showAsAction="never" />

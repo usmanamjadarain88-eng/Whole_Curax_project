@@ -13,8 +13,8 @@ android {
         applicationId = "com.curax.app"
         minSdk = 24
         targetSdk = 33
-        versionCode = 26
-        versionName = "1.0.25"
+        versionCode = 28
+        versionName = "1.0.27"
 
         // Vercel databus URL + Ably subscribe key: curax_app/android/local.properties (gitignored), or env vars for CI.
         val localProps = Properties()

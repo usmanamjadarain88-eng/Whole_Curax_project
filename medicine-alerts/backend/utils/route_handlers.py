@@ -755,6 +755,28 @@ def admin_accept_user_link_request(body, query, headers):
         "user_username": r.get("user_username") or "",
         "user_display_mode": r.get("user_display_mode") or "",
     })
+def admin_reject_user_link_request(body, query, headers):
+    """POST { access_code, request_id } — decline a pending directory link request."""
+    data = body
+    access_code = (data.get("access_code") or "").strip()
+    request_id = (data.get("request_id") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not access_code or not request_id:
+        return (400, {"message": "access_code and request_id required"})
+    r = db.admin_reject_user_link_request(access_code, request_id)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err == "invalid_access_code":
+            code = 404
+        if err == "request_not_found":
+            code = 404
+        if err == "invalid_request_id":
+            code = 400
+        return (code, {"message": err})
+    return (200, {"message": "ok"})
 def user_account_status(body, query, headers):
     """GET ?bot_id=&api_key= -> { account_status } for lifecycle gating on the client."""
     bot_id = (query.get("bot_id") or "").strip()
@@ -966,7 +988,8 @@ def notify_event_to_user(body, query, headers):
     threading.Thread(target=_deliver, daemon=True, name="NotifyRelay").start()
     return (200, {"message": "ok"})
 def get_linked_users(body, query, headers):
-    """GET /admin/linked-users?access_code=... -> list of users linked to this admin (excluding dashboard user)."""
+    """GET /admin/linked-users?access_code=... -> list of users linked to this admin (excluding dashboard user).
+    Optional dose_preview=1 appends recent_doses (last 12) per user for admin dashboard at-a-glance."""
     access_code = (query.get("access_code") or "").strip()
     db = get_db()
     if not db:
@@ -978,7 +1001,41 @@ def get_linked_users(body, query, headers):
         return (404, {"users": []})
     admin_id = admin.get("id")
     users = db.get_all_users_by_admin_id(admin_id) or []
+    want_doses = (query.get("dose_preview") or "").strip().lower() in ("1", "true", "yes")
+    if want_doses:
+        for u in users:
+            uid = (u.get("id") or "").strip()
+            try:
+                u["recent_doses"] = db.list_dose_logs(uid, limit=12) if uid else []
+            except Exception:
+                u["recent_doses"] = []
     return (200, {"users": users})
+
+
+def admin_set_user_display_mode(body, query, headers):
+    """POST { access_code, user_id, display_mode: standalone|default } — admin sets linked user's app shell; databus notifies user."""
+    data = body if isinstance(body, dict) else {}
+    access_code = (data.get("access_code") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
+    mode = (data.get("display_mode") or data.get("user_display_mode") or "").strip().lower()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    if not access_code or not user_id:
+        return (400, {"message": "access_code and user_id required"})
+    if mode not in ("standalone", "default"):
+        return (400, {"message": "display_mode must be standalone or default"})
+    admin = db.get_admin_by_access_code(access_code)
+    if not admin:
+        return (404, {"message": "Admin not found"})
+    admin_id = admin.get("id")
+    ok = db.set_user_display_mode_for_admin(admin_id, user_id, mode)
+    if not ok:
+        return (404, {"message": "User not found or not linked to this admin"})
+    notify_databus(access_code)
+    return (200, {"ok": True, "user_display_mode": mode})
+
+
 def put_admin_fcm_token(body, query, headers):
     """PUT { access_code, fcm_token } ΓåÆ update admin's FCM token. Called when app gets FCM token (e.g. after permission).
     So push alerts (and Test alert) work; relay uses FCM first when available."""
@@ -1019,6 +1076,7 @@ def get_admin_connection(body, query, headers):
                 "email": u.get("email") or "",
                 "bot_id": u.get("bot_id"),
                 "profile_picture": (u.get("profile_picture") or "").strip(),
+                "user_display_mode": (u.get("user_display_mode") or "").strip(),
             }
             for u in users
         ],

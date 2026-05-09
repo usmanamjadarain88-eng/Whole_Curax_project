@@ -259,6 +259,10 @@ class DoseTrackingFragment : Fragment() {
     }
 
     override fun onStop() {
+        super.onStop()
+    }
+
+    override fun onDestroyView() {
         if (syncReceiverRegistered) {
             try {
                 requireContext().unregisterReceiver(syncReceiver)
@@ -266,7 +270,13 @@ class DoseTrackingFragment : Fragment() {
             }
             syncReceiverRegistered = false
         }
-        super.onStop()
+        super.onDestroyView()
+    }
+
+    /** Apply server/WebSocket snapshot while this tab is off-screen (ViewPager2 stops receivers if unregistered in onStop). */
+    fun applyRemoteUserDataSync() {
+        if (!isAdded) return
+        view?.post { refreshAll() }
     }
 
     private fun refreshAll() {

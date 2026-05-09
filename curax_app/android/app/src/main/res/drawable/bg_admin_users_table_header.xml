@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="@color/chart_status_normal" />
-    <corners android:radius="3dp" />
+    <solid android:color="@color/toolbar_start" />
+    <corners android:topLeftRadius="10dp" android:topRightRadius="10dp" />
 </shape>
