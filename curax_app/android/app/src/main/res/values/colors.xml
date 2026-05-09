@@ -35,6 +35,12 @@
     <color name="sign_in_text_highlight">#662E7A5A</color>
     <color name="key_value_stroke">#C8DDD3</color>
 
+    <!-- Admin auth fields: visible caret on pale green boxes -->
+    <color name="auth_cursor_green">#0E7A57</color>
+    <!-- Bottom promo panel on admin sign-in -->
+    <color name="admin_auth_promo_fill">#EEF8F3</color>
+    <color name="admin_auth_promo_stroke">#C8DDD3</color>
+
     <color name="badge_start">#0B5B40</color>
     <color name="badge_end">#148760</color>
 

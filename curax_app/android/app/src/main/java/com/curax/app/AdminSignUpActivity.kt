@@ -63,7 +63,7 @@ class AdminSignUpActivity : AppCompatActivity() {
                     val base = Prefs(this).centralApiUrl.trim().removeSuffix("/")
                     btn.isEnabled = false
                     val progress = ProgressDialog(this).apply {
-                        setMessage(getString(R.string.opening_curax))
+                        setMessage(getString(R.string.admin_progress_sending_code))
                         setCancelable(false)
                         show()
                     }
@@ -80,11 +80,11 @@ class AdminSignUpActivity : AppCompatActivity() {
                             val res = http.newCall(req).execute()
                             val body = res.body?.string().orEmpty()
                             val jo = if (body.isNotBlank()) JSONObject(body) else JSONObject()
-                            runOnUiThread {
-                                progress.dismiss()
-                                btn.isEnabled = true
-                            }
                             if (!res.isSuccessful) {
+                                runOnUiThread {
+                                    progress.dismiss()
+                                    btn.isEnabled = true
+                                }
                                 val key = jo.optString("message", "").trim().lowercase(Locale.US)
                                 val detail = jo.optString("detail", "").trim()
                                 val msg = when (key) {
@@ -100,6 +100,17 @@ class AdminSignUpActivity : AppCompatActivity() {
                                 return@Thread
                             }
                             runOnUiThread {
+                                progress.dismiss()
+                                btn.isEnabled = true
+                                val devOtp = jo.optString("dev_otp", "").trim()
+                                val emailSent = jo.optBoolean("email_sent", true)
+                                val tip = when {
+                                    devOtp.isNotEmpty() -> getString(R.string.admin_signup_otp_dev_preview, devOtp)
+                                    !emailSent -> getString(R.string.admin_signup_otp_sent_maybe_spam, email)
+                                    else -> getString(R.string.admin_signup_otp_sent_now, email)
+                                }
+                                CuraxFeedback.success(this@AdminSignUpActivity, tip)
+                                AdminMobileAuthSession.passwordPlain = password
                                 startActivity(
                                     Intent(this, AdminEmailSignupVerifyActivity::class.java)
                                         .putExtra(AdminEmailSignupVerifyActivity.EXTRA_EMAIL, email),

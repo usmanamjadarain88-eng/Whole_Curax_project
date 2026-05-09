@@ -10,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class AdminMobileVerifyActivity : AppCompatActivity() {
@@ -61,7 +62,7 @@ class AdminMobileVerifyActivity : AppCompatActivity() {
 
             btn.isEnabled = false
             val progress = ProgressDialog(this).apply {
-                setMessage(getString(R.string.opening_curax))
+                setMessage(getString(R.string.admin_progress_verifying_signin))
                 setCancelable(false)
                 show()
             }
@@ -81,13 +82,26 @@ class AdminMobileVerifyActivity : AppCompatActivity() {
                     val jo = if (body.isNotBlank()) JSONObject(body) else JSONObject()
 
                     if (!res.isSuccessful) {
-                        val msg = jo.optString("message", "").trim().ifEmpty { res.message }
+                        val key = jo.optString("message", "").trim().lowercase(Locale.US)
                         val detail = jo.optString("detail", "").trim()
-                        val combined = listOf(msg, detail).filter { it.isNotEmpty() }.joinToString("\n")
+                        val combined = when (key) {
+                            "challenge_not_found" -> getString(R.string.admin_error_challenge_expired)
+                            "invalid_otp" -> detail.ifEmpty { getString(R.string.admin_error_otp_invalid) }
+                            "otp_expired" -> getString(R.string.admin_error_otp_expired)
+                            "admin_missing" -> getString(R.string.admin_unknown_email)
+                            else -> listOf(jo.optString("message", "").trim(), detail)
+                                .filter { it.isNotEmpty() }
+                                .joinToString("\n")
+                                .ifEmpty { res.message }
+                        }
                         runOnUiThread {
                             progress.dismiss()
                             btn.isEnabled = true
-                            CuraxFeedback.warn(this@AdminMobileVerifyActivity, combined.ifEmpty { getString(R.string.request_failed) }, long = true)
+                            CuraxFeedback.warn(
+                                this@AdminMobileVerifyActivity,
+                                combined.ifEmpty { getString(R.string.request_failed) },
+                                long = true,
+                            )
                         }
                         return@Thread
                     }

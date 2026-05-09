@@ -62,16 +62,17 @@
                 android:textSize="14sp" />
 
             <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="260dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="20dp"
                 app:boxBackgroundColor="@color/key_value_bg"
                 app:boxCornerRadiusBottomEnd="14dp"
                 app:boxCornerRadiusBottomStart="14dp"
                 app:boxCornerRadiusTopEnd="14dp"
                 app:boxCornerRadiusTopStart="14dp"
-                app:boxStrokeColor="@color/key_value_stroke">
+                app:boxStrokeColor="@color/key_value_stroke"
+                app:cursorColor="@color/auth_cursor_green"
+                app:hintTextColor="@color/auth_hint_password_muted">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etAdminVerifyOtp"
@@ -81,14 +82,14 @@
                     android:inputType="number"
                     android:maxLength="8"
                     android:textColor="@color/text_primary"
-                    android:textColorHint="@color/text_secondary" />
+                    android:textColorHint="@color/auth_hint_password_muted"
+                    android:textCursorDrawable="@drawable/auth_text_cursor" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnAdminVerifyContinue"
-                android:layout_width="260dp"
+                android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="18dp"
                 android:text="@string/admin_verify_continue"
                 android:textColor="@color/button_primary_text"

@@ -45,9 +45,8 @@
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilAdminSignUpEmail"
-                android:layout_width="260dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="18dp"
                 app:boxBackgroundColor="@color/key_value_bg"
                 app:boxCornerRadiusBottomEnd="14dp"
@@ -55,6 +54,7 @@
                 app:boxCornerRadiusTopEnd="14dp"
                 app:boxCornerRadiusTopStart="14dp"
                 app:boxStrokeColor="@color/key_value_stroke"
+                app:cursorColor="@color/auth_cursor_green"
                 app:hintTextColor="@color/auth_hint_email_muted">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -64,14 +64,14 @@
                     android:hint="@string/hint_email"
                     android:inputType="textEmailAddress"
                     android:textColor="@color/text_primary"
-                    android:textColorHint="@color/auth_hint_email_muted" />
+                    android:textColorHint="@color/auth_hint_email_muted"
+                    android:textCursorDrawable="@drawable/auth_text_cursor" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilAdminSignUpPassword"
-                android:layout_width="260dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="8dp"
                 app:boxBackgroundColor="@color/key_value_bg"
                 app:boxCornerRadiusBottomEnd="14dp"
@@ -79,6 +79,7 @@
                 app:boxCornerRadiusTopEnd="14dp"
                 app:boxCornerRadiusTopStart="14dp"
                 app:boxStrokeColor="@color/key_value_stroke"
+                app:cursorColor="@color/auth_cursor_green"
                 app:endIconMode="password_toggle"
                 app:hintTextColor="@color/auth_hint_password_muted">
 
@@ -89,14 +90,14 @@
                     android:hint="@string/signup_placeholder_password"
                     android:inputType="textPassword"
                     android:textColor="@color/text_primary"
-                    android:textColorHint="@color/auth_hint_password_muted" />
+                    android:textColorHint="@color/auth_hint_password_muted"
+                    android:textCursorDrawable="@drawable/auth_text_cursor" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilAdminSignUpConfirmPassword"
-                android:layout_width="260dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="8dp"
                 app:boxBackgroundColor="@color/key_value_bg"
                 app:boxCornerRadiusBottomEnd="14dp"
@@ -104,6 +105,7 @@
                 app:boxCornerRadiusTopEnd="14dp"
                 app:boxCornerRadiusTopStart="14dp"
                 app:boxStrokeColor="@color/key_value_stroke"
+                app:cursorColor="@color/auth_cursor_green"
                 app:endIconMode="password_toggle"
                 app:hintTextColor="@color/auth_hint_password_muted">
 
@@ -114,14 +116,14 @@
                     android:hint="@string/signup_placeholder_confirm_password"
                     android:inputType="textPassword"
                     android:textColor="@color/text_primary"
-                    android:textColorHint="@color/auth_hint_password_muted" />
+                    android:textColorHint="@color/auth_hint_password_muted"
+                    android:textCursorDrawable="@drawable/auth_text_cursor" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnAdminSignUpSendCode"
-                android:layout_width="260dp"
+                android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:layout_gravity="center_horizontal"
                 android:layout_marginTop="18dp"
                 android:text="@string/admin_sign_up_send_code"
                 android:textColor="@color/button_primary_text"

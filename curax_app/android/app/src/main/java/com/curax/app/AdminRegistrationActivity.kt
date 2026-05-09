@@ -61,7 +61,7 @@ class AdminRegistrationActivity : AppCompatActivity() {
                     val base = prefs.centralApiUrl.trim().removeSuffix("/")
                     btnSignIn.isEnabled = false
                     val progress = ProgressDialog(this).apply {
-                        setMessage(getString(R.string.opening_curax))
+                        setMessage(getString(R.string.admin_progress_signing_in))
                         setCancelable(false)
                         show()
                     }
@@ -78,11 +78,11 @@ class AdminRegistrationActivity : AppCompatActivity() {
                             val res = http.newCall(req).execute()
                             val body = res.body?.string().orEmpty()
                             val jo = if (body.isNotBlank()) JSONObject(body) else JSONObject()
-                            runOnUiThread {
-                                progress.dismiss()
-                                btnSignIn.isEnabled = true
-                            }
                             if (!res.isSuccessful) {
+                                runOnUiThread {
+                                    progress.dismiss()
+                                    btnSignIn.isEnabled = true
+                                }
                                 val codeKey = jo.optString("message", "").trim().lowercase(Locale.US)
                                 val detail = jo.optString("detail", "").trim()
                                 val msg = when (codeKey) {
@@ -90,7 +90,8 @@ class AdminRegistrationActivity : AppCompatActivity() {
                                     "invalid_credentials" -> getString(R.string.sign_in_error_invalid_credentials)
                                     "password_not_synced" -> detail.ifEmpty { getString(R.string.admin_password_not_synced_detail) }
                                     "password_too_short" -> getString(R.string.sign_up_password_short)
-                                    "admin_mobile_login_not_configured" -> getString(R.string.request_failed)
+                                    "invalid_email" -> getString(R.string.admin_error_invalid_email_server)
+                                    "admin_mobile_login_not_configured" -> getString(R.string.admin_error_mobile_login_not_configured)
                                     else -> listOf(jo.optString("message", "").trim(), detail)
                                         .filter { it.isNotEmpty() }
                                         .joinToString("\n")
@@ -104,17 +105,26 @@ class AdminRegistrationActivity : AppCompatActivity() {
                             val challenge = jo.optString("challenge_token", "").trim()
                             if (challenge.length < 16) {
                                 runOnUiThread {
+                                    progress.dismiss()
+                                    btnSignIn.isEnabled = true
                                     CuraxFeedback.warn(this@AdminRegistrationActivity, getString(R.string.request_failed), long = true)
                                 }
                                 return@Thread
                             }
                             AdminMobileAuthSession.passwordPlain = password
                             runOnUiThread {
-                                startActivity(
-                                    Intent(this, AdminMobileVerifyActivity::class.java)
-                                        .putExtra(AdminMobileVerifyActivity.EXTRA_CHALLENGE_TOKEN, challenge)
-                                        .putExtra(AdminMobileVerifyActivity.EXTRA_EMAIL, email),
-                                )
+                                progress.dismiss()
+                                btnSignIn.isEnabled = true
+                                CuraxFeedback.success(this@AdminRegistrationActivity, getString(R.string.admin_otp_sent_short))
+                                window.decorView.post {
+                                    if (!isFinishing) {
+                                        startActivity(
+                                            Intent(this, AdminMobileVerifyActivity::class.java)
+                                                .putExtra(AdminMobileVerifyActivity.EXTRA_CHALLENGE_TOKEN, challenge)
+                                                .putExtra(AdminMobileVerifyActivity.EXTRA_EMAIL, email),
+                                        )
+                                    }
+                                }
                             }
                         } catch (_: Exception) {
                             runOnUiThread {

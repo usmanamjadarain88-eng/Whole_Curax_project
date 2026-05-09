@@ -3152,9 +3152,9 @@ class CentralDB:
                     "ok": False,
                     "error": "password_not_synced",
                     "detail": (
-                        "No password is stored for this admin on the server yet. Open Curax on your PC, "
-                        "go to Settings → Admin Panel, and save the admin again (same email and password). "
-                        "Then return here and sign in."
+                        "This admin record has no password set for mobile sign-in yet. "
+                        "Use Sign up as admin with this email (if new), or sign in from another device that already saved "
+                        "your password to the server. Otherwise contact support."
                     ),
                 }
             if not self._verify_signup_password(pw, dph):
