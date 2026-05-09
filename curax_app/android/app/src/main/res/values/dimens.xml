@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Splash orbit: max square side (view uses 0dp + ratio up to this cap). -->
+    <dimen name="splash_orbit_max">380dp</dimen>
     <!-- Auth headings: responsive top inset (was 102dp — caused clipping on short phones). -->
     <dimen name="auth_screen_title_margin_top">64dp</dimen>
     <!-- Outlined fields: compact row height; hint clipping handled mainly via EditText includeFontPadding. -->

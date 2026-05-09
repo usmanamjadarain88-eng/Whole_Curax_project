@@ -23,6 +23,14 @@
       "destination": "/api/save_credentials"
     },
     {
+      "source": "/admin/mobile-sign-in-start",
+      "destination": "/api/admin_mobile_sign_in_start"
+    },
+    {
+      "source": "/admin/mobile-sign-in-verify",
+      "destination": "/api/admin_mobile_sign_in_verify"
+    },
+    {
       "source": "/connect-to-admin",
       "destination": "/api/connect_to_admin"
     },

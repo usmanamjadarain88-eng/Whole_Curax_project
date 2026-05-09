@@ -1166,7 +1166,14 @@ class SettingsTab(QWidget):
             try:
                 import urllib.request
                 import json as _json
-                payload = _json.dumps({"bot_id": bot_id, "api_key": api_key, "role": "admin", "name": name, "email": email}).encode("utf-8")
+                payload = _json.dumps({
+                    "bot_id": bot_id,
+                    "api_key": api_key,
+                    "role": "admin",
+                    "name": name,
+                    "email": email,
+                    "desktop_password": password,
+                }).encode("utf-8")
                 req = urllib.request.Request(
                     base.rstrip("/") + "/save-credentials",
                     data=payload,

@@ -1,76 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- White shell: first launch = role buttons; returning user = bottom progress then auto-navigate. -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/auth_onboarding_bg">
+    android:background="@color/auth_onboarding_bg"
+    android:clipChildren="false"
+    android:fitsSystemWindows="true">
+
+    <TextView
+        android:id="@+id/tvSplashTitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="22dp"
+        android:layout_marginTop="36dp"
+        android:layout_marginEnd="22dp"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:letterSpacing="-0.03"
+        android:text="@string/splash_title"
+        android:textColor="@color/auth_heading"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="CuraX Medicine System" />
+
+    <TextView
+        android:id="@+id/tvSplashSubtitle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="22dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="22dp"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:lineSpacingMultiplier="1.15"
+        android:text="@string/splash_subtitle"
+        android:textColor="@color/auth_subtitle"
+        android:textSize="14sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvSplashTitle"
+        tools:text="Medicine reminders and admin tools — pick your role." />
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:id="@+id/splashFooter"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:contentDescription="@string/opening_curax"
-        android:gravity="center_horizontal"
+        android:layout_marginStart="22dp"
+        android:layout_marginEnd="22dp"
+        android:layout_marginBottom="28dp"
         android:orientation="vertical"
-        android:padding="24dp">
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:id="@+id/splashRoleButtons"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:importantForAccessibility="no"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
-            <ImageView
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="12dp"
-                android:importantForAccessibility="no"
-                android:scaleType="fitCenter"
-                android:src="@drawable/curax_logo" />
-
-            <TextView
-                android:id="@+id/tvOpeningLine"
-                android:layout_width="wrap_content"
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnContinueUser"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@font/inter"
-                android:importantForAccessibility="no"
-                android:includeFontPadding="false"
-                android:text="@string/opening_curax"
-                android:textColor="@color/text_secondary"
-                android:textSize="15sp"
-                android:textStyle="normal" />
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_auth_login_cta"
+                android:elevation="4dp"
+                android:gravity="center"
+                android:letterSpacing="0"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="14dp"
+                android:stateListAnimator="@null"
+                android:text="@string/splash_continue_user"
+                android:textAllCaps="false"
+                android:textColor="@color/auth_login_label"
+                android:textSize="16sp"
+                tools:text="Continue as a User" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btnContinueAdmin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_auth_login_cta"
+                android:elevation="4dp"
+                android:gravity="center"
+                android:letterSpacing="0"
+                android:minHeight="52dp"
+                android:paddingStart="16dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="14dp"
+                android:stateListAnimator="@null"
+                android:text="@string/splash_continue_admin"
+                android:textAllCaps="false"
+                android:textColor="@color/auth_login_label"
+                android:textSize="16sp"
+                tools:text="Continue as an Admin" />
         </LinearLayout>
 
-        <!-- Staggered pulse animation on these dots (LaunchActivity) -->
         <LinearLayout
-            android:id="@+id/splashLoadingDots"
-            android:layout_width="wrap_content"
+            android:id="@+id/splashReturningBlock"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:gravity="center"
-            android:importantForAccessibility="no"
-            android:orientation="horizontal">
+            android:orientation="vertical"
+            android:paddingTop="10dp"
+            android:visibility="gone"
+            tools:visibility="gone">
 
-            <View
-                android:id="@+id/dot1"
-                android:layout_width="7dp"
-                android:layout_height="7dp"
-                android:layout_marginEnd="6dp"
-                android:background="@drawable/splash_loading_dot" />
-
-            <View
-                android:id="@+id/dot2"
-                android:layout_width="7dp"
-                android:layout_height="7dp"
-                android:layout_marginEnd="6dp"
-                android:background="@drawable/splash_loading_dot" />
-
-            <View
-                android:id="@+id/dot3"
-                android:layout_width="7dp"
-                android:layout_height="7dp"
-                android:background="@drawable/splash_loading_dot" />
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/progressReturning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:indeterminate="true"
+                app:indicatorColor="@color/button_primary_bg"
+                app:trackColor="#E6F2EC"
+                app:trackCornerRadius="4dp"
+                app:trackThickness="6dp" />
         </LinearLayout>
     </LinearLayout>
 
-</FrameLayout>
+    <com.curax.app.SplashOrbitView
+        android:id="@+id/splashOrbit"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="4dp"
+        android:layout_marginBottom="12dp"
+        app:layout_constraintBottom_toTopOf="@id/splashFooter"
+        app:layout_constraintDimensionRatio="1:1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHeight_max="@dimen/splash_orbit_max"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvSplashSubtitle"
+        app:layout_constraintVertical_bias="0.5"
+        app:layout_constraintWidth_max="@dimen/splash_orbit_max" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

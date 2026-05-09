@@ -45,7 +45,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="0dp"
                         android:gravity="center"
-                        android:text="Administrator registration"
+                        android:text="@string/admin_screen_tagline"
                         android:textColor="@color/subtitle_grey"
                         android:textSize="14sp"
                         android:textStyle="bold"
@@ -71,7 +71,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:gravity="center"
-                            android:text="Admin Registration"
+                            android:text="@string/admin_sign_in_card_title"
                             android:textColor="@color/text_primary"
                             android:textSize="20sp"
                             android:textStyle="bold" />
@@ -81,7 +81,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="6dp"
                             android:gravity="center"
-                            android:text="Only authenticated administrators can register"
+                            android:text="@string/admin_sign_in_card_subtitle"
                             android:textColor="@color/text_secondary"
                             android:textSize="13sp" />
 
@@ -153,39 +153,108 @@
                                 android:textColorHint="@color/text_secondary" />
                         </com.google.android.material.textfield.TextInputLayout>
 
-                        <com.google.android.material.textfield.TextInputLayout
-                            android:layout_width="260dp"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center"
-                            android:layout_marginTop="8dp"
-                            app:boxBackgroundColor="@color/key_value_bg"
-                            app:boxCornerRadiusBottomEnd="14dp"
-                            app:boxCornerRadiusBottomStart="14dp"
-                            app:boxCornerRadiusTopEnd="14dp"
-                            app:boxCornerRadiusTopStart="14dp"
-                            app:boxStrokeColor="@color/key_value_stroke">
-
-                            <com.google.android.material.textfield.TextInputEditText
-                                android:id="@+id/etAdminAccessCode"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:hint="Admin Access Code"
-                                android:textColor="@color/text_primary"
-                                android:textColorHint="@color/text_secondary" />
-                        </com.google.android.material.textfield.TextInputLayout>
-
                         <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnRegisterAdmin"
+                            android:id="@+id/btnAdminContinueEmail"
                             android:layout_width="260dp"
                             android:layout_height="50dp"
                             android:layout_gravity="center"
                             android:layout_marginTop="14dp"
-                            android:text="Register as Admin"
+                            android:text="@string/admin_sign_in_continue"
                             android:textColor="@color/button_primary_text"
                             android:textSize="15sp"
                             app:backgroundTint="@color/connect_button_bg"
                             app:cornerRadius="14dp" />
+
+                        <TextView
+                            android:id="@+id/tvToggleDesktopCodePath"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:layout_marginTop="12dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center"
+                            android:paddingVertical="8dp"
+                            android:text="@string/admin_sign_in_toggle_desktop_code"
+                            android:textColor="@color/auth_heading"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:id="@+id/layoutDesktopCodePath"
+                            android:layout_width="260dp"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
+                            android:layout_marginTop="4dp"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <com.google.android.material.textfield.TextInputLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                app:boxBackgroundColor="@color/key_value_bg"
+                                app:boxCornerRadiusBottomEnd="14dp"
+                                app:boxCornerRadiusBottomStart="14dp"
+                                app:boxCornerRadiusTopEnd="14dp"
+                                app:boxCornerRadiusTopStart="14dp"
+                                app:boxStrokeColor="@color/key_value_stroke">
+
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/etAdminAccessCode"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:hint="@string/admin_access_code_hint"
+                                    android:inputType="textCapCharacters"
+                                    android:textColor="@color/text_primary"
+                                    android:textColorHint="@color/text_secondary" />
+                            </com.google.android.material.textfield.TextInputLayout>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnAdminRegisterWithCode"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="50dp"
+                                android:layout_marginTop="12dp"
+                                android:text="@string/admin_register_with_code"
+                                android:textColor="@color/connect_button_bg"
+                                android:textSize="15sp"
+                                app:cornerRadius="14dp"
+                                app:strokeColor="@color/connect_button_bg"
+                                app:strokeWidth="1dp" />
+                        </LinearLayout>
                     </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_horizontal"
+                    android:orientation="horizontal"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="@string/admin_registration_sign_in_prompt"
+                        android:textColor="@color/auth_promo_muted"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvAdminSignIn"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:includeFontPadding="false"
+                        android:paddingVertical="6dp"
+                        android:text="@string/admin_registration_sign_in_action"
+                        android:textColor="@color/auth_heading"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
         </ScrollView>

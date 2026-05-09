@@ -170,6 +170,7 @@ def save_credentials(body, query, headers):
     fcm_token = (data.get("fcm_token") or "").strip()
     name = (data.get("name") or "").strip()
     email = (data.get("email") or "").strip()
+    desktop_password = (data.get("desktop_password") or "").strip()
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
@@ -185,12 +186,25 @@ def save_credentials(body, query, headers):
         try:
             if access_code:
                 admin_id, admin_access_code, connection_code = db.update_admin_bot_by_access_code(
-                    access_code, bot_id, api_key, name=name, email=email, fcm_token=fcm_token or None
+                    access_code,
+                    bot_id,
+                    api_key,
+                    name=name,
+                    email=email,
+                    fcm_token=fcm_token or None,
+                    desktop_password_plain=desktop_password or None,
                 )
                 if admin_id:
                     notify_databus(admin_access_code or access_code)
                     return (200, {"message": "ok", "admin_id": admin_id, "admin_access_code": admin_access_code or None, "connection_code": connection_code or None})
-            admin_id, admin_access_code, connection_code = db.upsert_admin_from_bot(bot_id, api_key, name=name, email=email, fcm_token=fcm_token or None)
+            admin_id, admin_access_code, connection_code = db.upsert_admin_from_bot(
+                bot_id,
+                api_key,
+                name=name,
+                email=email,
+                fcm_token=fcm_token or None,
+                desktop_password_plain=desktop_password or None,
+            )
             if admin_access_code:
                 notify_databus(admin_access_code)
             return (200, {"message": "ok", "admin_id": admin_id, "admin_access_code": admin_access_code or None, "connection_code": connection_code or None})
@@ -201,6 +215,57 @@ def save_credentials(body, query, headers):
         return (400, {"message": "admin_id required for role=user"})
     user_id = db.upsert_user_from_bot(bot_id, api_key, admin_id, name=name, fcm_token=fcm_token or None)
     return (200, {"message": "ok", "user_id": user_id})
+
+
+def admin_mobile_sign_in_start(body, query, headers):
+    """POST { email, password } → challenge_token + OTP emailed (admin mobile sign-in)."""
+    data = body or {}
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.admin_mobile_sign_in_start(email, password)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err in ("admin_mobile_login_not_configured", "database_error"):
+            code = 503
+        elif err == "unknown_admin_email":
+            code = 404
+        elif err == "invalid_credentials":
+            code = 401
+        out = {"message": err}
+        if r.get("detail"):
+            out["detail"] = r["detail"]
+        return (code, out)
+    return (200, {k: v for k, v in r.items() if k != "ok"})
+
+
+def admin_mobile_sign_in_verify(body, query, headers):
+    """POST { challenge_token, otp } → admin_access_code, connection_code, name, email."""
+    data = body or {}
+    challenge_token = (data.get("challenge_token") or "").strip()
+    otp = (data.get("otp") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.admin_mobile_sign_in_verify(challenge_token, otp)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err in ("admin_mobile_login_not_configured", "database_error"):
+            code = 503
+        elif err in ("challenge_not_found", "invalid_otp"):
+            code = 401
+        elif err == "otp_expired":
+            code = 410
+        elif err == "admin_missing":
+            code = 404
+        return (code, {"message": err})
+    return (200, {k: v for k, v in r.items() if k != "ok"})
+
+
 def connect_to_admin(body, query, headers):
     """POST { connection_code, bot_id, api_key, name?, email? } ΓåÆ link this app (user) to the admin with that connection_code.
     If email is sent, any previous user row for the same admin+email (e.g. old install) is removed so the same person has only one entry.

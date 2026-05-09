@@ -39,6 +39,26 @@ CREATE UNIQUE INDEX IF NOT EXISTS admins_email_unique
     WHERE TRIM(COALESCE(email, '')) <> '';
 
 -- ---------------------------------------------------------------------------
+-- admin_mobile_login_challenges (OTP step after password; mobile admin sign-in)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS admin_mobile_login_challenges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email_normalized VARCHAR(320) NOT NULL,
+    challenge_token VARCHAR(72) NOT NULL,
+    otp_hash VARCHAR(128) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT admin_mobile_challenges_token_len CHECK (char_length(challenge_token) >= 16)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS admin_mobile_login_challenges_token_uidx
+    ON admin_mobile_login_challenges (challenge_token);
+CREATE INDEX IF NOT EXISTS admin_mobile_login_challenges_email_idx
+    ON admin_mobile_login_challenges (email_normalized);
+CREATE INDEX IF NOT EXISTS admin_mobile_login_challenges_exp_idx
+    ON admin_mobile_login_challenges (expires_at);
+
+-- ---------------------------------------------------------------------------
 -- users
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (

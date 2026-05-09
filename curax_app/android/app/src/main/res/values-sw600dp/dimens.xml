@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <dimen name="splash_orbit_max">420dp</dimen>
     <dimen name="auth_screen_title_margin_top">88dp</dimen>
     <dimen name="auth_bottom_decoration_height">160dp</dimen>
 </resources>

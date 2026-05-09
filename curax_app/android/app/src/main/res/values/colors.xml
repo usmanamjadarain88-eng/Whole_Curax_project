@@ -12,6 +12,13 @@
     <color name="auth_reset_green">#00A218</color>
     <color name="auth_login_label">#1E1E1E</color>
 
+    <!-- Launcher splash (white screen): orbit rings + icon badges -->
+    <color name="splash_orbit_ring">#C5DDD3</color>
+    <color name="splash_orbit_icon_bg">#F1F8F4</color>
+    <color name="splash_orbit_hub">#0E7A57</color>
+    <!-- Very soft disk under launcher only (not a stroked orbit ring). -->
+    <color name="splash_hub_plate">#F4FAF7</color>
+
     <color name="toolbar_start">#06402B</color>
     <color name="toolbar_end">#0E7A57</color>
 

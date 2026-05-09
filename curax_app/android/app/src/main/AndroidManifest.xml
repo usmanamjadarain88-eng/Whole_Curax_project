@@ -96,7 +96,7 @@
         <activity
             android:name=".LaunchActivity"
             android:exported="true"
-            android:theme="@style/Theme.Curax.AuthOnboarding">
+            android:theme="@style/Theme.Curax.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -140,8 +140,16 @@
         <activity
             android:name=".AdminRegistrationActivity"
             android:exported="false"
-            android:parentActivityName=".SignInActivity"
-            android:theme="@style/Theme.Curax.AuthOnboarding" />
+            android:parentActivityName=".LaunchActivity"
+            android:theme="@style/Theme.Curax.AuthOnboarding"
+            android:windowSoftInputMode="adjustNothing" />
+
+        <activity
+            android:name=".AdminMobileVerifyActivity"
+            android:exported="false"
+            android:parentActivityName=".AdminRegistrationActivity"
+            android:theme="@style/Theme.Curax.AuthOnboarding"
+            android:windowSoftInputMode="adjustNothing" />
 
         <activity
             android:name=".PinSetupActivity"
