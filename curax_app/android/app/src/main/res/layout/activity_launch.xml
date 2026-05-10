@@ -110,6 +110,7 @@
             android:id="@+id/splashReturningBlock"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
             android:orientation="vertical"
             android:paddingTop="10dp"
             android:visibility="gone"
@@ -117,13 +118,14 @@
 
             <com.google.android.material.progressindicator.LinearProgressIndicator
                 android:id="@+id/progressReturning"
-                android:layout_width="match_parent"
+                android:layout_width="200dp"
                 android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
                 android:indeterminate="true"
                 app:indicatorColor="@color/button_primary_bg"
                 app:trackColor="#E6F2EC"
-                app:trackCornerRadius="4dp"
-                app:trackThickness="6dp" />
+                app:trackCornerRadius="3dp"
+                app:trackThickness="4dp" />
         </LinearLayout>
     </LinearLayout>
 

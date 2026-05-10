@@ -41,6 +41,7 @@ object NotificationHelper {
     const val EXTRA_ALERT_ID = "extra_alert_id"
     const val EXTRA_ALERT_TYPE = "extra_alert_type"
     const val EXTRA_ALERT_MESSAGE = "extra_alert_message"
+    const val EXTRA_ALERT_USER_NAME = "extra_alert_user_name"
     const val EXTRA_ALERT_TIME = "extra_alert_time"
     const val EXTRA_INTERNAL_NAV = "extra_internal_nav"
     const val EXTRA_WAKE_SCREEN = "extra_wake_screen"
@@ -68,7 +69,8 @@ object NotificationHelper {
         alertId: Long,
         type: String,
         message: String,
-        receivedAt: Long = System.currentTimeMillis()
+        receivedAt: Long = System.currentTimeMillis(),
+        userName: String = "",
     ) {
         createChannel(context)
 
@@ -76,6 +78,7 @@ object NotificationHelper {
             putExtra(EXTRA_ALERT_ID, alertId)
             putExtra(EXTRA_ALERT_TYPE, type)
             putExtra(EXTRA_ALERT_MESSAGE, message)
+            putExtra(EXTRA_ALERT_USER_NAME, userName.trim())
             putExtra(EXTRA_ALERT_TIME, receivedAt)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NO_USER_ACTION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
         }
@@ -99,9 +102,13 @@ object NotificationHelper {
 
         val soundUri = resolveStandaloneAlertSoundUri(context)
         val vibrateOn = resolveStandaloneVibrate(context)
+        val sub = userName.trim()
         val b = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
+            .apply {
+                if (sub.isNotEmpty()) setSubText(sub)
+            }
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setContentIntent(pi)

@@ -116,6 +116,7 @@ class PinEntryActivity : AppCompatActivity() {
                 putExtra(NotificationHelper.EXTRA_ALERT_ID, intent.getLongExtra(NotificationHelper.EXTRA_ALERT_ID, -1L))
                 putExtra(NotificationHelper.EXTRA_ALERT_TYPE, intent.getStringExtra(NotificationHelper.EXTRA_ALERT_TYPE))
                 putExtra(NotificationHelper.EXTRA_ALERT_MESSAGE, intent.getStringExtra(NotificationHelper.EXTRA_ALERT_MESSAGE))
+                putExtra(NotificationHelper.EXTRA_ALERT_USER_NAME, intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME))
                 putExtra(NotificationHelper.EXTRA_ALERT_TIME, intent.getLongExtra(NotificationHelper.EXTRA_ALERT_TIME, System.currentTimeMillis()))
             }
             startActivity(detailIntent)

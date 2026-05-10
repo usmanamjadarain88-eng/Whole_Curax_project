@@ -27,7 +27,7 @@ class AdminSparklineChartView @JvmOverloads constructor(
     }
     private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
-        strokeWidth = 3f * resources.displayMetrics.density
+        strokeWidth = 2.5f * resources.displayMetrics.density
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
@@ -56,8 +56,8 @@ class AdminSparklineChartView @JvmOverloads constructor(
         val density = resources.displayMetrics.density
         val padL = 4f * density
         val padR = 4f * density
-        val padT = 6f * density
-        val padB = 8f * density
+        val padT = 4f * density
+        val padB = 6f * density
         val w = width.toFloat()
         val h = height.toFloat()
         val innerW = (w - padL - padR).coerceAtLeast(1f)

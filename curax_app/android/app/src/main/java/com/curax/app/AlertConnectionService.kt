@@ -42,7 +42,7 @@ class AlertConnectionService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var screenOnReceiver: BroadcastReceiver? = null
 
-    var onAlertReceived: ((type: String, message: String) -> Unit)? = null
+    var onAlertReceived: ((type: String, message: String, userName: String) -> Unit)? = null
     var onConnectionStateChanged: ((connected: Boolean) -> Unit)? = null
 
     inner class LocalBinder : Binder() {
@@ -205,12 +205,13 @@ class AlertConnectionService : Service() {
                     if (obj.has("action") && obj.optString("action") == "alert") return
                     val type = obj.optString("type", "alert")
                     val message = obj.optString("message", text)
+                    val userName = parseRelayUserName(obj)
                     runOnMain {
-                        onAlertReceived?.invoke(type, message)
+                        onAlertReceived?.invoke(type, message, userName)
                         updateNotification(true)
                     }
                 } catch (_: Exception) {
-                    runOnMain { onAlertReceived?.invoke("alert", text) }
+                    runOnMain { onAlertReceived?.invoke("alert", text, "") }
                 }
             }
 
@@ -352,6 +353,15 @@ class AlertConnectionService : Service() {
         disconnect()
         releaseWakeLock()
         super.onDestroy()
+    }
+
+    private fun parseRelayUserName(obj: JSONObject): String {
+        val keys = arrayOf("user_name", "user_display_name", "patient_name", "display_name", "linked_user_name")
+        for (k in keys) {
+            val s = obj.optString(k, "").trim()
+            if (s.isNotEmpty()) return s
+        }
+        return ""
     }
 
     companion object {

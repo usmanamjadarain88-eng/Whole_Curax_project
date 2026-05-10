@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import threading
 import time
 
@@ -855,7 +856,7 @@ def _wake_relay_if_needed(relay_url):
         pass
 
 
-def _send_alert_via_relay(bot_id, api_key, alert_type, message, fcm_token=None):
+def _send_alert_via_relay(bot_id, api_key, alert_type, message, fcm_token=None, user_name=None):
     """Send alert to relay so it reaches the user at any cost. FCM token from DB so push works even when phone is off.
     Wakes relay if cold (Render), then retries WebSocket with long timeouts until relay is up; relay sends via FCM."""
     import json
@@ -874,6 +875,9 @@ def _send_alert_via_relay(bot_id, api_key, alert_type, message, fcm_token=None):
         "type": alert_type or "alert",
         "message": message or "",
     }
+    un = (user_name or "").strip()
+    if un:
+        payload["user_name"] = un
     fcm = (fcm_token or "").strip() or None
     if fcm:
         payload["fcm_token"] = fcm
@@ -956,8 +960,16 @@ def notify_event_by_user(body, query, headers):
     except Exception:
         pass
     admin_fcm = db.get_fcm_token_for_bot(admin_bot_id, admin_api_key)
+    relay_user_name = (info.get("user_name") or "").strip()
     def _deliver():
-        _send_alert_via_relay(admin_bot_id, admin_api_key, event_type, message, fcm_token=admin_fcm)
+        _send_alert_via_relay(
+            admin_bot_id,
+            admin_api_key,
+            event_type,
+            message,
+            fcm_token=admin_fcm,
+            user_name=relay_user_name or None,
+        )
     threading.Thread(target=_deliver, daemon=True, name="NotifyRelay").start()
     return (200, {"message": "ok"})
 def notify_event_to_user(body, query, headers):
@@ -989,7 +1001,7 @@ def notify_event_to_user(body, query, headers):
     return (200, {"message": "ok"})
 def get_linked_users(body, query, headers):
     """GET /admin/linked-users?access_code=... -> list of users linked to this admin (excluding dashboard user).
-    Optional dose_preview=1 appends recent_doses (last 12) per user for admin dashboard at-a-glance."""
+    Optional dose_preview=1 appends recent_doses (last 50) per user with medicine_name when known."""
     access_code = (query.get("access_code") or "").strip()
     db = get_db()
     if not db:
@@ -1002,11 +1014,46 @@ def get_linked_users(body, query, headers):
     admin_id = admin.get("id")
     users = db.get_all_users_by_admin_id(admin_id) or []
     want_doses = (query.get("dose_preview") or "").strip().lower() in ("1", "true", "yes")
+
+    def _dose_qty_from_dosage(dosage_val):
+        """Leading integer from dosage text (e.g. '2 tablets'); cap so '500mg' does not become 500 pills."""
+        if dosage_val is None:
+            return 1
+        s = str(dosage_val).strip()
+        if not s:
+            return 1
+        m = re.match(r"^(\d+)", s)
+        if not m:
+            return 1
+        n = int(m.group(1))
+        return n if 1 <= n <= 20 else 1
+
     if want_doses:
         for u in users:
             uid = (u.get("id") or "").strip()
             try:
-                u["recent_doses"] = db.list_dose_logs(uid, limit=12) if uid else []
+                doses = db.list_dose_logs(uid, limit=50) if uid else []
+                meds = db.list_medicines(uid) if uid else []
+                by_mid = {}
+                for m in meds or []:
+                    mid = m.get("id")
+                    if mid:
+                        by_mid[str(mid)] = m
+                for row in doses:
+                    mid = row.get("medicine_id")
+                    med_obj = by_mid.get(str(mid)) if mid else None
+                    nm = ((med_obj.get("name") or "").strip()) if med_obj else ""
+                    row["medicine_name"] = nm or None
+                    row["dose_quantity"] = _dose_qty_from_dosage(med_obj.get("dosage")) if med_obj else 1
+                    if med_obj is not None:
+                        try:
+                            q = med_obj.get("quantity")
+                            row["stock_quantity"] = int(q) if q is not None else None
+                        except (TypeError, ValueError):
+                            row["stock_quantity"] = None
+                    else:
+                        row["stock_quantity"] = None
+                u["recent_doses"] = doses
             except Exception:
                 u["recent_doses"] = []
     return (200, {"users": users})

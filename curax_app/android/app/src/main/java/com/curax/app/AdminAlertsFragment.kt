@@ -505,7 +505,7 @@ class AdminAlertsFragment : Fragment() {
         val apiItems = mutableListOf<AlertItem>()
         items.forEach { item ->
             if (item.id > 0L) {
-                alertDb.insertAlert(item.type, item.message, item.receivedAt)
+                alertDb.insertAlert(item.type, item.message, item.receivedAt, item.userName)
             } else {
                 apiItems.add(item)
             }

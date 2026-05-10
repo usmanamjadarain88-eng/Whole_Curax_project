@@ -52,6 +52,15 @@
                 android:textSize="18sp" />
 
             <TextView
+                android:id="@+id/tvDetailUser"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <TextView
                 android:id="@+id/tvDetailTime"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

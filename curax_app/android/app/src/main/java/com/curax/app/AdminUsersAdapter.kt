@@ -3,10 +3,7 @@ package com.curax.app
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.ImageView
-import android.widget.Spinner
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
@@ -18,14 +15,11 @@ data class AdminLinkedUserUiModel(
     val email: String,
     val desktopLinked: Boolean,
     val profilePictureDataUrl: String = "",
-    /** Server: `standalone` or `default` (empty = default). */
-    val displayMode: String = "",
     val isDemo: Boolean = false,
 )
 
 class AdminUsersAdapter(
     private val onCareMode: (AdminLinkedUserUiModel) -> Unit,
-    private val onDisplayModeSelected: (AdminLinkedUserUiModel, String) -> Unit,
 ) : RecyclerView.Adapter<AdminUsersAdapter.VH>() {
 
     private val items = mutableListOf<AdminLinkedUserUiModel>()
@@ -45,7 +39,7 @@ class AdminUsersAdapter(
     }
 
     override fun onBindViewHolder(holder: VH, position: Int) {
-        holder.bind(items[position], managingUserId, onCareMode, onDisplayModeSelected)
+        holder.bind(items[position], managingUserId, onCareMode)
     }
 
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -53,22 +47,19 @@ class AdminUsersAdapter(
         private val ivAvatar = itemView.findViewById<ImageView>(R.id.ivAdminUserAvatar)
         private val tvInitial = itemView.findViewById<TextView>(R.id.tvAdminUserInitial)
         private val tvName = itemView.findViewById<TextView>(R.id.tvAdminUserName)
-        private val tvEmail = itemView.findViewById<TextView>(R.id.tvAdminUserEmail)
         private val tvStatus = itemView.findViewById<TextView>(R.id.tvAdminUserStatus)
-        private val spMode = itemView.findViewById<Spinner>(R.id.spAdminUserDisplayMode)
         private val btnCare = itemView.findViewById<MaterialButton>(R.id.btnAdminUserCareMode)
 
         fun bind(
             row: AdminLinkedUserUiModel,
             managingUserId: String,
             onCareMode: (AdminLinkedUserUiModel) -> Unit,
-            onDisplayModeSelected: (AdminLinkedUserUiModel, String) -> Unit,
         ) {
             val ctx = itemView.context
-            val initial = row.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+            val displayName = row.name.trim().ifEmpty { ctx.getString(R.string.admin_user_display_fallback) }
+            val initial = displayName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
             tvInitial.text = initial
-            tvName.text = row.name
-            tvEmail.text = row.email.ifEmpty { ctx.getString(R.string.admin_hub_no_email) }
+            tvName.text = displayName
 
             val bmp = ProfilePictureDataUrl.decodeBitmap(row.profilePictureDataUrl)
             if (bmp != null) {
@@ -99,29 +90,6 @@ class AdminUsersAdapter(
                 },
             )
             btnCare.setOnClickListener { onCareMode(row) }
-
-            val modes = arrayOf(
-                ctx.getString(R.string.admin_users_mode_default),
-                ctx.getString(R.string.admin_users_mode_standalone),
-            )
-            val ad = ArrayAdapter(ctx, android.R.layout.simple_spinner_item, modes)
-            ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            spMode.adapter = ad
-            val wantPos = if (row.displayMode == "standalone") 1 else 0
-            spMode.onItemSelectedListener = null
-            spMode.setSelection(wantPos, false)
-            spMode.isEnabled = !row.isDemo && row.desktopLinked
-            spMode.alpha = if (spMode.isEnabled) 1f else 0.5f
-
-            spMode.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    if (!row.desktopLinked || row.isDemo) return
-                    val mode = if (position == 1) "standalone" else "default"
-                    val cur = row.displayMode.trim().lowercase().let { if (it == "standalone") "standalone" else "default" }
-                    if (mode != cur) onDisplayModeSelected(row, mode)
-                }
-                override fun onNothingSelected(parent: AdapterView<*>?) {}
-            }
         }
     }
 }

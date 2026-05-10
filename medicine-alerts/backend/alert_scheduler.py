@@ -166,12 +166,15 @@ class BackendAlertScheduler:
 
     # ---- Alert delivery ----
 
-    def _send_via_relay(self, bot_id, api_key, alert_type, message):
+    def _send_via_relay(self, bot_id, api_key, alert_type, message, user_name=None):
         bot_id = (bot_id or "").strip()
         api_key = (api_key or "").strip()
         if not bot_id or not api_key:
             return False
         payload = {"action": "alert", "bot_id": bot_id, "api_key": api_key, "type": alert_type, "message": message or ""}
+        un = (user_name or "").strip()
+        if un:
+            payload["user_name"] = un
         db = self._get_db()
         if db and hasattr(db, "get_fcm_token_for_bot"):
             try:
@@ -220,8 +223,11 @@ class BackendAlertScheduler:
         (auto-stored when admin registers on Android app with access code)."""
         bid = (ctx.get("admin_bot_id") or "").strip()
         akey = (ctx.get("admin_api_key") or "").strip()
+        un = None
+        if ctx.get("single_user_mode"):
+            un = ((ctx.get("user_name") or "").strip() or None)
         if bid and akey:
-            self._send_via_relay(bid, akey, alert_type, message)
+            self._send_via_relay(bid, akey, alert_type, message, user_name=un)
 
     def _notify_user_and_admin(self, ctx, alert_type, subject, body, send_email=True):
         """Send to user(s) and always to admin. In single_user_mode sends to that user + admin; body is prefixed with [User name]."""

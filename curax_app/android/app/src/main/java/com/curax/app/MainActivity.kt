@@ -78,8 +78,8 @@ class MainActivity : AppCompatActivity() {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             connectionService = (service as AlertConnectionService.LocalBinder).getService()
-            connectionService?.onAlertReceived = { type, message ->
-                alertDb.insertAlert(type, message)
+            connectionService?.onAlertReceived = { type, message, userName ->
+                alertDb.insertAlert(type, message, userName = userName)
                 runOnUiThread { loadAlerts() }
             }
             connectionService?.onConnectionStateChanged = { connected ->

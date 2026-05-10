@@ -53,7 +53,7 @@ def _get_access_token() -> Optional[str]:
         return None
 
 
-def _send_fcm_sync(token: str, alert_type: str, message: str) -> bool:
+def _send_fcm_sync(token: str, alert_type: str, message: str, user_name: Optional[str] = None) -> bool:
     """Send FCM message via HTTP v1. Returns True only when accepted by FCM."""
     if not FIREBASE_PROJECT_ID or not token:
         return False
@@ -63,10 +63,14 @@ def _send_fcm_sync(token: str, alert_type: str, message: str) -> bool:
         return False
 
     url = f"https://fcm.googleapis.com/v1/projects/{FIREBASE_PROJECT_ID}/messages:send"
+    data = {"type": alert_type, "message": message}
+    un = (user_name or "").strip()
+    if un:
+        data["user_name"] = un
     body = {
         "message": {
             "token": token,
-            "data": {"type": alert_type, "message": message},
+            "data": data,
             "android": {
                 "priority": "high",
                 "ttl": "120s"
@@ -102,11 +106,11 @@ def _send_fcm_sync(token: str, alert_type: str, message: str) -> bool:
         return False
 
 
-async def send_fcm(token: str, alert_type: str, message: str) -> bool:
+async def send_fcm(token: str, alert_type: str, message: str, user_name: Optional[str] = None) -> bool:
     if not token:
         return False
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _send_fcm_sync, token, alert_type, message)
+    return await loop.run_in_executor(None, _send_fcm_sync, token, alert_type, message, user_name)
 
 
 async def handle_websocket(request: web.Request) -> web.WebSocketResponse:
@@ -132,7 +136,11 @@ async def handle_websocket(request: web.Request) -> web.WebSocketResponse:
             akey = (data.get("api_key") or "").strip()
             atype = data.get("type", "alert")
             amsg = data.get("message", "")
-            payload = json.dumps({"type": atype, "message": amsg})
+            alert_obj = {"type": atype, "message": amsg}
+            un_in = (data.get("user_name") or "").strip()
+            if un_in:
+                alert_obj["user_name"] = un_in
+            payload = json.dumps(alert_obj)
             # Prefer fcm_token from payload (backend sends from DB) so FCM works even if app never connected to relay.
             payload_fcm = (data.get("fcm_token") or "").strip() or None
             print(f"  Incoming alert for bot_id={bid} payload_fcm={'yes' if payload_fcm else 'no'}")
@@ -150,7 +158,7 @@ async def handle_websocket(request: web.Request) -> web.WebSocketResponse:
 
                 # Primary path: FCM first (works when screen off / FCM active; no socket needed).
                 if fcm_token:
-                    if await send_fcm(fcm_token, atype, amsg):
+                    if await send_fcm(fcm_token, atype, amsg, user_name=un_in or None):
                         sent = True
                         print(f"  -> Pushed via FCM: {bid}")
                     else:

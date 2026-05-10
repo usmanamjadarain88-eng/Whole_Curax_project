@@ -16,6 +16,7 @@ class AlertDetailActivity : AppCompatActivity() {
     private lateinit var alertDb: AlertDb
     private lateinit var tvType: TextView
     private lateinit var tvMessage: TextView
+    private lateinit var tvUser: TextView
     private lateinit var tvTime: TextView
 
     private var alertId: Long = -1L
@@ -62,6 +63,8 @@ class AlertDetailActivity : AppCompatActivity() {
                     NotificationHelper.EXTRA_ALERT_TIME,
                     System.currentTimeMillis()
                 )
+            val fallbackUser =
+                intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME)?.trim().orEmpty()
             startActivity(
                 Intent(this, PinEntryActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
@@ -78,6 +81,7 @@ class AlertDetailActivity : AppCompatActivity() {
                         NotificationHelper.EXTRA_ALERT_MESSAGE,
                         fallbackMessage
                     )
+                    putExtra(NotificationHelper.EXTRA_ALERT_USER_NAME, fallbackUser)
                     putExtra(
                         NotificationHelper.EXTRA_ALERT_TIME,
                         fallbackTime
@@ -104,6 +108,7 @@ class AlertDetailActivity : AppCompatActivity() {
 
         tvType = findViewById(R.id.tvDetailType)
         tvMessage = findViewById(R.id.tvDetailMessage)
+        tvUser = findViewById(R.id.tvDetailUser)
         tvTime = findViewById(R.id.tvDetailTime)
 
         val fallbackType =
@@ -117,20 +122,29 @@ class AlertDetailActivity : AppCompatActivity() {
                 ?: intent.getStringExtra("gcm.notification.body")
                 ?: ""
         val fallbackTime = intent.getLongExtra(NotificationHelper.EXTRA_ALERT_TIME, System.currentTimeMillis())
+        val fallbackUser =
+            intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME)?.trim().orEmpty()
         alertId = intent.getLongExtra(NotificationHelper.EXTRA_ALERT_ID, -1L)
 
         if (alertId <= 0L && fallbackMessage.isNotEmpty()) {
             // If launched from system notification, store alert so it appears in list.
-            alertId = alertDb.insertAlert(fallbackType, fallbackMessage)
+            alertId = alertDb.insertAlert(fallbackType, fallbackMessage, userName = fallbackUser)
         }
 
         val fromDb = if (alertId > 0L) alertDb.getAlertById(alertId) else null
         val type = fromDb?.type ?: fallbackType
         val message = fromDb?.message ?: fallbackMessage
         val time = fromDb?.receivedAt ?: fallbackTime
+        val userLabel = fromDb?.userName?.trim().orEmpty().ifEmpty { fallbackUser }
 
         tvType.text = type
         tvMessage.text = message
+        if (userLabel.isNotEmpty()) {
+            tvUser.visibility = android.view.View.VISIBLE
+            tvUser.text = getString(R.string.alert_detail_linked_user_fmt, userLabel)
+        } else {
+            tvUser.visibility = android.view.View.GONE
+        }
         tvTime.text = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault()).format(Date(time))
     }
 

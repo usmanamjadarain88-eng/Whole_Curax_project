@@ -79,7 +79,9 @@ class AdminAlertsAdapter(
 
         holder.tvType.text = item.type.uppercase(Locale.getDefault())
         holder.tvMessage.text = item.message
-        holder.tvUser.text = item.userName.ifEmpty { "User" }
+        holder.tvUser.text = item.userName.ifEmpty {
+            holder.itemView.context.getString(R.string.admin_user_display_fallback)
+        }
         holder.tvTime.text = timeFormat.format(Date(item.receivedAt))
         holder.cbSelect.visibility = if (selectionMode) View.VISIBLE else View.GONE
         holder.cbSelect.isChecked = selected

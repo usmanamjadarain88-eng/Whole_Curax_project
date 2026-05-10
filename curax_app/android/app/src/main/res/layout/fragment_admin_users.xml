@@ -96,16 +96,7 @@
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:lineSpacingMultiplier="1.15"
-                android:text="@string/admin_users_screen_subtitle"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <!-- Linked roster first: photo, mode, care -->
+            <!-- Linked roster: person, status, Care -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -147,7 +138,7 @@
                             android:textStyle="bold" />
 
                         <TextView
-                            android:layout_width="72dp"
+                            android:layout_width="88dp"
                             android:layout_height="wrap_content"
                             android:gravity="center"
                             android:letterSpacing="0.06"
@@ -157,17 +148,7 @@
                             android:textStyle="bold" />
 
                         <TextView
-                            android:layout_width="112dp"
-                            android:layout_height="wrap_content"
-                            android:gravity="center"
-                            android:letterSpacing="0.06"
-                            android:text="@string/admin_users_col_mode"
-                            android:textColor="@android:color/white"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="88dp"
+                            android:layout_width="96dp"
                             android:layout_height="wrap_content"
                             android:gravity="end"
                             android:letterSpacing="0.06"
@@ -211,54 +192,6 @@
                 android:textAllCaps="false"
                 app:cornerRadius="10dp"
                 app:strokeColor="@color/button_primary_bg" />
-
-            <!-- Incoming requests -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
-                android:letterSpacing="0.06"
-                android:text="@string/admin_users_pending_section"
-                android:textColor="@color/text_primary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                app:cardBackgroundColor="@color/key_value_bg"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/key_value_stroke"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="14dp">
-
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/recyclerPendingLinkRequests"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"
-                        tools:itemCount="1"
-                        tools:listitem="@layout/item_admin_pending_link_request" />
-
-                    <TextView
-                        android:id="@+id/tvPendingRequestsEmpty"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:lineSpacingMultiplier="1.2"
-                        android:paddingVertical="12dp"
-                        android:text="@string/admin_users_pending_empty"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
             <!-- Invite code -->
             <TextView

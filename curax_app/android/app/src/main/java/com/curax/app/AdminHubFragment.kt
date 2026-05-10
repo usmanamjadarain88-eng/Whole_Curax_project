@@ -27,8 +27,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Admin dashboard: summary metrics, volume charts, linkage donut, recent alerts.
- * Full roster and Care mode live on the Users tab.
+ * Admin home: greeting, actionable snapshot tiles, charts, and per-user dose history tables.
  */
 class AdminHubFragment : Fragment() {
 
@@ -51,11 +50,18 @@ class AdminHubFragment : Fragment() {
     private lateinit var tvChartAccountsCaption: TextView
     private lateinit var tvLegendLinked: TextView
     private lateinit var tvLegendPending: TextView
-    private lateinit var containerRecentAlerts: LinearLayout
-    private lateinit var tvRecentAlertsEmpty: TextView
+    private lateinit var tvPulseAlertsValue: TextView
+    private lateinit var tvPulsePeakValue: TextView
+    private lateinit var tvPulseReadyValue: TextView
+    private lateinit var cardHubStatUsers: MaterialCardView
+    private lateinit var cardHubStatRelay: MaterialCardView
+    private lateinit var cardHubStatAlerts: MaterialCardView
     private lateinit var cardAdminHubDosePreview: MaterialCardView
-    private lateinit var containerRosterDosePreview: LinearLayout
+    private lateinit var containerHubDoseTables: LinearLayout
     private lateinit var tvRosterDosePreviewEmpty: TextView
+
+    private var lastLinkageLinked: Int = 0
+    private var lastLinkagePending: Int = 0
 
     private val loadGeneration = AtomicInteger(0)
 
@@ -90,10 +96,14 @@ class AdminHubFragment : Fragment() {
         tvChartAccountsCaption = view.findViewById(R.id.tvChartAccountsCaption)
         tvLegendLinked = view.findViewById(R.id.tvLegendLinked)
         tvLegendPending = view.findViewById(R.id.tvLegendPending)
-        containerRecentAlerts = view.findViewById(R.id.containerRecentAlerts)
-        tvRecentAlertsEmpty = view.findViewById(R.id.tvRecentAlertsEmpty)
+        tvPulseAlertsValue = view.findViewById(R.id.tvPulseAlertsValue)
+        tvPulsePeakValue = view.findViewById(R.id.tvPulsePeakValue)
+        tvPulseReadyValue = view.findViewById(R.id.tvPulseReadyValue)
+        cardHubStatUsers = view.findViewById(R.id.cardHubStatUsers)
+        cardHubStatRelay = view.findViewById(R.id.cardHubStatRelay)
+        cardHubStatAlerts = view.findViewById(R.id.cardHubStatAlerts)
         cardAdminHubDosePreview = view.findViewById(R.id.cardAdminHubDosePreview)
-        containerRosterDosePreview = view.findViewById(R.id.containerRosterDosePreview)
+        containerHubDoseTables = view.findViewById(R.id.containerHubDoseTables)
         tvRosterDosePreviewEmpty = view.findViewById(R.id.tvRosterDosePreviewEmpty)
 
         val first = store.email.trim().substringBefore("@").ifEmpty { "" }.replaceFirstChar {
@@ -108,7 +118,21 @@ class AdminHubFragment : Fragment() {
         refreshLocalStats()
         refreshVolumeCharts()
         applyDonutPlaceholder()
+        refreshPulseStats()
+        wireHubSnapshotNavigation()
         fetchDashboardMetrics()
+    }
+
+    private fun wireHubSnapshotNavigation() {
+        cardHubStatUsers.setOnClickListener {
+            (activity as? AdminDashboardActivity)?.navigateAdminHomeToUsersTab()
+        }
+        cardHubStatRelay.setOnClickListener {
+            (activity as? AdminDashboardActivity)?.openAdminDrawerForRelay()
+        }
+        cardHubStatAlerts.setOnClickListener {
+            (activity as? AdminDashboardActivity)?.navigateAdminHomeToAlertsTab()
+        }
     }
 
     override fun onStart() {
@@ -149,7 +173,6 @@ class AdminHubFragment : Fragment() {
         val alertCount = AlertDb(requireContext()).getAllAlerts().size
         tvStatAlerts.text = alertCount.toString()
         refreshVolumeCharts()
-        populateRecentAlerts()
         val relayOn = (activity as? AdminDashboardActivity)?.isAdminConnected() == true
         tvStatRelay.text = if (relayOn) {
             getString(R.string.admin_hub_relay_on)
@@ -172,6 +195,7 @@ class AdminHubFragment : Fragment() {
             progressLoad.visibility = View.GONE
             tvStatUsers.text = "0"
             applyDonutPlaceholder()
+            refreshPulseStats()
             cardAdminHubDosePreview.visibility = View.GONE
             return
         }
@@ -179,37 +203,59 @@ class AdminHubFragment : Fragment() {
 
         val gen = loadGeneration.incrementAndGet()
         progressLoad.visibility = View.VISIBLE
+        val enc = java.net.URLEncoder.encode(accessCode, "UTF-8")
+        val urlFast = "$base/admin/linked-users?access_code=$enc"
 
         Thread {
             try {
-                val url =
-                    "$base/admin/linked-users?access_code=${java.net.URLEncoder.encode(accessCode, "UTF-8")}&dose_preview=1"
-                val res = http.newCall(Request.Builder().url(url).get().build()).execute()
-                val body = res.body?.string().orEmpty()
-                val data = if (body.isNotBlank()) JSONObject(body) else JSONObject()
-                val usersArr = data.optJSONArray("users") ?: JSONArray()
+                val res1 = http.newCall(Request.Builder().url(urlFast).get().build()).execute()
+                val body1 = res1.body?.string().orEmpty()
+                val data1 = if (body1.isNotBlank()) JSONObject(body1) else JSONObject()
+                val usersFast = data1.optJSONArray("users") ?: JSONArray()
 
                 activity?.runOnUiThread {
                     if (gen != loadGeneration.get()) return@runOnUiThread
                     progressLoad.visibility = View.GONE
-                    if (!res.isSuccessful) {
+                    if (!res1.isSuccessful) {
                         tvStatUsers.text = "—"
                         applyDonutPlaceholder()
                         refreshLocalStats()
-                        populateRosterDosePreview(loadFailed = true)
+                        refreshPulseStats()
+                        populateHubDoseTables(loadFailed = true)
                         return@runOnUiThread
                     }
-                    tvStatUsers.text = usersArr.length().toString()
+                    tvStatUsers.text = usersFast.length().toString()
                     var linked = 0
                     var pending = 0
-                    for (i in 0 until usersArr.length()) {
-                        val u = usersArr.optJSONObject(i) ?: continue
+                    for (i in 0 until usersFast.length()) {
+                        val u = usersFast.optJSONObject(i) ?: continue
                         val botId = u.optString("bot_id", "").trim()
                         if (botId.isNotEmpty()) linked++ else pending++
                     }
                     applyDonutFromCounts(linked, pending)
-                    populateRosterDosePreview(usersArr = usersArr, loadFailed = false)
                     refreshLocalStats()
+                    refreshPulseStats()
+                    containerHubDoseTables.removeAllViews()
+                    tvRosterDosePreviewEmpty.text = getString(R.string.admin_hub_dose_preview_loading)
+                    tvRosterDosePreviewEmpty.visibility = View.VISIBLE
+                }
+
+                if (res1.isSuccessful) {
+                    val urlDose = "$base/admin/linked-users?access_code=$enc&dose_preview=1"
+                    val res2 = http.newCall(Request.Builder().url(urlDose).get().build()).execute()
+                    val body2 = res2.body?.string().orEmpty()
+                    val data2 = if (body2.isNotBlank()) JSONObject(body2) else JSONObject()
+                    val usersDose = data2.optJSONArray("users") ?: JSONArray()
+
+                    activity?.runOnUiThread {
+                        if (gen != loadGeneration.get()) return@runOnUiThread
+                        if (!res2.isSuccessful) {
+                            populateHubDoseTables(loadFailed = true)
+                        } else {
+                            populateHubDoseTables(usersArr = usersDose, loadFailed = false)
+                        }
+                        refreshLocalStats()
+                    }
                 }
             } catch (_: Exception) {
                 activity?.runOnUiThread {
@@ -218,7 +264,8 @@ class AdminHubFragment : Fragment() {
                     tvStatUsers.text = "—"
                     applyDonutPlaceholder()
                     refreshLocalStats()
-                    populateRosterDosePreview(loadFailed = true)
+                    refreshPulseStats()
+                    populateHubDoseTables(loadFailed = true)
                 }
             }
         }.start()
@@ -261,41 +308,31 @@ class AdminHubFragment : Fragment() {
         } else {
             getString(R.string.admin_hub_chart_alerts_live)
         }
+        refreshPulseStats()
     }
 
-    private fun populateRecentAlerts() {
-        if (!this::containerRecentAlerts.isInitialized) return
-        containerRecentAlerts.removeAllViews()
-        val dbAlerts = AlertDb(requireContext()).getAllAlerts()
-        val alerts = if (dbAlerts.isNotEmpty()) {
-            dbAlerts.take(8)
-        } else if (AppRole.isAdmin(requireContext())) {
-            AdminDemoData.adminPreviewAlerts().take(8)
-        } else {
-            emptyList()
-        }
-        if (alerts.isEmpty()) {
-            tvRecentAlertsEmpty.visibility = View.VISIBLE
-            return
-        }
-        tvRecentAlertsEmpty.visibility = View.GONE
-        val fmt = SimpleDateFormat("MMM d HH:mm", Locale.getDefault())
-        val inflater = layoutInflater
-        for (a in alerts) {
-            val row = inflater.inflate(R.layout.item_recent_alert_row, containerRecentAlerts, false)
-            row.findViewById<TextView>(R.id.tvRecentAlertUser).text =
-                a.userName.ifBlank { getString(R.string.admin_user_display_fallback) }
-            row.findViewById<TextView>(R.id.tvRecentAlertType).text =
-                a.type.ifBlank { "—" }
-            row.findViewById<TextView>(R.id.tvRecentAlertTime).text =
-                fmt.format(Date(a.receivedAt))
-            row.findViewById<TextView>(R.id.tvRecentAlertMsg).text = a.message
-            containerRecentAlerts.addView(row)
-        }
+    private fun refreshPulseStats() {
+        if (!this::tvPulseAlertsValue.isInitialized) return
+        val buckets = computeSevenDayAlertBuckets()
+        tvPulseAlertsValue.text = buckets.sum().toString()
+        val maxIdx = buckets.indices.maxByOrNull { buckets[it] } ?: 0
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = System.currentTimeMillis()
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.add(Calendar.DAY_OF_YEAR, -(6 - maxIdx))
+        tvPulsePeakValue.text = SimpleDateFormat("EEE", Locale.getDefault()).format(cal.time)
+        val total = lastLinkageLinked + lastLinkagePending
+        val pct = if (total > 0) (lastLinkageLinked * 100 / total) else 0
+        tvPulseReadyValue.text = "${pct}%"
     }
 
     private fun applyDonutPlaceholder() {
         if (!this::chartDonut.isInitialized) return
+        lastLinkageLinked = 0
+        lastLinkagePending = 0
         val green = ContextCompat.getColor(requireContext(), R.color.chart_status_normal)
         val amber = ContextCompat.getColor(requireContext(), R.color.chart_status_low)
         chartDonut.setSlices(
@@ -310,6 +347,7 @@ class AdminHubFragment : Fragment() {
         tvLegendLinked.text = getString(R.string.admin_hub_legend_linked_fmt, 0)
         tvLegendPending.text = getString(R.string.admin_hub_legend_pending_fmt, 0)
         tvChartAccountsCaption.text = getString(R.string.admin_hub_chart_accounts_sample)
+        refreshPulseStats()
     }
 
     private fun formatDoseTakenAt(raw: String, displayFmt: SimpleDateFormat): String {
@@ -332,9 +370,15 @@ class AdminHubFragment : Fragment() {
         return raw
     }
 
-    private fun populateRosterDosePreview(usersArr: JSONArray = JSONArray(), loadFailed: Boolean = false) {
-        if (!this::containerRosterDosePreview.isInitialized) return
-        containerRosterDosePreview.removeAllViews()
+    /** Uses server `name` only (same headline rule as Users tab rows). */
+    private fun hubLinkedUserDisplayName(u: JSONObject): String {
+        val name = u.optString("name", "").trim()
+        return name.ifEmpty { getString(R.string.admin_user_display_fallback) }
+    }
+
+    private fun populateHubDoseTables(usersArr: JSONArray = JSONArray(), loadFailed: Boolean = false) {
+        if (!this::containerHubDoseTables.isInitialized) return
+        containerHubDoseTables.removeAllViews()
         if (loadFailed) {
             tvRosterDosePreviewEmpty.text = getString(R.string.admin_hub_dose_preview_load_failed)
             tvRosterDosePreviewEmpty.visibility = View.VISIBLE
@@ -345,41 +389,51 @@ class AdminHubFragment : Fragment() {
             tvRosterDosePreviewEmpty.visibility = View.VISIBLE
             return
         }
-        val displayFmt = SimpleDateFormat("MMM d HH:mm", Locale.getDefault())
-        var anyLine = false
+        val displayFmt = SimpleDateFormat("MMM d, HH:mm", Locale.getDefault())
+        val inflater = layoutInflater
+        var anyBlock = false
         for (i in 0 until usersArr.length()) {
             val u = usersArr.optJSONObject(i) ?: continue
-            val name = u.optString("name", "").trim().ifEmpty {
-                u.optString("email", "").trim().ifEmpty { getString(R.string.admin_user_display_fallback) }
-            }
+            val blockTitle = hubLinkedUserDisplayName(u)
             val arr = u.optJSONArray("recent_doses") ?: JSONArray()
             if (arr.length() == 0) continue
-            anyLine = true
-            val title = TextView(requireContext()).apply {
-                text = name
-                setTextColor(ContextCompat.getColor(requireContext(), R.color.text_primary))
-                textSize = 14f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                val padTop = if (containerRosterDosePreview.childCount == 0) 0 else 12
-                setPadding(0, padTop, 0, 4)
-            }
-            containerRosterDosePreview.addView(title)
-            val maxRows = minOf(arr.length(), 8)
+            anyBlock = true
+            val block = inflater.inflate(R.layout.admin_hub_user_dose_block, containerHubDoseTables, false)
+            block.findViewById<TextView>(R.id.tvHubDoseBlockUserName).text = blockTitle
+            val rowsParent = block.findViewById<LinearLayout>(R.id.containerHubDoseRowsForUser)
+            val maxRows = minOf(arr.length(), 50)
             for (j in 0 until maxRows) {
                 val d = arr.optJSONObject(j) ?: continue
-                val box = d.optString("box_id", "").trim().ifEmpty { "—" }
-                val src = d.optString("source", "").trim().ifEmpty { "—" }
-                val taken = d.optString("taken_at", "")
-                val line = TextView(requireContext()).apply {
-                    text = "· $box · $src · ${formatDoseTakenAt(taken, displayFmt)}"
-                    setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-                    textSize = 12f
-                    setPadding(8, 2, 0, 2)
+                val row = inflater.inflate(R.layout.item_dose_history_row, rowsParent, false)
+                row.findViewById<TextView>(R.id.tvDoseHistTs).text =
+                    formatDoseTakenAt(d.optString("taken_at", ""), displayFmt)
+                row.findViewById<TextView>(R.id.tvDoseHistBox).text =
+                    d.optString("box_id", "").trim().ifEmpty { "—" }
+                val medName = d.optString("medicine_name", "").trim()
+                row.findViewById<TextView>(R.id.tvDoseHistMed).text =
+                    medName.ifEmpty { "—" }
+                val dq = when {
+                    d.has("dose_quantity") && !d.isNull("dose_quantity") ->
+                        d.optInt("dose_quantity", 1).coerceAtLeast(1)
+                    else -> 1
                 }
-                containerRosterDosePreview.addView(line)
+                row.findViewById<TextView>(R.id.tvDoseHistDose).text = dq.toString()
+                val remTxt = when {
+                    d.has("stock_quantity") && !d.isNull("stock_quantity") -> {
+                        try {
+                            d.getInt("stock_quantity").toString()
+                        } catch (_: Exception) {
+                            "—"
+                        }
+                    }
+                    else -> "—"
+                }
+                row.findViewById<TextView>(R.id.tvDoseHistRem).text = remTxt
+                rowsParent.addView(row)
             }
+            containerHubDoseTables.addView(block)
         }
-        if (anyLine) {
+        if (anyBlock) {
             tvRosterDosePreviewEmpty.visibility = View.GONE
         } else {
             tvRosterDosePreviewEmpty.text = getString(R.string.admin_hub_dose_preview_empty_no_logs)
@@ -389,6 +443,8 @@ class AdminHubFragment : Fragment() {
 
     private fun applyDonutFromCounts(linked: Int, pending: Int) {
         if (!this::chartDonut.isInitialized) return
+        lastLinkageLinked = linked
+        lastLinkagePending = pending
         val total = linked + pending
         if (total == 0) {
             applyDonutPlaceholder()
@@ -408,5 +464,6 @@ class AdminHubFragment : Fragment() {
         tvLegendLinked.text = getString(R.string.admin_hub_legend_linked_fmt, linked)
         tvLegendPending.text = getString(R.string.admin_hub_legend_pending_fmt, pending)
         tvChartAccountsCaption.text = getString(R.string.admin_hub_chart_accounts_live)
+        refreshPulseStats()
     }
 }

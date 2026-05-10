@@ -85,7 +85,12 @@ class CuraxFirebaseMessagingService : FirebaseMessagingService() {
         val data = remoteMessage.data
         val type = data["type"] ?: "alert"
         val message = data["message"] ?: remoteMessage.notification?.body ?: "New alert"
-        Log.d(TAG, "FCM alert: type=$type message=$message")
+        val userName = listOfNotNull(data["user_name"], data["patient_name"], data["display_name"])
+            .firstOrNull { !it.isNullOrBlank() }
+            ?.toString()
+            ?.trim()
+            .orEmpty()
+        Log.d(TAG, "FCM alert: type=$type message=$message user=$userName")
         var wakeLock: PowerManager.WakeLock? = null
         try {
             // Wake device so full-screen intent can turn screen on and user sees alert even when screen was off
@@ -98,7 +103,7 @@ class CuraxFirebaseMessagingService : FirebaseMessagingService() {
                 acquire(15_000L) // Hold so full-screen intent can fire and turn screen on
             }
             val db = AlertDb(this)
-            val alertId = db.insertAlert(type, message)
+            val alertId = db.insertAlert(type, message, userName = userName)
 
             sendBroadcast(Intent(AlertEvents.ACTION_ALERTS_UPDATED))
 
@@ -108,7 +113,8 @@ class CuraxFirebaseMessagingService : FirebaseMessagingService() {
                 notificationId = alertId.toInt(),
                 alertId = alertId,
                 type = type,
-                message = message
+                message = message,
+                userName = userName,
             )
         } catch (e: Exception) {
             Log.e(TAG, "FCM handle error", e)

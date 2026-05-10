@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingBottom="16dp">
+
+    <TextView
+        android:id="@+id/tvHubDoseBlockUserName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="8dp"
+        android:textColor="@color/text_primary"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        tools:text="Jamie" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:fillViewport="false"
+        android:overScrollMode="never"
+        android:scrollbars="horizontal">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="@dimen/dose_history_table_row_height"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="128dp"
+                    android:layout_height="@dimen/dose_history_table_row_height"
+                    android:background="@drawable/bg_inventory_header_cell"
+                    android:ellipsize="end"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:text="@string/dose_hist_header_time"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="44dp"
+                    android:layout_height="@dimen/dose_history_table_row_height"
+                    android:background="@drawable/bg_inventory_header_cell"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:text="@string/dose_hist_header_box"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="140dp"
+                    android:layout_height="@dimen/dose_history_table_row_height"
+                    android:background="@drawable/bg_inventory_header_cell"
+                    android:ellipsize="end"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:text="@string/dose_hist_header_medicine"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="52dp"
+                    android:layout_height="@dimen/dose_history_table_row_height"
+                    android:background="@drawable/bg_inventory_header_cell"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:text="@string/dose_hist_header_dose"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="56dp"
+                    android:layout_height="@dimen/dose_history_table_row_height"
+                    android:background="@drawable/bg_inventory_header_cell"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:text="@string/dose_hist_header_remaining"
+                    android:textColor="@color/connection_panel_title"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/containerHubDoseRowsForUser"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingBottom="4dp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+</LinearLayout>

@@ -92,6 +92,7 @@ class LaunchActivity : AppCompatActivity() {
 
     companion object {
         /** Returning session: show splash + bottom progress briefly before home / PIN. */
-        private const val RETURNING_SPLASH_MS = 1_600L
+        /** Long enough for the indeterminate bar to animate ~2–3 cycles before transition. */
+        private const val RETURNING_SPLASH_MS = 4_500L
     }
 }

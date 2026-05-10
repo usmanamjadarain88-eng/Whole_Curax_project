@@ -90,8 +90,8 @@ class AdminDashboardActivity : AppCompatActivity() {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             connectionService = (service as AlertConnectionService.LocalBinder).getService()
-            connectionService?.onAlertReceived = { type, message ->
-                val alertId = alertDb.insertAlert(type, message)
+            connectionService?.onAlertReceived = { type, message, userName ->
+                val alertId = alertDb.insertAlert(type, message, userName = userName)
                 runOnUiThread {
                     if (!AppVisibility.isForeground) {
                         NotificationHelper.showAlertNotification(
@@ -99,7 +99,8 @@ class AdminDashboardActivity : AppCompatActivity() {
                             notificationId = alertId.toInt(),
                             alertId = alertId,
                             type = type,
-                            message = message
+                            message = message,
+                            userName = userName,
                         )
                     }
                     supportFragmentManager.fragments
@@ -383,14 +384,14 @@ class AdminDashboardActivity : AppCompatActivity() {
 
     /**
      * Acting as user: Care dashboard + Reminders + Settings for that user’s plan.
-     * Pure admin: Dashboard · Users · Alerts · Reports; alert prefs from toolbar menu.
+     * Pure admin: Dashboard · Users · Alerts · Reports · Connections; alert prefs from toolbar menu.
      */
     private fun refreshTabsForActAsUser() {
         val tl = tabLayout ?: return
         val vp = viewPager ?: return
         tabMediator?.detach()
         val actingAsUser = prefs.actAsUserId.isNotEmpty()
-        val count = if (actingAsUser) 3 else 4
+        val count = if (actingAsUser) 3 else 5
         vp.adapter = object : FragmentStateAdapter(this) {
             override fun getItemCount(): Int = count
             override fun createFragment(position: Int): androidx.fragment.app.Fragment {
@@ -405,7 +406,8 @@ class AdminDashboardActivity : AppCompatActivity() {
                         0 -> AdminHubFragment()
                         1 -> AdminUsersFragment()
                         2 -> AdminAlertsFragment()
-                        else -> AdminReportsFragment()
+                        3 -> AdminReportsFragment()
+                        else -> AdminConnectionsFragment()
                     }
                 }
             }
@@ -422,13 +424,34 @@ class AdminDashboardActivity : AppCompatActivity() {
                     0 -> getString(R.string.admin_tab_overview)
                     1 -> getString(R.string.admin_tab_users)
                     2 -> getString(R.string.admin_tab_alerts)
-                    else -> getString(R.string.admin_tab_reports)
+                    3 -> getString(R.string.admin_tab_reports)
+                    else -> getString(R.string.admin_tab_connections)
                 }
             }
         }.apply { attach() }
         vp.setCurrentItem(0, false)
         updateToolbarSubtitle()
         invalidateOptionsMenu()
+    }
+
+    /** Home hub: jump to Users tab (ignored while in Care mode). */
+    fun navigateAdminHomeToUsersTab() {
+        if (prefs.actAsUserId.isNotEmpty()) return
+        drawerLayout.closeDrawer(android.view.Gravity.START)
+        viewPager?.setCurrentItem(1, true)
+    }
+
+    /** Home hub: jump to Alerts tab. */
+    fun navigateAdminHomeToAlertsTab() {
+        if (prefs.actAsUserId.isNotEmpty()) return
+        drawerLayout.closeDrawer(android.view.Gravity.START)
+        viewPager?.setCurrentItem(2, true)
+    }
+
+    /** Home hub: open drawer where relay Connect lives. */
+    fun openAdminDrawerForRelay() {
+        if (prefs.actAsUserId.isNotEmpty()) return
+        drawerLayout.openDrawer(android.view.Gravity.START)
     }
 
     /** Open per-user management (same rules as drawer list). Callable from [AdminUsersFragment]. */

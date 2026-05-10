@@ -63,15 +63,6 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:lineSpacingMultiplier="1.15"
-                android:text="@string/admin_hub_dashboard_users_hint"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
                 android:text="@string/admin_hub_snapshot_section"
                 android:textColor="@color/text_primary"
@@ -87,11 +78,15 @@
                 android:orientation="horizontal">
 
                 <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardHubStatUsers"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="5dp"
                     android:layout_weight="1"
-                    android:minHeight="96dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:minHeight="72dp"
                     app:cardBackgroundColor="@color/key_value_bg"
                     app:cardCornerRadius="14dp"
                     app:cardElevation="0dp"
@@ -103,21 +98,21 @@
                         android:layout_height="match_parent"
                         android:gravity="center"
                         android:orientation="vertical"
-                        android:padding="12dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:id="@+id/tvStatUsersValue"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textColor="@color/connection_panel_title"
-                            android:textSize="24sp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             tools:text="3" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
+                            android:layout_marginTop="4dp"
                             android:gravity="center"
                             android:text="@string/admin_hub_stat_users"
                             android:textColor="@color/text_secondary"
@@ -126,11 +121,15 @@
                 </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardHubStatRelay"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginHorizontal="5dp"
                     android:layout_weight="1"
-                    android:minHeight="96dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:minHeight="72dp"
                     app:cardBackgroundColor="@color/key_value_bg"
                     app:cardCornerRadius="14dp"
                     app:cardElevation="0dp"
@@ -142,7 +141,7 @@
                         android:layout_height="match_parent"
                         android:gravity="center"
                         android:orientation="vertical"
-                        android:padding="12dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:id="@+id/tvStatRelayValue"
@@ -156,7 +155,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
+                            android:layout_marginTop="4dp"
                             android:gravity="center"
                             android:text="@string/admin_hub_stat_relay"
                             android:textColor="@color/text_secondary"
@@ -165,11 +164,15 @@
                 </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardHubStatAlerts"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="5dp"
                     android:layout_weight="1"
-                    android:minHeight="96dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:minHeight="72dp"
                     app:cardBackgroundColor="@color/key_value_bg"
                     app:cardCornerRadius="14dp"
                     app:cardElevation="0dp"
@@ -181,21 +184,21 @@
                         android:layout_height="match_parent"
                         android:gravity="center"
                         android:orientation="vertical"
-                        android:padding="12dp">
+                        android:padding="8dp">
 
                         <TextView
                             android:id="@+id/tvStatAlertsValue"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textColor="@color/connection_panel_title"
-                            android:textSize="24sp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             tools:text="12" />
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
+                            android:layout_marginTop="4dp"
                             android:gravity="center"
                             android:text="@string/admin_hub_stat_alerts"
                             android:textColor="@color/text_secondary"
@@ -228,7 +231,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -238,61 +241,45 @@
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@string/admin_hub_chart_alerts_desc"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
                     <com.curax.app.AdminSparklineChartView
                         android:id="@+id/chartAlertsSparkline"
                         android:layout_width="match_parent"
-                        android:layout_height="118dp"
-                        android:layout_marginTop="12dp" />
+                        android:layout_height="72dp"
+                        android:layout_marginTop="8dp" />
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="2dp"
                         android:gravity="center"
                         android:text="@string/admin_hub_chart_axis_7d"
                         android:textColor="@color/subtitle_grey"
-                        android:textSize="11sp" />
+                        android:textSize="10sp" />
 
                     <TextView
                         android:id="@+id/tvChartAlertsCaption"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="6dp"
                         android:gravity="center"
                         android:textColor="@color/subtitle_grey"
-                        android:textSize="11sp"
+                        android:textSize="10sp"
                         tools:text="Sample trend" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="18dp"
+                        android:layout_marginTop="12dp"
                         android:text="@string/admin_hub_chart_bars_title"
                         android:textColor="@color/connection_panel_title"
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@string/admin_hub_chart_bars_desc"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
                     <com.curax.app.AdminBarChartView
                         android:id="@+id/chartAlertsBars"
                         android:layout_width="match_parent"
-                        android:layout_height="132dp"
-                        android:layout_marginTop="10dp" />
+                        android:layout_height="86dp"
+                        android:layout_marginTop="6dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -310,7 +297,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="12dp">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -320,25 +307,17 @@
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@string/admin_hub_chart_accounts_desc"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="6dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
                         <com.curax.app.AdminDonutChartView
                             android:id="@+id/chartAccountsDonut"
                             android:layout_width="0dp"
-                            android:layout_height="156dp"
+                            android:layout_height="112dp"
                             android:layout_weight="1" />
 
                         <LinearLayout
@@ -397,10 +376,10 @@
                         android:id="@+id/tvChartAccountsCaption"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="8dp"
                         android:gravity="center"
                         android:textColor="@color/subtitle_grey"
-                        android:textSize="11sp"
+                        android:textSize="10sp"
                         tools:text="Live split" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -408,17 +387,18 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="@string/admin_hub_recent_alerts_section"
+                android:layout_marginTop="16dp"
+                android:text="@string/admin_hub_pulse_section"
                 android:textColor="@color/text_primary"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.06" />
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardHubPulseStats"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="8dp"
                 app:cardBackgroundColor="@color/summary_card"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
@@ -428,81 +408,90 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="14dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/admin_hub_recent_alerts_title"
-                        android:textColor="@color/connection_panel_title"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
+                    android:baselineAligned="false"
+                    android:orientation="horizontal"
+                    android:paddingStart="10dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="12dp">
 
                     <LinearLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:orientation="horizontal"
-                        android:paddingBottom="6dp">
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
 
                         <TextView
-                            android:layout_width="0dp"
+                            android:id="@+id/tvPulseAlertsValue"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_weight="0.28"
-                            android:text="@string/admin_hub_recent_alerts_header_type"
-                            android:textColor="@color/subtitle_grey"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
+                            android:textColor="@color/connection_panel_title"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            tools:text="5" />
 
                         <TextView
-                            android:layout_width="0dp"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_weight="0.26"
-                            android:text="@string/admin_hub_recent_alerts_header_time"
-                            android:textColor="@color/subtitle_grey"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="0.46"
-                            android:text="@string/admin_hub_recent_alerts_header_detail"
-                            android:textColor="@color/subtitle_grey"
-                            android:textSize="11sp"
-                            android:textStyle="bold" />
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="@string/admin_hub_pulse_alerts_label"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
                     </LinearLayout>
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="@color/summary_stroke" />
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/tvPulsePeakValue"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/connection_panel_title"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            tools:text="Wed" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="@string/admin_hub_pulse_peak_label"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
+                    </LinearLayout>
 
                     <LinearLayout
-                        android:id="@+id/containerRecentAlerts"
-                        android:layout_width="match_parent"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical" />
-
-                    <TextView
-                        android:id="@+id/tvRecentAlertsEmpty"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
+                        android:layout_weight="1"
                         android:gravity="center"
-                        android:text="@string/admin_hub_recent_alerts_empty"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
-                        android:visibility="gone" />
+                        android:orientation="vertical">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="@string/admin_hub_recent_alerts_footer"
-                        android:textColor="@color/subtitle_grey"
-                        android:textSize="11sp" />
+                        <TextView
+                            android:id="@+id/tvPulseReadyValue"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/connection_panel_title"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            tools:text="67%" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center"
+                            android:text="@string/admin_hub_pulse_ready_label"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -536,16 +525,16 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/admin_hub_dose_preview_title"
+                        android:text="@string/admin_hub_dose_history_title"
                         android:textColor="@color/connection_panel_title"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
                     <LinearLayout
-                        android:id="@+id/containerRosterDosePreview"
+                        android:id="@+id/containerHubDoseTables"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
+                        android:layout_marginTop="12dp"
                         android:orientation="vertical" />
 
                     <TextView
@@ -557,25 +546,8 @@
                         android:textColor="@color/text_secondary"
                         android:textSize="13sp"
                         android:visibility="gone" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:text="@string/admin_hub_dose_preview_footer"
-                        android:textColor="@color/subtitle_grey"
-                        android:textSize="11sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:lineSpacingMultiplier="1.15"
-                android:text="@string/admin_hub_roster_hint"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>
