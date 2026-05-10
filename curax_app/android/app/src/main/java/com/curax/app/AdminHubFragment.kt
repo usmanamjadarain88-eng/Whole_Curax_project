@@ -370,10 +370,37 @@ class AdminHubFragment : Fragment() {
         return raw
     }
 
-    /** Uses server `name` only (same headline rule as Users tab rows). */
+    /** Uses server `name` (includes first/last/username/email fallback from API). */
     private fun hubLinkedUserDisplayName(u: JSONObject): String {
         val name = u.optString("name", "").trim()
-        return name.ifEmpty { getString(R.string.admin_user_display_fallback) }
+        if (name.isNotEmpty() && !name.equals("null", ignoreCase = true)) return name
+        val email = u.optString("email", "").trim()
+        val fromEmail = if (email.contains("@")) email.substringBefore("@").trim() else ""
+        return fromEmail.ifEmpty { getString(R.string.admin_user_display_fallback) }
+    }
+
+    private fun dosePreviewText(d: JSONObject, vararg keys: String): String {
+        for (key in keys) {
+            if (!d.has(key) || d.isNull(key)) continue
+            val s = d.optString(key, "").trim()
+            if (s.isNotEmpty() && !s.equals("null", ignoreCase = true)) return s
+        }
+        return ""
+    }
+
+    private fun dosePreviewQuantity(d: JSONObject): Int {
+        val keys = arrayOf("dose_quantity", "quantity", "dose_qty", "qty")
+        for (key in keys) {
+            if (!d.has(key) || d.isNull(key)) continue
+            try {
+                val dbl = d.optDouble(key, Double.NaN)
+                if (!dbl.isNaN()) return dbl.toInt().coerceAtLeast(1)
+            } catch (_: Exception) {
+            }
+            val s = d.optString(key, "").trim()
+            s.toIntOrNull()?.let { return it.coerceAtLeast(1) }
+        }
+        return 1
     }
 
     private fun populateHubDoseTables(usersArr: JSONArray = JSONArray(), loadFailed: Boolean = false) {
@@ -409,14 +436,17 @@ class AdminHubFragment : Fragment() {
                     formatDoseTakenAt(d.optString("taken_at", ""), displayFmt)
                 row.findViewById<TextView>(R.id.tvDoseHistBox).text =
                     d.optString("box_id", "").trim().ifEmpty { "—" }
-                val medName = d.optString("medicine_name", "").trim()
+                val medName = dosePreviewText(
+                    d,
+                    "medicine_name",
+                    "medicineName",
+                    "med_name",
+                    "medicine",
+                    "drug_name",
+                )
                 row.findViewById<TextView>(R.id.tvDoseHistMed).text =
                     medName.ifEmpty { "—" }
-                val dq = when {
-                    d.has("dose_quantity") && !d.isNull("dose_quantity") ->
-                        d.optInt("dose_quantity", 1).coerceAtLeast(1)
-                    else -> 1
-                }
+                val dq = dosePreviewQuantity(d)
                 row.findViewById<TextView>(R.id.tvDoseHistDose).text = dq.toString()
                 val remTxt = when {
                     d.has("stock_quantity") && !d.isNull("stock_quantity") -> {

@@ -1,5 +1,7 @@
 package com.curax.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -38,6 +40,8 @@ class AdminConnectionsFragment : Fragment() {
     private lateinit var adapter: PendingLinkRequestsAdapter
     private lateinit var tvEmpty: TextView
     private lateinit var btnRefresh: MaterialButton
+    private lateinit var tvConnectionCode: TextView
+    private lateinit var btnCopyCode: MaterialButton
 
     private val loadGen = AtomicInteger(0)
     private var receiverRegistered = false
@@ -57,6 +61,8 @@ class AdminConnectionsFragment : Fragment() {
         recycler = view.findViewById(R.id.recyclerAdminConnectionsRequests)
         tvEmpty = view.findViewById(R.id.tvAdminConnectionsEmpty)
         btnRefresh = view.findViewById(R.id.btnAdminConnectionsRefresh)
+        tvConnectionCode = view.findViewById(R.id.tvAdminConnectionsConnectionCode)
+        btnCopyCode = view.findViewById(R.id.btnAdminConnectionsCopyCode)
 
         adapter = PendingLinkRequestsAdapter(
             onAccept = { row -> postDecision(row, accept = true) },
@@ -67,7 +73,23 @@ class AdminConnectionsFragment : Fragment() {
         recycler.adapter = adapter
 
         btnRefresh.setOnClickListener { loadPending() }
+        btnCopyCode.setOnClickListener {
+            val code = prefs.connectionCode.trim()
+            if (code.isEmpty()) {
+                CuraxFeedback.warn(this, getString(R.string.connection_code_not_available), long = true)
+                return@setOnClickListener
+            }
+            (requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText("", code))
+            CuraxFeedback.success(this, getString(R.string.admin_hub_code_copied))
+        }
+        bindConnectionCode()
         loadPending()
+    }
+
+    private fun bindConnectionCode() {
+        if (!this::tvConnectionCode.isInitialized) return
+        tvConnectionCode.text = prefs.connectionCode.trim().ifEmpty { "—" }
     }
 
     override fun onStart() {
@@ -85,6 +107,7 @@ class AdminConnectionsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        bindConnectionCode()
         loadPending()
     }
 
@@ -109,6 +132,7 @@ class AdminConnectionsFragment : Fragment() {
             tvEmpty.visibility = View.VISIBLE
             tvEmpty.text = getString(R.string.admin_hub_need_sign_in)
             recycler.visibility = View.GONE
+            bindConnectionCode()
             return
         }
 
@@ -148,6 +172,7 @@ class AdminConnectionsFragment : Fragment() {
             activity?.runOnUiThread {
                 if (gen != loadGen.get()) return@runOnUiThread
                 progress.visibility = View.GONE
+                bindConnectionCode()
                 if (httpErr) {
                     adapter.submit(emptyList())
                     tvEmpty.visibility = View.VISIBLE
@@ -158,9 +183,22 @@ class AdminConnectionsFragment : Fragment() {
 
                 val showDemo = pendingRows.isEmpty()
                 val forUi = if (showDemo) {
+                    val c = requireContext()
                     listOf(
-                        PendingLinkRequestUi("demo_preview_1", "", "", "", isDemo = true),
-                        PendingLinkRequestUi("demo_preview_2", "", "", "", isDemo = true),
+                        PendingLinkRequestUi(
+                            "demo_preview_1",
+                            "usman.preview@example.com",
+                            c.getString(R.string.admin_demo_name_usman),
+                            "",
+                            isDemo = true,
+                        ),
+                        PendingLinkRequestUi(
+                            "demo_preview_2",
+                            "zara.preview@example.com",
+                            c.getString(R.string.admin_demo_name_zara),
+                            "",
+                            isDemo = true,
+                        ),
                     )
                 } else {
                     pendingRows

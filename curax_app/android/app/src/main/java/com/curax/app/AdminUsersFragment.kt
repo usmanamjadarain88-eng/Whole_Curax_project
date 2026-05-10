@@ -1,7 +1,5 @@
 package com.curax.app
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -25,7 +23,7 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-/** Linked roster + invite code (requests live under Connections tab). */
+/** Linked roster; invite code lives under Connections. */
 class AdminUsersFragment : Fragment() {
 
     private val http = OkHttpClient.Builder()
@@ -44,9 +42,6 @@ class AdminUsersFragment : Fragment() {
     private lateinit var cardManaging: MaterialCardView
     private lateinit var tvManagingName: TextView
     private lateinit var btnExitCare: MaterialButton
-    private lateinit var tvConnectionCode: TextView
-    private lateinit var btnCopyCode: MaterialButton
-
     private val loadGen = AtomicInteger(0)
 
     private var receiverRegistered = false
@@ -71,8 +66,6 @@ class AdminUsersFragment : Fragment() {
         cardManaging = view.findViewById(R.id.cardAdminUsersManaging)
         tvManagingName = view.findViewById(R.id.tvAdminUsersManagingName)
         btnExitCare = view.findViewById(R.id.btnAdminUsersExitCare)
-        tvConnectionCode = view.findViewById(R.id.tvAdminUsersConnectionCode)
-        btnCopyCode = view.findViewById(R.id.btnAdminUsersCopyCode)
 
         linkedAdapter = AdminUsersAdapter(
             onCareMode = { row ->
@@ -88,8 +81,6 @@ class AdminUsersFragment : Fragment() {
         recyclerLinked.isNestedScrollingEnabled = false
         recyclerLinked.adapter = linkedAdapter
 
-        bindConnectionCode()
-
         btnRefresh.setOnClickListener { refreshAll() }
         btnRetry.setOnClickListener { refreshAll() }
         btnExitCare.setOnClickListener {
@@ -100,23 +91,8 @@ class AdminUsersFragment : Fragment() {
             refreshAll()
         }
 
-        btnCopyCode.setOnClickListener {
-            val code = prefs.connectionCode.trim()
-            if (code.isEmpty()) {
-                CuraxFeedback.warn(this, getString(R.string.connection_code_not_available), long = true)
-                return@setOnClickListener
-            }
-            (requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                .setPrimaryClip(ClipData.newPlainText("", code))
-            CuraxFeedback.success(this, getString(R.string.admin_hub_code_copied))
-        }
-
         updateManagingBanner()
         refreshAll()
-    }
-
-    private fun bindConnectionCode() {
-        tvConnectionCode.text = prefs.connectionCode.trim().ifEmpty { "—" }
     }
 
     override fun onStart() {
@@ -134,7 +110,6 @@ class AdminUsersFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        bindConnectionCode()
         updateManagingBanner()
     }
 
@@ -180,7 +155,6 @@ class AdminUsersFragment : Fragment() {
             linkedAdapter.submit(emptyList())
             tvEmptyLinked.visibility = View.VISIBLE
             tvEmptyLinked.text = getString(R.string.admin_hub_need_sign_in)
-            bindConnectionCode()
             return
         }
 
@@ -203,11 +177,18 @@ class AdminUsersFragment : Fragment() {
                     val lr = mutableListOf<AdminLinkedUserUiModel>()
                     for (i in 0 until usersArr.length()) {
                         val u = usersArr.optJSONObject(i) ?: continue
+                        val nameRaw = u.optString("name", "").trim()
+                        val email = u.optString("email", "").trim()
+                        val displayName = when {
+                            nameRaw.isNotEmpty() && !nameRaw.equals("null", ignoreCase = true) -> nameRaw
+                            email.contains("@") -> email.substringBefore("@").trim()
+                            else -> nameRaw
+                        }
                         lr.add(
                             AdminLinkedUserUiModel(
                                 userId = u.optString("id", "").trim(),
-                                name = u.optString("name", "").trim(),
-                                email = u.optString("email", "").trim(),
+                                name = displayName,
+                                email = email,
                                 desktopLinked = u.optString("bot_id", "").trim().isNotEmpty(),
                                 profilePictureDataUrl = u.optString("profile_picture", "").trim(),
                             ),
@@ -222,7 +203,6 @@ class AdminUsersFragment : Fragment() {
             activity?.runOnUiThread {
                 if (gen != loadGen.get()) return@runOnUiThread
                 progress.visibility = View.GONE
-                bindConnectionCode()
 
                 if (httpErr != null) {
                     tvError.visibility = View.VISIBLE

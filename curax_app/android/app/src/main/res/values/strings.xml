@@ -412,6 +412,8 @@
     <string name="admin_tab_users">Users</string>
     <string name="admin_tab_reports">Reports</string>
     <string name="admin_tab_connections">Connections</string>
+    <string name="admin_connections_screen_subtitle">Review link requests and share your invite code.</string>
+    <string name="admin_connections_pending_section">Pending requests</string>
     <string name="admin_connections_empty">No pending requests.</string>
     <string name="admin_tab_settings">Settings</string>
     <string name="admin_hub_tagline">Manage linked users, review alerts, and open someone’s schedule when they need help.</string>
@@ -447,7 +449,7 @@
     <string name="admin_hub_dose_preview_load_failed">Could not load dose activity.</string>
     <string name="admin_hub_dose_preview_loading">Loading dose activity…</string>
     <string name="admin_hub_roster_hint">Open the Users tab for invites, pending requests, roster, and Care mode.</string>
-    <string name="admin_hub_chart_accounts_title">Linkage mix</string>
+    <string name="admin_hub_chart_accounts_title">Connection readiness</string>
     <string name="admin_hub_chart_accounts_desc">Share of linked accounts that are ready versus waiting on device setup.</string>
     <string name="admin_hub_chart_accounts_sample">Sample split · reflects real counts once users link.</string>
     <string name="admin_hub_chart_accounts_live">Live · based on your linked users.</string>
@@ -481,7 +483,8 @@
     <string name="admin_hub_pulse_ready_label">Ready</string>
     <string name="admin_hub_retry">Retry</string>
     <string name="admin_hub_users_http_error">Could not load users (server error). Pull Retry or check your account.</string>
-    <string name="admin_users_screen_title">Users &amp; invites</string>
+    <string name="admin_users_screen_title">Users</string>
+    <string name="admin_users_screen_subtitle">People linked to you — open Care mode to manage their schedule.</string>
     <string name="admin_users_pending_section">Connection requests</string>
     <string name="admin_connection_request_message">Hi — I\'d like to connect with you.</string>
     <string name="admin_users_demo_preview_action">Preview only. Connect your server to approve real requests.</string>
@@ -504,7 +507,7 @@
     <string name="admin_users_care_active_label">ACTIVE CARE SESSION</string>
     <string name="admin_users_exit_care">Exit</string>
     <string name="admin_users_refresh">Refresh</string>
-    <string name="admin_users_empty">No linked users yet. Share your invite code above so people can connect.</string>
+    <string name="admin_users_empty">No linked users yet. Share your invite code from the Connections tab so people can link.</string>
     <string name="admin_users_load_failed">Could not load users. Check network and tap Retry.</string>
     <string name="admin_users_col_person">Person</string>
     <string name="admin_users_col_status">Status</string>

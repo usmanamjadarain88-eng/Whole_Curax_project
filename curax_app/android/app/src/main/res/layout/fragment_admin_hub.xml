@@ -211,13 +211,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
-                android:text="@string/admin_hub_insights_section"
+                android:text="@string/admin_hub_dose_preview_section"
                 android:textColor="@color/text_primary"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.06" />
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardAdminHubDosePreview"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
@@ -231,55 +232,32 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="12dp">
+                    android:padding="14dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/admin_hub_chart_alerts_title"
+                        android:text="@string/admin_hub_dose_history_title"
                         android:textColor="@color/connection_panel_title"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
-                    <com.curax.app.AdminSparklineChartView
-                        android:id="@+id/chartAlertsSparkline"
+                    <LinearLayout
+                        android:id="@+id/containerHubDoseTables"
                         android:layout_width="match_parent"
-                        android:layout_height="72dp"
-                        android:layout_marginTop="8dp" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:gravity="center"
-                        android:text="@string/admin_hub_chart_axis_7d"
-                        android:textColor="@color/subtitle_grey"
-                        android:textSize="10sp" />
-
-                    <TextView
-                        android:id="@+id/tvChartAlertsCaption"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:gravity="center"
-                        android:textColor="@color/subtitle_grey"
-                        android:textSize="10sp"
-                        tools:text="Sample trend" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:text="@string/admin_hub_chart_bars_title"
-                        android:textColor="@color/connection_panel_title"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:orientation="vertical" />
 
-                    <com.curax.app.AdminBarChartView
-                        android:id="@+id/chartAlertsBars"
+                    <TextView
+                        android:id="@+id/tvRosterDosePreviewEmpty"
                         android:layout_width="match_parent"
-                        android:layout_height="86dp"
-                        android:layout_marginTop="6dp" />
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/admin_hub_dose_preview_empty_no_logs"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        android:visibility="gone" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -297,7 +275,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="12dp">
+                    android:padding="16dp">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -310,14 +288,14 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
+                        android:layout_marginTop="8dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
                         <com.curax.app.AdminDonutChartView
                             android:id="@+id/chartAccountsDonut"
                             android:layout_width="0dp"
-                            android:layout_height="112dp"
+                            android:layout_height="156dp"
                             android:layout_weight="1" />
 
                         <LinearLayout
@@ -376,10 +354,10 @@
                         android:id="@+id/tvChartAccountsCaption"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="10dp"
                         android:gravity="center"
                         android:textColor="@color/subtitle_grey"
-                        android:textSize="10sp"
+                        android:textSize="11sp"
                         tools:text="Live split" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -499,14 +477,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
-                android:text="@string/admin_hub_dose_preview_section"
+                android:text="@string/admin_hub_insights_section"
                 android:textColor="@color/text_primary"
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.06" />
 
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardAdminHubDosePreview"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
@@ -520,32 +497,55 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="14dp">
+                    android:padding="12dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/admin_hub_dose_history_title"
+                        android:text="@string/admin_hub_chart_alerts_title"
                         android:textColor="@color/connection_panel_title"
                         android:textSize="15sp"
                         android:textStyle="bold" />
 
-                    <LinearLayout
-                        android:id="@+id/containerHubDoseTables"
+                    <com.curax.app.AdminSparklineChartView
+                        android:id="@+id/chartAlertsSparkline"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:orientation="vertical" />
+                        android:layout_height="72dp"
+                        android:layout_marginTop="8dp" />
 
                     <TextView
-                        android:id="@+id/tvRosterDosePreviewEmpty"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/admin_hub_dose_preview_empty_no_logs"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp"
-                        android:visibility="gone" />
+                        android:layout_marginTop="2dp"
+                        android:gravity="center"
+                        android:text="@string/admin_hub_chart_axis_7d"
+                        android:textColor="@color/subtitle_grey"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/tvChartAlertsCaption"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center"
+                        android:textColor="@color/subtitle_grey"
+                        android:textSize="10sp"
+                        tools:text="Sample trend" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/admin_hub_chart_bars_title"
+                        android:textColor="@color/connection_panel_title"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <com.curax.app.AdminBarChartView
+                        android:id="@+id/chartAlertsBars"
+                        android:layout_width="match_parent"
+                        android:layout_height="86dp"
+                        android:layout_marginTop="6dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

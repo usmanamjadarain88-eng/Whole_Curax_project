@@ -3,6 +3,7 @@ package com.curax.app
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
@@ -47,10 +48,15 @@ class PendingLinkRequestsAdapter(
     ) : RecyclerView.ViewHolder(itemView) {
         private val btnAccept = itemView.findViewById<MaterialButton>(R.id.btnPendingAccept)
         private val btnDecline = itemView.findViewById<MaterialButton>(R.id.btnPendingDecline)
+        private val tvMessage = itemView.findViewById<TextView>(R.id.tvPendingConnectMessage)
+        private val tvName = itemView.findViewById<TextView>(R.id.tvPendingRequestName)
         private val card = itemView as MaterialCardView
 
         fun bind(row: PendingLinkRequestUi) {
             val ctx = itemView.context
+            tvMessage.text = ctx.getString(R.string.admin_connection_request_message)
+            val who = row.displayName.trim().ifEmpty { row.email.trim() }
+            tvName.text = who.ifEmpty { ctx.getString(R.string.admin_user_display_fallback) }
             if (row.isDemo) {
                 card.strokeWidth = (2 * ctx.resources.displayMetrics.density).toInt()
                 card.strokeColor = ContextCompat.getColor(ctx, R.color.chart_status_monitor)

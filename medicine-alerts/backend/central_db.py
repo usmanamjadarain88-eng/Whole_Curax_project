@@ -2471,6 +2471,7 @@ class CentralDB:
         try:
             self._ensure_users_profile_picture_column()
             self._ensure_users_display_mode_column()
+            self._ensure_users_first_last_name_columns()
         except Exception:
             pass
         conn = self._ensure_conn()
@@ -2535,6 +2536,21 @@ class CentralDB:
                             "profile_picture": "",
                             "user_display_mode": "",
                         })
+            for item in result:
+                uid = (item.get("id") or "").strip()
+                if not uid:
+                    continue
+                disp = (self.get_user_full_display_name_for_user_id(uid) or "").strip()
+                base = (item.get("name") or "").strip()
+                em = (item.get("email") or "").strip()
+                if disp:
+                    item["name"] = disp
+                elif base:
+                    item["name"] = base
+                elif em and "@" in em:
+                    item["name"] = em.split("@", 1)[0].strip()
+                else:
+                    item["name"] = base
             return result
         except Exception as e:
             print(f"CentralDB get_all_users_by_admin_id: {e}")

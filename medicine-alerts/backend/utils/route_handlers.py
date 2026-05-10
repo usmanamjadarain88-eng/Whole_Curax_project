@@ -10,6 +10,7 @@ import os
 import re
 import threading
 import time
+import uuid
 
 from central_db import EmailAlreadyUsedError
 
@@ -1028,6 +1029,17 @@ def get_linked_users(body, query, headers):
         n = int(m.group(1))
         return n if 1 <= n <= 20 else 1
 
+    def _norm_med_id(val):
+        if val is None:
+            return None
+        s = str(val).strip()
+        if not s:
+            return None
+        try:
+            return str(uuid.UUID(s))
+        except Exception:
+            return s
+
     if want_doses:
         for u in users:
             uid = (u.get("id") or "").strip()
@@ -1038,12 +1050,28 @@ def get_linked_users(body, query, headers):
                 for m in meds or []:
                     mid = m.get("id")
                     if mid:
-                        by_mid[str(mid)] = m
+                        ks = str(mid)
+                        by_mid[ks] = m
+                        try:
+                            by_mid[str(uuid.UUID(ks))] = m
+                        except Exception:
+                            pass
                 for row in doses:
-                    mid = row.get("medicine_id")
-                    med_obj = by_mid.get(str(mid)) if mid else None
+                    mid_raw = row.get("medicine_id")
+                    med_obj = None
+                    if mid_raw:
+                        med_obj = by_mid.get(_norm_med_id(mid_raw))
+                        if med_obj is None:
+                            med_obj = by_mid.get(str(mid_raw).strip())
+                    if med_obj is None:
+                        bid = str(row.get("box_id") or "").strip()
+                        if bid:
+                            for m in meds or []:
+                                if str(m.get("box_id") or "").strip() == bid:
+                                    med_obj = m
+                                    break
                     nm = ((med_obj.get("name") or "").strip()) if med_obj else ""
-                    row["medicine_name"] = nm or None
+                    row["medicine_name"] = nm
                     row["dose_quantity"] = _dose_qty_from_dosage(med_obj.get("dosage")) if med_obj else 1
                     if med_obj is not None:
                         try:
