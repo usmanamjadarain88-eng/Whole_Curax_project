@@ -17,6 +17,7 @@ import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -60,6 +61,42 @@ object UserDataBusClient {
         } catch (_: Exception) {
             ""
         }
+
+    /** Central DB rows use box_id + taken_at; dose history UI expects timestamp + box + medicine + kind. */
+    private fun standaloneRowsFromServerDoseLogs(arr: JSONArray): List<Map<String, Any?>> {
+        val meds = AdminDemoData.medicines
+        val out = mutableListOf<Map<String, Any?>>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val boxRaw = o.optString("box_id", "").trim()
+            if (boxRaw.isEmpty()) continue
+            val takenRaw = o.optString("taken_at", "").trim()
+            val ts = formatTakenAtForDoseHistory(takenRaw)
+            val medName =
+                meds.find { it.box.equals(boxRaw, ignoreCase = true) }?.name?.trim().orEmpty()
+            val src = o.optString("source", "").trim().ifEmpty { "recorded" }
+            out.add(
+                mapOf(
+                    "timestamp" to ts,
+                    "box" to boxRaw,
+                    "medicine" to medName,
+                    "dose_taken" to 1,
+                    "remaining" to "—",
+                    "kind" to src,
+                ),
+            )
+        }
+        return out
+    }
+
+    private fun formatTakenAtForDoseHistory(raw: String): String {
+        val t = raw.trim()
+        if (t.isEmpty()) return ""
+        if (t.length >= 19 && t[10] == 'T') {
+            return t.take(10) + " " + t.substring(11, 19)
+        }
+        return t
+    }
 
     private fun isTerminalUserDataAuthFailure(code: Int): Boolean =
         code == 401 || code == 404 || code == 410
@@ -559,9 +596,16 @@ object UserDataBusClient {
             list.add(m)
         }
         AdminDemoData.replaceMedicines(AdminDemoData.fromApiMedicines(list))
-        // Personal Health: dose history is only rows the user marked on-device (no server/auto merge).
-        if (!(StandaloneUi.isUserStandalone(ctx) && AppRole.isUser(ctx))) {
-            DoseTrackingLocalStore.mergeFromPayloadArray(ctx, data.optJSONArray("dose_log"))
+        val doseLogsFromServer = data.optJSONArray("dose_logs") ?: data.optJSONArray("dose_log")
+        val incremental = data.optBoolean("incremental", false)
+        // Linked Personal Health: full GET /user/data is non-incremental — mirror server dose_logs so an admin
+        // wipe clears on-device history (local store was previously never updated for standalone users).
+        if (StandaloneUi.isUserStandalone(ctx) && AppRole.isUser(ctx)) {
+            if (!incremental && doseLogsFromServer != null) {
+                DoseTrackingLocalStore.replaceLogEntries(ctx, standaloneRowsFromServerDoseLogs(doseLogsFromServer))
+            }
+        } else {
+            DoseTrackingLocalStore.mergeFromPayloadArray(ctx, doseLogsFromServer)
         }
         AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))

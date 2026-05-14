@@ -167,6 +167,11 @@ object DoseTrackingLocalStore {
         writeLog(app, existing.take(500))
     }
 
+    /** Replace the on-device dose history list (used when a full server snapshot arrives for linked standalone). */
+    fun replaceLogEntries(context: Context, entries: List<Map<String, Any?>>) {
+        writeLog(context.applicationContext, entries.take(500))
+    }
+
     private fun sigFor(m: Map<String, Any?>): String {
         val ts = m["timestamp"]?.toString().orEmpty()
         val box = m["box"]?.toString().orEmpty()
