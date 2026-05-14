@@ -39,10 +39,7 @@ class Prefs(context: Context) {
         get() = prefs.getInt(KEY_THEME_MODE, AppCompatDelegate.MODE_NIGHT_NO)
         set(value) = prefs.edit().putInt(KEY_THEME_MODE, value).apply()
 
-    /**
-     * Night palette for [AdminDashboardActivity] only ([AppCompatDelegate.setLocalNightMode]).
-     * When unset, defaults to dark; does not change global [themeMode] or other screens.
-     */
+    /** Admin dashboard only; unset = dark. Independent of [themeMode]. */
     var adminLocalNightMode: Int
         get() = if (prefs.contains(KEY_ADMIN_LOCAL_NIGHT_MODE)) {
             prefs.getInt(KEY_ADMIN_LOCAL_NIGHT_MODE, AppCompatDelegate.MODE_NIGHT_YES)
