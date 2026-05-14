@@ -54,13 +54,13 @@
                 android:layout_weight="1"
                 android:text="@string/admin_users_accept"
                 android:textAllCaps="false"
-                android:textColor="@android:color/white"
-                app:backgroundTint="@color/connect_button_bg"
+                android:textColor="@color/admin_insights_on_sage_cta_text"
+                app:backgroundTint="@color/admin_insights_chart_muted"
                 app:cornerRadius="12dp"
                 app:icon="@drawable/ic_pending_accept_tick"
                 app:iconGravity="textStart"
                 app:iconPadding="8dp"
-                app:iconTint="@android:color/white" />
+                app:iconTint="@color/admin_insights_on_sage_cta_text" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnPendingDecline"

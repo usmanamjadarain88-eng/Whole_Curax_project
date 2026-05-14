@@ -36,7 +36,7 @@
                 android:orientation="horizontal">
 
                 <TextView
-                    android:layout_width="128dp"
+                    android:layout_width="152dp"
                     android:layout_height="@dimen/dose_history_table_row_height"
                     android:background="@drawable/bg_inventory_header_cell"
                     android:ellipsize="end"

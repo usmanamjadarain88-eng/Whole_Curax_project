@@ -15,8 +15,10 @@
         android:visibility="gone" />
 
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollAdminUsers"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
         android:fillViewport="true"
         android:paddingStart="14dp"
@@ -34,10 +36,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:visibility="gone"
-                app:cardBackgroundColor="@color/key_value_bg"
+                app:cardBackgroundColor="@color/admin_care_banner_bg"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="0dp"
-                app:strokeColor="@color/button_primary_bg"
+                app:strokeColor="@color/admin_care_outline_stroke"
                 app:strokeWidth="1dp"
                 tools:visibility="visible">
 
@@ -58,8 +60,13 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:letterSpacing="0.08"
+                            android:includeFontPadding="false"
+                            android:shadowColor="@android:color/transparent"
+                            android:shadowDx="0"
+                            android:shadowDy="0"
+                            android:shadowRadius="0"
                             android:text="@string/admin_users_care_active_label"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/admin_care_on_dark_secondary"
                             android:textSize="11sp"
                             android:textStyle="bold" />
 
@@ -68,7 +75,12 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:textColor="@color/text_primary"
+                            android:includeFontPadding="false"
+                            android:shadowColor="@android:color/transparent"
+                            android:shadowDx="0"
+                            android:shadowDy="0"
+                            android:shadowRadius="0"
+                            android:textColor="@color/admin_care_on_dark_primary"
                             android:textSize="16sp"
                             android:textStyle="bold"
                             tools:text="Sam Patient" />
@@ -81,20 +93,40 @@
                         android:layout_height="wrap_content"
                         android:text="@string/admin_users_exit_care"
                         android:textAllCaps="false"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/admin_care_on_dark_primary"
                         app:cornerRadius="10dp"
-                        app:strokeColor="@color/button_primary_bg" />
+                        app:strokeColor="@color/admin_care_outline_stroke" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:text="@string/admin_users_screen_title"
-                android:textColor="@color/text_primary"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/admin_users_screen_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btnAdminUsersRefresh"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="10dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/admin_users_refresh"
+                    android:padding="6dp"
+                    android:scaleType="centerInside"
+                    app:srcCompat="@drawable/ic_refresh_24"
+                    app:tint="@color/text_primary" />
+            </LinearLayout>
 
             <TextView
                 android:layout_width="match_parent"
@@ -106,53 +138,82 @@
                 android:textSize="13sp" />
 
             <HorizontalScrollView
+                android:id="@+id/hsvAdminUsersTable"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:fillViewport="true"
+                android:fillViewport="false"
                 android:scrollbars="none">
 
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:minWidth="340dp"
+                    android:minWidth="400dp"
                     android:orientation="vertical">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:background="@drawable/bg_admin_users_table_header"
+                        android:gravity="center_vertical"
                         android:orientation="horizontal"
-                        android:paddingHorizontal="12dp"
-                        android:paddingVertical="10dp">
+                        android:paddingStart="8dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingBottom="8dp">
+
+                        <!-- Match [item_admin_user_row]: avatar width + name column so headings sit on the data columns -->
+                        <View
+                            android:layout_width="44dp"
+                            android:layout_height="36dp"
+                            android:importantForAccessibility="no" />
 
                         <TextView
-                            android:layout_width="140dp"
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:layout_weight="1"
                             android:letterSpacing="0.06"
+                            android:minWidth="96dp"
                             android:text="@string/admin_users_col_person"
-                            android:textColor="@android:color/white"
-                            android:textSize="11sp"
+                            android:includeFontPadding="false"
+                            android:textColor="@color/admin_insights_on_sage_cta_text"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:layout_width="88dp"
                             android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:gravity="center"
+                            android:letterSpacing="0.06"
+                            android:text="@string/admin_users_col_mode"
+                            android:includeFontPadding="false"
+                            android:textColor="@color/admin_insights_on_sage_cta_text"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="88dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="10dp"
                             android:gravity="center"
                             android:letterSpacing="0.06"
                             android:text="@string/admin_users_col_status"
-                            android:textColor="@android:color/white"
-                            android:textSize="11sp"
+                            android:includeFontPadding="false"
+                            android:textColor="@color/admin_insights_on_sage_cta_text"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
 
                         <TextView
                             android:layout_width="96dp"
                             android:layout_height="wrap_content"
-                            android:gravity="end"
+                            android:gravity="center"
                             android:letterSpacing="0.06"
                             android:text="@string/admin_users_col_action"
-                            android:textColor="@android:color/white"
-                            android:textSize="11sp"
+                            android:includeFontPadding="false"
+                            android:textColor="@color/admin_insights_on_sage_cta_text"
+                            android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>
 
@@ -178,18 +239,6 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp"
                 android:visibility="gone" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAdminUsersRefresh"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="16dp"
-                android:text="@string/admin_users_refresh"
-                android:textAllCaps="false"
-                app:cornerRadius="10dp"
-                app:strokeColor="@color/button_primary_bg" />
 
             <TextView
                 android:id="@+id/tvAdminUsersError"

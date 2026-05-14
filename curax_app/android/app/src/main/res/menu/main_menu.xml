@@ -2,15 +2,16 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_return_to_admin"
+        android:icon="@drawable/ic_admin_exit_care_24"
+        android:title="@string/return_to_admin"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
         android:id="@+id/action_toggle_theme"
         android:icon="@drawable/ic_theme_moon"
         android:title="@string/dark_mode"
         app:showAsAction="ifRoom" />
-    <item
-        android:id="@+id/action_admin_care_settings"
-        android:title="@string/admin_menu_care_settings"
-        android:visible="false"
-        app:showAsAction="never" />
     <item
         android:id="@+id/action_settings"
         android:title="@string/settings_screen_title"

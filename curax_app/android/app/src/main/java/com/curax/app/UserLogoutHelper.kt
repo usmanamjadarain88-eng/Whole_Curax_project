@@ -30,6 +30,7 @@ object UserLogoutHelper {
         prefs.lastSyncTime = ""
         prefs.actAsUserId = ""
         prefs.actAsUserName = ""
+        prefs.actAsUserDisplayMode = ""
         AppModeManager.setStandaloneMode(app, false)
         prefs.userInitialAppModeSheetCompleted = true
         prefs.userHomeColdStartCount = 0

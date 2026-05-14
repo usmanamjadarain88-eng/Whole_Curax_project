@@ -45,14 +45,14 @@
                 android:layout_height="50dp"
                 android:background="@android:color/transparent"
                 app:tabGravity="fill"
-                app:tabIndicatorColor="@color/button_primary_bg"
+                app:tabIndicatorColor="@color/admin_tab_indicator"
                 app:tabIndicatorFullWidth="false"
                 app:tabIndicatorHeight="3dp"
                 app:tabMode="scrollable"
                 app:tabPaddingEnd="18dp"
                 app:tabPaddingStart="18dp"
-                app:tabSelectedTextColor="@color/connection_panel_title"
-                app:tabTextColor="@color/text_secondary"
+                app:tabSelectedTextColor="@color/admin_tab_text_selected"
+                app:tabTextColor="@color/admin_tab_text_unselected"
                 app:tabTextAppearance="@android:style/TextAppearance.Material.Body1" />
         </com.google.android.material.card.MaterialCardView>
 
@@ -154,25 +154,6 @@
                         android:textSize="12sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <LinearLayout
-                android:id="@+id/sidebarReturnToAdminContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:visibility="gone"
-                android:orientation="vertical"
-                android:layout_marginBottom="8dp">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSidebarReturnToAdmin"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/return_to_admin"
-                    android:textColor="@android:color/white"
-                    app:backgroundTint="@color/connect_button_bg"
-                    app:cornerRadius="10dp" />
-            </LinearLayout>
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"

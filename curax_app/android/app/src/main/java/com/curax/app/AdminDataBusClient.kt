@@ -122,7 +122,7 @@ object AdminDataBusClient {
                     val payload = obj.optJSONObject("payload") ?: return@subscribe
                     mainHandler.post {
                         applyAdminDataJson(app, payload)
-                        app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                        broadcastAdminSnapshotApplied(app)
                     }
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to parse Ably data bus message", e)
@@ -192,7 +192,7 @@ object AdminDataBusClient {
                         if (payload != null) {
                             mainHandler.post {
                                 applyAdminDataJson(actx, payload)
-                                actx.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                                broadcastAdminSnapshotApplied(actx)
                             }
                         }
                     }
@@ -271,7 +271,7 @@ object AdminDataBusClient {
                             return@post
                         }
                         applyAdminDataJson(app, json)
-                        app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                        broadcastAdminSnapshotApplied(app)
                         onComplete?.invoke(SnapshotResult.APPLIED)
                     }
                     return@Thread
@@ -311,5 +311,18 @@ object AdminDataBusClient {
         AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
+    }
+
+    private fun broadcastAdminSnapshotApplied(app: Context) {
+        app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+        // Do not broadcast ACTION_ADMIN_HUB_REFRESH_METRICS here: WebSocket/data_sync can fire very often;
+        // the hub roster + dose preview is heavy (2× linked-users HTTP + progress UI). Hub refreshes cheap
+        // bits from ACTION_ADMIN_DATA_SYNCED; explicit HUB_REFRESH_METRICS is still sent where needed
+        // (e.g. after removing a user from Connections).
+    }
+
+    /** After applying a server JSON snapshot outside this client (e.g. Care dashboard HTTP pull). */
+    fun broadcastSnapshotAppliedForUi(context: Context) {
+        broadcastAdminSnapshotApplied(context.applicationContext)
     }
 }

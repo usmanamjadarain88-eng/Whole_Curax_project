@@ -24,11 +24,27 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.textfield.TextInputEditText
+import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+
 class AdminAlertsFragment : Fragment() {
+
+    companion object {
+        private val http = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
+
+        private const val LINKED_DIR_MIN_INTERVAL_MS = 30_000L
+        @Volatile private var linkedUsersDirLastFetchMs: Long = 0L
+    }
 
     private enum class StatusFilter { BOTH, TAKEN, MISSED, SYSTEM }
     private enum class TimeMode { NEWEST, OLDEST, CUSTOM }
@@ -86,7 +102,7 @@ class AdminAlertsFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+        val layout = if (CareUi.effectiveStandaloneShell(requireContext())) {
             R.layout.fragment_admin_alerts_standalone
         } else {
             R.layout.fragment_admin_alerts
@@ -137,7 +153,7 @@ class AdminAlertsFragment : Fragment() {
 
         val allowAlertMutations = StandaloneUserMutationGate.allowMutations(requireContext())
         adapter = AdminAlertsAdapter(
-            useStandaloneCards = StandaloneUi.isUserStandalone(requireContext()),
+            useStandaloneCards = CareUi.effectiveStandaloneShell(requireContext()),
             allowBulkMutations = allowAlertMutations,
             onBulkMutationBlocked = if (allowAlertMutations) null else {
                 { CuraxFeedback.warn(this, R.string.standalone_connect_admin_first) }
@@ -148,6 +164,7 @@ class AdminAlertsFragment : Fragment() {
                     putExtra(NotificationHelper.EXTRA_ALERT_TYPE, item.type)
                     putExtra(NotificationHelper.EXTRA_ALERT_MESSAGE, item.message)
                     putExtra(NotificationHelper.EXTRA_ALERT_TIME, item.receivedAt)
+                    putExtra(NotificationHelper.EXTRA_ALERT_USER_NAME, item.userName.trim())
                     putExtra(NotificationHelper.EXTRA_INTERNAL_NAV, true)
                 })
             },
@@ -404,7 +421,17 @@ class AdminAlertsFragment : Fragment() {
         } else {
             api
         }
-        val combined = apiForUi + db
+        val combined = (apiForUi + db).let { raw ->
+            if (!AppRole.isAdmin(requireContext())) raw
+            else raw.map { item ->
+                val r = AdminLinkedUserDirectory.resolveAlertUserLabel(item.userName, item.message)
+                when {
+                    r.isEmpty() -> item
+                    r == item.userName -> item
+                    else -> item.copy(userName = r)
+                }
+            }
+        }
 
         var list = combined.filter { item ->
             val useCustomRange = timeMode == TimeMode.CUSTOM
@@ -524,16 +551,49 @@ class AdminAlertsFragment : Fragment() {
         if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
             AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
         }
+        applyAlertsListToUi()
+        maybeRefreshLinkedDirectoryForAdminAlerts()
+    }
+
+    private fun maybeRefreshLinkedDirectoryForAdminAlerts() {
+        if (!AppRole.isAdmin(requireContext())) return
+        val prefs = Prefs(requireContext())
+        val base = prefs.centralApiUrl.trim().removeSuffix("/")
+        val accessCode = prefs.adminAccessCode.trim()
+        if (base.isEmpty() || accessCode.isEmpty()) return
+        val now = System.currentTimeMillis()
+        synchronized(AdminAlertsFragment::class.java) {
+            val last = linkedUsersDirLastFetchMs
+            if (last != 0L && now - last < LINKED_DIR_MIN_INTERVAL_MS) return
+            linkedUsersDirLastFetchMs = now
+        }
+        Thread {
+            try {
+                val url = "$base/admin/linked-users?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
+                val res = http.newCall(Request.Builder().url(url).get().build()).execute()
+                if (!res.isSuccessful) return@Thread
+                val body = res.body?.string() ?: "{}"
+                val data = JSONObject(body)
+                val arr = data.optJSONArray("users") ?: org.json.JSONArray()
+                AdminLinkedUserDirectory.ingestUsersJsonArray(arr)
+            } catch (_: Exception) {
+            }
+            activity?.runOnUiThread {
+                if (!isAdded) return@runOnUiThread
+                applyAlertsListToUi()
+            }
+        }.start()
+    }
+
+    private fun applyAlertsListToUi() {
         val listAll = getFilteredAlerts()
         adapter.submitList(listAll)
 
-        val api = AdminDemoData.getApiAlerts()
         val db = alertDb.getAllAlerts()
-        val totalAvailable = if (AppRole.isAdmin(requireContext()) && api.isEmpty() && db.isEmpty()) {
-            AdminDemoData.adminPreviewAlerts().size
-        } else {
-            api.size + db.size
-        }
+        val totalAvailable = AdminDemoData.totalAdminAlertsVisibleCount(
+            AppRole.isAdmin(requireContext()),
+            db.size,
+        )
         if (listAll.isEmpty()) {
             tvEmpty.text = if (totalAvailable == 0) {
                 "No alerts yet for admin dashboard"

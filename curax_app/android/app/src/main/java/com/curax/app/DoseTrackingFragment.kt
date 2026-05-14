@@ -69,7 +69,7 @@ class DoseTrackingFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View {
-        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+        val layout = if (CareUi.effectiveStandaloneShell(requireContext())) {
             R.layout.fragment_dose_tracking_standalone
         } else {
             R.layout.fragment_dose_tracking_default
@@ -79,7 +79,7 @@ class DoseTrackingFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        if (StandaloneUi.isUserStandalone(requireContext())) {
+        if (CareUi.effectiveStandaloneShell(requireContext())) {
             view.findViewById<HorizontalScrollView>(R.id.hsvDoseTrackingMedicineChips)
                 ?.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = true)
             view.findViewById<HorizontalScrollView>(R.id.hsvDoseHistoryTable)
@@ -124,6 +124,7 @@ class DoseTrackingFragment : Fragment() {
 
     private fun bleBridgeEnabled(): Boolean {
         val ctx = context ?: return false
+        if (CareUi.isAdminCareMode(ctx)) return false
         return !StandaloneUi.isUserStandalone(ctx)
     }
 
@@ -204,7 +205,7 @@ class DoseTrackingFragment : Fragment() {
     }
 
     private fun rebuildDoseUi(v: View) {
-        if (StandaloneUi.isUserStandalone(requireContext())) {
+        if (CareUi.effectiveStandaloneShell(requireContext())) {
             rebuildDoseChips(v)
         } else {
             rebuildDoseBoxGrid(v)

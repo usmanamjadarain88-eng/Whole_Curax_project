@@ -304,7 +304,6 @@ class MainActivity : AppCompatActivity() {
         themeItem?.setIcon(if (isDark) R.drawable.ic_theme_sun else R.drawable.ic_theme_moon)
         themeItem?.title = if (isDark) getString(R.string.light_mode) else getString(R.string.dark_mode)
         findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar).overflowIcon?.setTint(Color.WHITE)
-        menu.findItem(R.id.action_admin_care_settings)?.isVisible = false
         return super.onPrepareOptionsMenu(menu)
     }
 

@@ -57,8 +57,8 @@ class AdminBarChartView @JvmOverloads constructor(
         val gap = 4f * density
         val barSlot = (chartW - gap * (n - 1)) / n
 
-        barPaint.color = ContextCompat.getColor(context, R.color.chart_status_normal)
-        if (placeholderMode) barPaint.alpha = 140 else barPaint.alpha = 230
+        barPaint.color = ContextCompat.getColor(context, R.color.admin_insights_chart_muted)
+        if (placeholderMode) barPaint.alpha = 140 else barPaint.alpha = 255
 
         for (i in 0 until n) {
             val norm = if (placeholderMode) {

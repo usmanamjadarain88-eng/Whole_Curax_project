@@ -19,6 +19,21 @@ object AdminDemoData {
     /** Alerts from GET /admin/data (desktop/backend). Shown in Alerts tab when admin signed up with access code. */
     private val apiAlertsStore = mutableListOf<AlertItem>()
     fun getApiAlerts(): List<AlertItem> = apiAlertsStore.toList()
+
+    /**
+     * Same basis as Admin Alerts tab totals: synced API alerts + local relay DB rows.
+     * When admin has no linked data yet (empty API + empty inbox), use preview list size so counts
+     * match the dummy rows on screen — not a single row accidentally inserted from detail.
+     */
+    fun totalAdminAlertsVisibleCount(isAdmin: Boolean, localDbAlertCount: Int): Int {
+        val api = getApiAlerts().size
+        return if (isAdmin && api == 0 && localDbAlertCount == 0) {
+            adminPreviewAlerts().size
+        } else {
+            api + localDbAlertCount
+        }
+    }
+
     fun replaceApiAlerts(items: List<AlertItem>) {
         apiAlertsStore.clear()
         apiAlertsStore.addAll(items)

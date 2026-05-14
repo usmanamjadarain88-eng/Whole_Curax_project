@@ -60,7 +60,7 @@ class AdminSettingsFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+        val layout = if (CareUi.effectiveStandaloneShell(requireContext())) {
             R.layout.fragment_admin_settings_standalone
         } else {
             R.layout.fragment_admin_settings
@@ -107,11 +107,18 @@ class AdminSettingsFragment : Fragment() {
                 bindEsp32DevicePasswordSection(view)
             }
         } else {
-            view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.setOnClickListener {
-                saveSettingsToApi(showSuccess = "Alert settings saved")
-            }
-            view.findViewById<MaterialButton>(R.id.btn_save_gmail)?.setOnClickListener {
-                saveSettingsToApi(showSuccess = getString(R.string.system_gmail_saved))
+            val careStandaloneLayout = CareUi.useStandaloneLayoutsInCare(requireContext())
+            if (careStandaloneLayout) {
+                view.findViewById<MaterialButton>(R.id.btn_save_system_settings)?.setOnClickListener {
+                    saveSettingsToApi(showSuccess = "Alert settings saved")
+                }
+            } else {
+                view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.setOnClickListener {
+                    saveSettingsToApi(showSuccess = "Alert settings saved")
+                }
+                view.findViewById<MaterialButton>(R.id.btn_save_gmail)?.setOnClickListener {
+                    saveSettingsToApi(showSuccess = getString(R.string.system_gmail_saved))
+                }
             }
         }
     }
@@ -149,7 +156,7 @@ class AdminSettingsFragment : Fragment() {
             return
         }
         fetchSettingsFromServer()
-        if (!StandaloneUi.isUserStandalone(requireContext())) {
+        if (!CareUi.effectiveStandaloneShell(requireContext())) {
             view?.let { refreshEsp32BleHint(it) }
         }
     }

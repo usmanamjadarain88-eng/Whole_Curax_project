@@ -69,7 +69,7 @@ class AdminSparklineChartView @JvmOverloads constructor(
         path.reset()
         fillPath.reset()
         val step = innerW / (n - 1).coerceAtLeast(1)
-        val lineTop = ContextCompat.getColor(context, R.color.chart_status_normal)
+        val lineTop = ContextCompat.getColor(context, R.color.admin_insights_chart_muted)
         val lineMid = ContextCompat.getColor(context, R.color.chart_status_monitor)
         linePaint.shader = LinearGradient(
             padL, padT, padL, padT + innerH,
@@ -101,7 +101,7 @@ class AdminSparklineChartView @JvmOverloads constructor(
         fillPath.lineTo(padL, baseY)
         fillPath.close()
 
-        val fillTop = ContextCompat.getColor(context, R.color.chart_status_normal)
+        val fillTop = ContextCompat.getColor(context, R.color.admin_insights_chart_muted)
         fillPaint.shader = LinearGradient(
             0f, padT, 0f, baseY,
             intArrayOf(

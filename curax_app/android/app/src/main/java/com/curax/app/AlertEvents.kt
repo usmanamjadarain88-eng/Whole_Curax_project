@@ -5,6 +5,11 @@ object AlertEvents {
     const val ACTION_CONNECTION_STATE_CHANGED = "com.curax.app.ACTION_CONNECTION_STATE_CHANGED"
     /** Sent when GET /admin/data has updated AdminDemoData so every tab can refresh (Settings, Alerts, Reminders, Logs, Reports). */
     const val ACTION_ADMIN_DATA_SYNCED = "com.curax.app.ACTION_ADMIN_DATA_SYNCED"
+    /**
+     * Hub-only: refresh linked-user stats + per-user dose preview (HTTP).
+     * Fire after server snapshot/WebSocket sync — not on every local [ACTION_ADMIN_DATA_SYNCED].
+     */
+    const val ACTION_ADMIN_HUB_REFRESH_METRICS = "com.curax.app.ACTION_ADMIN_HUB_REFRESH_METRICS"
     /** User GET /user/data fetch started (HTTP in flight). Standalone UI may show sync ripple. */
     const val ACTION_USER_STANDALONE_DATA_FETCH_STARTED = "com.curax.app.ACTION_USER_STANDALONE_DATA_FETCH_STARTED"
     /** User GET /user/data fetch finished (success or failure). Standalone UI returns to idle pulse. */

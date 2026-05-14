@@ -32,12 +32,12 @@ class LaunchActivity : AppCompatActivity() {
             findViewById<AppCompatButton>(R.id.btnContinueUser).setOnClickListener {
                 startActivity(Intent(this, SignInActivity::class.java))
                 @Suppress("DEPRECATION")
-                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                overridePendingTransition(R.anim.launch_slide_in_up, R.anim.launch_slide_out_soft)
             }
             findViewById<AppCompatButton>(R.id.btnContinueAdmin).setOnClickListener {
                 startActivity(Intent(this, AdminRegistrationActivity::class.java))
                 @Suppress("DEPRECATION")
-                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+                overridePendingTransition(R.anim.launch_slide_in_up, R.anim.launch_slide_out_soft)
             }
 
             window.decorView.post { runFirstLaunchEntrance() }
@@ -46,7 +46,7 @@ class LaunchActivity : AppCompatActivity() {
 
         findViewById<View>(R.id.splashRoleButtons).visibility = View.GONE
         findViewById<View>(R.id.splashReturningBlock).visibility = View.VISIBLE
-        findViewById<TextView>(R.id.tvSplashSubtitle).text = getString(R.string.splash_processing)
+        findViewById<TextView>(R.id.tvSplashSubtitle).text = getString(R.string.splash_subtitle_returning)
 
         handler.postDelayed({
             if (isFinishing) return@postDelayed
@@ -58,7 +58,7 @@ class LaunchActivity : AppCompatActivity() {
     }
 
     /**
-     * Title → subtitle → orbit → User → Admin, left-to-right slide + fade (one after another).
+     * Title → subtitle → orbit → User → Admin, left-to-right slide + fade (first launch only).
      */
     private fun runFirstLaunchEntrance() {
         if (isFinishing) return
@@ -79,8 +79,8 @@ class LaunchActivity : AppCompatActivity() {
         }
 
         slideIn(findViewById(R.id.tvSplashTitle), 30L)
-        slideIn(findViewById(R.id.tvSplashSubtitle), 130L)
-        slideIn(findViewById(R.id.splashOrbit), 210L)
+        slideIn(findViewById(R.id.tvSplashSubtitle), 120L)
+        slideIn(findViewById(R.id.splashOrbit), 200L)
         slideIn(findViewById(R.id.btnContinueUser), 340L)
         slideIn(findViewById(R.id.btnContinueAdmin), 490L)
     }

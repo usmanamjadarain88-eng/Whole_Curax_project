@@ -13,8 +13,8 @@ android {
         applicationId = "com.curax.app"
         minSdk = 24
         targetSdk = 33
-        versionCode = 35
-        versionName = "1.0.34"
+        versionCode = 55
+        versionName = "1.0.54"
 
         // Vercel databus URL + Ably subscribe key: curax_app/android/local.properties (gitignored), or env vars for CI.
         val localProps = Properties()
@@ -77,6 +77,7 @@ dependencies {
     implementation("androidx.drawerlayout:drawerlayout:1.2.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.viewpager2:viewpager2:1.0.0")
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Data bus on Vercel: subscribe to Ably channels (HTTP notify publishes via serverless).

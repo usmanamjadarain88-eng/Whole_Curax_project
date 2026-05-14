@@ -52,7 +52,7 @@ class AdminDonutChartView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val density = resources.displayMetrics.density
-        val stroke = 22f * density
+        val stroke = 26f * density
         arcPaint.strokeWidth = stroke
 
         val pad = stroke * 0.55f

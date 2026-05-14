@@ -68,7 +68,7 @@ class AdminMedicalRemindersFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+        val layout = if (CareUi.effectiveStandaloneShell(requireContext())) {
             R.layout.fragment_admin_medical_reminders_standalone
         } else {
             R.layout.fragment_admin_medical_reminders

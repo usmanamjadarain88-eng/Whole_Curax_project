@@ -14,7 +14,14 @@
         android:indeterminate="true"
         android:visibility="gone" />
 
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeAdminConnections"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollAdminConnections"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
@@ -75,33 +82,13 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAdminConnectionsRefresh"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="4dp"
-                android:text="@string/admin_users_refresh"
-                android:textAllCaps="false" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
-                android:letterSpacing="0.06"
-                android:text="@string/admin_users_invite_section"
-                android:textColor="@color/text_primary"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="22dp"
                 app:cardBackgroundColor="@color/summary_card"
                 app:cardCornerRadius="16dp"
-                app:cardElevation="3dp"
+                app:cardElevation="2dp"
                 app:strokeColor="@color/summary_stroke"
                 app:strokeWidth="1dp">
 
@@ -109,20 +96,22 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="18dp">
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="12dp">
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:lineSpacingMultiplier="1.18"
-                        android:text="@string/admin_users_invite_body"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="13sp" />
+                        android:letterSpacing="0.06"
+                        android:text="@string/admin_users_invite_section"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
+                        android:layout_marginTop="8dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
@@ -134,23 +123,25 @@
                             android:fontFamily="monospace"
                             android:textColor="@color/text_primary"
                             android:textIsSelectable="true"
-                            android:textSize="22sp"
+                            android:textSize="20sp"
                             android:textStyle="bold"
                             tools:text="ABCD1234" />
 
-                        <com.google.android.material.button.MaterialButton
+                        <androidx.appcompat.widget.AppCompatImageButton
                             android:id="@+id/btnAdminConnectionsCopyCode"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:minHeight="44dp"
-                            android:text="@string/admin_hub_copy_code"
-                            android:textAllCaps="false"
-                            app:cornerRadius="12dp"
-                            app:strokeColor="@color/button_primary_bg" />
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:layout_marginStart="4dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:contentDescription="@string/copy"
+                            android:padding="8dp"
+                            android:scaleType="centerInside"
+                            app:srcCompat="@drawable/ic_copy_24"
+                            app:tint="@color/text_primary" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 </LinearLayout>

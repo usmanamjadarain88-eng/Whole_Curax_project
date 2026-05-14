@@ -422,13 +422,19 @@ object UserDataBusClient {
         apiKey: String,
         onSuccess: (() -> Unit)? = null,
         onAuthRejected: ((String) -> Unit)? = null,
+        /** Always invoked on the main thread when this request ends (success, HTTP error, or skipped because another fetch is in flight). */
+        onFetchFinished: (() -> Unit)? = null,
     ) {
         val base = apiBase.trim().removeSuffix("/")
         val bid = botId.trim()
         val key = apiKey.trim()
-        if (base.isEmpty() || bid.isEmpty() || key.isEmpty()) return
+        if (base.isEmpty() || bid.isEmpty() || key.isEmpty()) {
+            mainHandler.post { onFetchFinished?.invoke() }
+            return
+        }
         synchronized(this) {
             if (fetchInFlight) {
+                mainHandler.post { onFetchFinished?.invoke() }
                 return
             }
             fetchInFlight = true
@@ -463,6 +469,7 @@ object UserDataBusClient {
             } finally {
                 mainHandler.post {
                     context.applicationContext.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                    onFetchFinished?.invoke()
                 }
                 synchronized(this) {
                     fetchInFlight = false

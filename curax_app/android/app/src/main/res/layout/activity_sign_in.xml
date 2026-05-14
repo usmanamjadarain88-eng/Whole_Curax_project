@@ -72,7 +72,7 @@
                 android:includeFontPadding="false"
                 android:letterSpacing="-0.01"
                 android:lineSpacingMultiplier="1.12"
-                android:text="@string/sign_in_subtitle_long"
+                android:text="@string/sign_in_subtitle"
                 android:textColor="@color/auth_subtitle"
                 android:textSize="14sp"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -84,7 +84,7 @@
             <Space
                 android:id="@+id/spacerSignInSubtitleToFields"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
+                android:layout_height="22dp"
                 android:importantForAccessibility="no"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"

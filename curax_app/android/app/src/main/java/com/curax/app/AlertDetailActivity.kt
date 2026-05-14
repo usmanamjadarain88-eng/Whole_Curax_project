@@ -126,8 +126,9 @@ class AlertDetailActivity : AppCompatActivity() {
             intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME)?.trim().orEmpty()
         alertId = intent.getLongExtra(NotificationHelper.EXTRA_ALERT_ID, -1L)
 
-        if (alertId <= 0L && fallbackMessage.isNotEmpty()) {
-            // If launched from system notification, store alert so it appears in list.
+        // Demo/API alerts use negative ids; only persist when opened from a real notification
+        // (positive id already in DB, or missing id with extras). Never insert for in-app list navigation.
+        if (!fromInternalNav && alertId <= 0L && fallbackMessage.isNotEmpty()) {
             alertId = alertDb.insertAlert(fallbackType, fallbackMessage, userName = fallbackUser)
         }
 

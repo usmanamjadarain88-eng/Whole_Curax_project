@@ -5,7 +5,9 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
@@ -85,12 +87,27 @@ class SettingsActivity : AppCompatActivity() {
             btnMyConnectionCode.visibility = android.view.View.VISIBLE
             btnMyConnectionCode.setOnClickListener {
                 val code = prefs.connectionCode.trim()
-                val message = if (code.isNotEmpty()) code else getString(R.string.connection_code_not_available)
-                AlertDialog.Builder(this)
+                if (code.isEmpty()) {
+                    AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.my_connection_code))
+                        .setMessage(getString(R.string.connection_code_not_available))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                    return@setOnClickListener
+                }
+                val content = LayoutInflater.from(this).inflate(R.layout.dialog_my_connection_code, null, false)
+                content.findViewById<TextView>(R.id.tvDialogConnectionCode).text = code
+                val dlg = AlertDialog.Builder(this)
                     .setTitle(getString(R.string.my_connection_code))
-                    .setMessage(message)
+                    .setView(content)
                     .setPositiveButton(android.R.string.ok, null)
-                    .show()
+                    .create()
+                content.findViewById<MaterialButton>(R.id.btnDialogCopyConnectionCode).setOnClickListener {
+                    (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                        .setPrimaryClip(ClipData.newPlainText("", code))
+                    CuraxFeedback.success(this@SettingsActivity, getString(R.string.admin_hub_code_copied))
+                }
+                dlg.show()
             }
             findViewById<MaterialButton>(R.id.btnDesktopLinkingCode).visibility = android.view.View.VISIBLE
             findViewById<MaterialButton>(R.id.btnDesktopLinkingCode).setOnClickListener { showDesktopLinkingCodeFlow() }
@@ -129,14 +146,14 @@ class SettingsActivity : AppCompatActivity() {
             append("FCM Token:\n").append(fcm)
         }
         AlertDialog.Builder(this)
-            .setTitle("My App Info")
+            .setTitle(getString(R.string.my_app_info_title))
             .setMessage(msg)
-            .setPositiveButton("Copy") { _, _ ->
+            .setPositiveButton(android.R.string.ok, null)
+            .setNegativeButton(R.string.copy) { _, _ ->
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText("app_info", msg))
-                CuraxFeedback.success(this, "Copied")
+                CuraxFeedback.success(this, getString(R.string.app_info_copied))
             }
-            .setNegativeButton(android.R.string.ok, null)
             .show()
     }
 
@@ -192,25 +209,22 @@ class SettingsActivity : AppCompatActivity() {
                 CuraxFeedback.warn(this, "No code returned")
                 return
             }
-            val msg = buildString {
-                append("Give this code to the user to enter in the desktop app:\n\n")
-                append("• Settings → Admin Panel → Use existing admin → enter code\n\n")
-                append("Code: ")
-                append(code)
-                append("\n\nExpires in ")
-                append(expiresIn / 60)
-                append(" minutes. One-time use.")
-                if (adminName.isNotEmpty()) append("\n\nAdmin: $adminName")
+            val minutes = (expiresIn / 60).coerceAtLeast(1)
+            val nameLine = if (adminName.isNotEmpty()) {
+                getString(R.string.admin_desktop_link_result_admin_line, adminName)
+            } else {
+                ""
             }
+            val msg = getString(R.string.admin_desktop_link_result_message_core, code, minutes) + nameLine
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             AlertDialog.Builder(this)
                 .setTitle(getString(R.string.desktop_linking_code))
                 .setMessage(msg)
-                .setPositiveButton("Copy code") { _, _ ->
+                .setPositiveButton(android.R.string.ok, null)
+                .setNegativeButton(R.string.copy) { _, _ ->
                     cm?.setPrimaryClip(ClipData.newPlainText("desktop_link_code", code))
-                    CuraxFeedback.success(this, "Copied")
+                    CuraxFeedback.success(this, getString(R.string.admin_hub_code_copied))
                 }
-                .setNegativeButton(android.R.string.ok, null)
                 .show()
         } else {
             CuraxFeedback.warn(this, "Failed to create code")

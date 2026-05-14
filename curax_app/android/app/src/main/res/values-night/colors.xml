@@ -33,6 +33,28 @@
     <color name="chart_status_low">#EA580C</color>
     <color name="chart_status_expiring">#EF4444</color>
     <color name="chart_missed">#64748B</color>
+    <color name="admin_insights_chart_muted">#8CBDAA</color>
+    <color name="admin_insights_hero_stroke">#5E917A</color>
+    <color name="admin_insights_hero_title">#FFFFFF</color>
+    <color name="admin_insights_hero_subtitle">#F0FFF9</color>
+    <color name="admin_care_banner_bg">#000000</color>
+    <color name="admin_care_on_dark_primary">#FFFFFF</color>
+    <color name="admin_care_on_dark_secondary">#D6E5E0</color>
+    <color name="admin_care_outline_stroke">#66FFFFFF</color>
+    <color name="admin_insights_on_sage_cta_text">#051810</color>
+    <color name="admin_tab_text_selected">#FFFFFF</color>
+    <color name="admin_tab_text_unselected">#C5DDD4</color>
+    <color name="admin_tab_indicator">#FFFFFF</color>
+    <color name="demo_user_avatar_tint_1">#38BDF8</color>
+    <color name="demo_user_avatar_tint_2">#A78BFA</color>
+    <color name="demo_user_avatar_tint_3">#2DD4BF</color>
+    <color name="demo_user_avatar_tint_4">#FB923C</color>
+    <color name="hub_readiness_linked">@color/admin_insights_chart_muted</color>
+    <color name="hub_readiness_pending">@color/chart_status_monitor</color>
+    <color name="hub_readiness_placeholder_linked">#998CBDAA</color>
+    <color name="hub_readiness_placeholder_pending">#990E7490</color>
+    <color name="hub_readiness_bar_track">#0F2A22</color>
+    <color name="hub_readiness_bar_gloss">#33FFFFFF</color>
     <color name="pin_lock_icon">#D0B574</color>
 
     <color name="checkbox_tint">#7FD6B7</color>
@@ -99,4 +121,11 @@
     <color name="standalone_medicine_chip_dot_tint_low">#FBBF24</color>
     <color name="standalone_medicine_chip_dot_tint_exp">#FB7185</color>
     <color name="standalone_medicine_chip_dot_tint_placeholder">#64748B</color>
+
+    <!-- Splash / launcher: match app night palette when dark theme is on -->
+    <color name="splash_screen_bg">#03100B</color>
+    <color name="splash_progress_track">#1A3A30</color>
+    <color name="splash_orbit_ring">#21473B</color>
+    <color name="splash_orbit_icon_bg">#0A1F18</color>
+    <color name="splash_hub_plate">#051811</color>
 </resources>

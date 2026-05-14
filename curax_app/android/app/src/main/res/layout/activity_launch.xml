@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- White shell: first launch = role buttons; returning user = bottom progress then auto-navigate. -->
+<!-- Launcher: role picker OR returning progress; title/subtitle tint matches progress indicator green. -->
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/auth_onboarding_bg"
+    android:background="@color/splash_screen_bg"
     android:clipChildren="false"
     android:fitsSystemWindows="true">
 
@@ -18,9 +18,9 @@
         android:layout_marginEnd="22dp"
         android:gravity="center"
         android:includeFontPadding="false"
-        android:letterSpacing="-0.03"
+        android:letterSpacing="-0.02"
         android:text="@string/splash_title"
-        android:textColor="@color/auth_heading"
+        android:textColor="@color/button_primary_bg"
         android:textSize="26sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
@@ -39,12 +39,12 @@
         android:includeFontPadding="false"
         android:lineSpacingMultiplier="1.15"
         android:text="@string/splash_subtitle"
-        android:textColor="@color/auth_subtitle"
+        android:textColor="@color/text_secondary"
         android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/tvSplashTitle"
-        tools:text="Medicine reminders and admin tools — pick your role." />
+        tools:text="Medicine reminders, dose tracking, and admin tools — pick your role to continue." />
 
     <LinearLayout
         android:id="@+id/splashFooter"
@@ -81,7 +81,7 @@
                 android:stateListAnimator="@null"
                 android:text="@string/splash_continue_user"
                 android:textAllCaps="false"
-                android:textColor="@color/auth_login_label"
+                android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 tools:text="Continue as a User" />
 
@@ -101,7 +101,7 @@
                 android:stateListAnimator="@null"
                 android:text="@string/splash_continue_admin"
                 android:textAllCaps="false"
-                android:textColor="@color/auth_login_label"
+                android:textColor="@color/text_primary"
                 android:textSize="16sp"
                 tools:text="Continue as an Admin" />
         </LinearLayout>
@@ -123,7 +123,7 @@
                 android:layout_gravity="center_horizontal"
                 android:indeterminate="true"
                 app:indicatorColor="@color/button_primary_bg"
-                app:trackColor="#E6F2EC"
+                app:trackColor="@color/splash_progress_track"
                 app:trackCornerRadius="3dp"
                 app:trackThickness="4dp" />
         </LinearLayout>

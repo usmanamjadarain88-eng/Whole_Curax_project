@@ -10,9 +10,12 @@
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
-    <!-- Launcher role picker: same light chrome as auth, gradient matches [activity_launch]. -->
-    <style name="Theme.Curax.Splash" parent="Theme.Curax.AuthOnboarding">
-        <item name="android:windowBackground">@color/auth_onboarding_bg</item>
+    <!-- Launcher: DayNight so it matches saved theme (CuraxApp applies Prefs.themeMode before first activity). -->
+    <style name="Theme.Curax.Splash" parent="Theme.Curax">
+        <item name="android:windowBackground">@color/splash_screen_bg</item>
+        <item name="android:navigationBarColor">@color/splash_screen_bg</item>
+        <item name="android:statusBarColor">@color/splash_screen_bg</item>
+        <item name="android:windowLightStatusBar">@bool/splash_light_status_bar</item>
     </style>
 
     <!-- White chrome for launcher + sign-in/up + link admin only (does not replace main app Theme.Curax). -->

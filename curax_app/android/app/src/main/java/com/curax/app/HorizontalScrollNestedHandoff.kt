@@ -3,6 +3,8 @@ package com.curax.app
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewParent
+import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
 
 /**
  * Lets horizontal strips (e.g. medicine chips) scroll inside vertical [android.widget.ScrollView] /
@@ -49,5 +51,16 @@ fun View.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown: Boolean = 
             }
         }
         false
+    }
+}
+
+/**
+ * When a [ViewPager2] sits inside [androidx.swiperefreshlayout.widget.SwipeRefreshLayout], horizontal page swipes
+ * can be mistaken for pull-to-refresh. Attach this to the pager after layout so the inner RecyclerView hands off
+ * horizontal drags to the pager instead of the refresh layout intercepting them.
+ */
+fun ViewPager2.attachSwipeRefreshNestedHandoff() {
+    post {
+        (getChildAt(0) as? RecyclerView)?.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = false)
     }
 }

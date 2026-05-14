@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.util.TypedValue
@@ -42,6 +43,7 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.curax.app.AdherenceLineChartView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -93,6 +95,8 @@ class AdminOverviewFragment : Fragment() {
     private var adminPollInFlight: Boolean = false
     private val adminPollIntervalMs: Long = 5000L
     private var healthHubIndicatorSyncing: Boolean = false
+    /** Throttle admin Care dashboard GET /admin/data on tab resumes (no periodic polling). */
+    private var lastAdminCareDashboardFetchElapsedMs: Long = 0L
     private var activeHealthHubSheet: BottomSheetDialog? = null
     /** Bumped when standalone Health Hub plan count should ignore an in-flight [UserPlansApi.fetchPlans]. */
     private var healthHubPlanFetchSeq: Int = 0
@@ -115,7 +119,8 @@ class AdminOverviewFragment : Fragment() {
                         view?.post { refreshAdherenceChartFromAlerts() }
                     }
                     view?.post {
-                        if (isUserApp() && StandaloneUi.isUserStandalone(requireContext())) {
+                        if ((isUserApp() && StandaloneUi.isUserStandalone(requireContext())) ||
+                            CareUi.useStandaloneLayoutsInCare(requireContext())) {
                             view?.let { refreshStandaloneHealthHubPillCounts(it) }
                             StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
                         }
@@ -145,7 +150,7 @@ class AdminOverviewFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val layout = if (StandaloneUi.isUserStandalone(requireContext())) {
+        val layout = if (CareUi.effectiveStandaloneShell(requireContext())) {
             R.layout.fragment_admin_overview_standalone
         } else {
             R.layout.fragment_admin_overview
@@ -172,10 +177,53 @@ class AdminOverviewFragment : Fragment() {
         setupKpiClicks(view)
         // Socket-only sync: no periodic HTTP polling.
         startAdminPollingIfNeeded(view)
+        view.post { setupOverviewPullToRefresh(view) }
+    }
+
+    private fun setupOverviewPullToRefresh(root: View) {
+        val swipe = root.findViewById<SwipeRefreshLayout>(R.id.swipeAdminOverview) ?: return
+        val accent = ContextCompat.getColor(requireContext(), R.color.button_primary_bg)
+        swipe.setColorSchemeColors(accent)
+        swipe.setProgressBackgroundColorSchemeColor(
+            ContextCompat.getColor(requireContext(), R.color.surface_bg),
+        )
+        swipe.setOnChildScrollUpCallback { _, child -> child?.canScrollVertically(-1) == true }
+        swipe.setOnRefreshListener {
+            if (isUserApp()) {
+                val prefs = Prefs(requireContext())
+                val base = prefs.centralApiUrl.trim().removeSuffix("/")
+                val botId = prefs.id.trim()
+                val apiKey = prefs.apiKey.trim()
+                if (botId.isEmpty() || apiKey.isEmpty() || base.isEmpty()) {
+                    swipe.isRefreshing = false
+                    return@setOnRefreshListener
+                }
+                UserDataBusClient.fetchAndApplyUserData(
+                    requireContext(),
+                    base,
+                    botId,
+                    apiKey,
+                    onFetchFinished = { swipe.isRefreshing = false },
+                )
+            } else {
+                AdminDataBusClient.fetchAdminSnapshotAsync(requireContext()) { result ->
+                    swipe.isRefreshing = false
+                    if (result == AdminDataBusClient.SnapshotResult.APPLIED) {
+                        root.post {
+                            allItems.clear()
+                            seedInventory()
+                            refreshInventoryList(root)
+                            refreshDashboard(root)
+                            adherenceChart?.data = computeAdherenceData()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun setupStandaloneHealthHubPills(view: View) {
-        if (!isUserApp() || !StandaloneUi.isUserStandalone(requireContext())) return
+        if (!CareUi.effectiveStandaloneShell(requireContext())) return
         view.findViewById<View>(R.id.health_hub_pill_planned)?.setOnClickListener {
             showHealthHubPlannedItemsBottomSheet()
         }
@@ -231,6 +279,14 @@ class AdminOverviewFragment : Fragment() {
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (!isUserApp()) {
+            val now = SystemClock.elapsedRealtime()
+            if (lastAdminCareDashboardFetchElapsedMs != 0L &&
+                now - lastAdminCareDashboardFetchElapsedMs < 15_000L
+            ) {
+                return
+            }
+        }
         Thread {
             try {
                 var url = if (isUserApp()) {
@@ -281,6 +337,10 @@ class AdminOverviewFragment : Fragment() {
                         // Use AdminDataBusClient to apply all data (medicines, alerts, medical_reminders, alert_settings)
                         // This ensures medical reminders and settings are also loaded when dashboard is shown
                         AdminDataBusClient.applyAdminDataJson(requireContext(), data)
+                        if (!isUserApp()) {
+                            lastAdminCareDashboardFetchElapsedMs = SystemClock.elapsedRealtime()
+                            AdminDataBusClient.broadcastSnapshotAppliedForUi(requireContext())
+                        }
                         allItems.clear()
                         seedInventory()
                         refreshInventoryList(v)
@@ -527,15 +587,20 @@ class AdminOverviewFragment : Fragment() {
         }
     }
 
-    /** Green boxes in Default mode; gold only when [AppModeManager] is Standalone (user app only). */
+    /** Green boxes in Default mode; gold when the visible shell is standalone (user app or admin care). */
     private fun applyStandaloneMedicineBoxGoldTheme(view: View) {
-        if (!isUserApp()) return
+        val ctx = requireContext()
+        if (!isUserApp() && !CareUi.useStandaloneLayoutsInCare(ctx)) return
         if (view.findViewById<MaterialCardView>(R.id.cardB1) == null) return
-        if (!AppModeManager.isStandaloneMode(requireContext())) {
+        val goldShell = if (isUserApp()) {
+            AppModeManager.isStandaloneMode(ctx)
+        } else {
+            CareUi.useStandaloneLayoutsInCare(ctx)
+        }
+        if (!goldShell) {
             restoreUserMedBoxColors(view)
             return
         }
-        val ctx = requireContext()
         val bg = ContextCompat.getColor(ctx, R.color.med_box_standalone_bg)
         val stroke = ContextCompat.getColor(ctx, R.color.med_box_standalone_stroke)
         val strokePx = (2f * resources.displayMetrics.density).toInt().coerceAtLeast(2)
@@ -557,9 +622,9 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun restoreUserMedBoxColors(view: View) {
-        if (!isUserApp()) return
-        if (view.findViewById<MaterialCardView>(R.id.cardB1) == null) return
         val ctx = requireContext()
+        if (!isUserApp() && !CareUi.useStandaloneLayoutsInCare(ctx)) return
+        if (view.findViewById<MaterialCardView>(R.id.cardB1) == null) return
         val bg = ContextCompat.getColor(ctx, R.color.med_box_bg)
         val stroke = ContextCompat.getColor(ctx, R.color.med_box_stroke)
         val label = ContextCompat.getColor(ctx, R.color.med_box_label)
@@ -923,7 +988,7 @@ class AdminOverviewFragment : Fragment() {
 
         val avail = availableBoxes()
         view.findViewById<TextView>(R.id.tvInventoryHint)?.apply {
-            if (StandaloneUi.isUserStandalone(requireContext())) {
+            if (CareUi.effectiveStandaloneShell(requireContext())) {
                 visibility = View.GONE
                 text = ""
             } else {
@@ -946,7 +1011,7 @@ class AdminOverviewFragment : Fragment() {
         if (chipsSection?.visibility == View.VISIBLE &&
             view.findViewById<LinearLayout>(R.id.llStandaloneMedicineChips) != null
         ) {
-            val chipList = if (StandaloneUi.isUserStandalone(requireContext())) {
+            val chipList = if (CareUi.effectiveStandaloneShell(requireContext())) {
                 val list = working.toMutableList()
                 var pad = 0
                 while (list.size < 3) {
@@ -1044,7 +1109,7 @@ class AdminOverviewFragment : Fragment() {
         val low = allItems.count { it.stock in 1..threshold }
         val emptyBoxes = (6 - allItems.size).coerceAtLeast(0)
         val zeroStockItems = allItems.count { it.stock == 0 }
-        val refill = if (StandaloneUi.isUserStandalone(requireContext())) {
+        val refill = if (CareUi.effectiveStandaloneShell(requireContext())) {
             zeroStockItems
         } else {
             emptyBoxes + zeroStockItems
@@ -1088,7 +1153,8 @@ class AdminOverviewFragment : Fragment() {
         view.findViewById<TextView>(R.id.tvKpiExpiring)?.text = exp.toString()
         view.findViewById<TextView>(R.id.tvKpiRefill)?.text = refill.toString()
 
-        if (isUserApp() && StandaloneUi.isUserStandalone(requireContext())) {
+        if ((isUserApp() && StandaloneUi.isUserStandalone(requireContext())) ||
+            CareUi.useStandaloneLayoutsInCare(requireContext())) {
             refreshStandaloneHealthHubPillCounts(view)
             HealthHubPlanInsights.bind(view, requireContext())
         }
@@ -1096,7 +1162,9 @@ class AdminOverviewFragment : Fragment() {
             formatStandaloneSyncLabel(Prefs(requireContext()).lastSyncTime)
 
         updateTrendFromInventory(view)
-        if (isUserApp()) applyStandaloneMedicineBoxGoldTheme(view)
+        if (isUserApp() || CareUi.useStandaloneLayoutsInCare(requireContext())) {
+            applyStandaloneMedicineBoxGoldTheme(view)
+        }
         maybeShowStandaloneDoseNudges()
     }
 
@@ -1144,7 +1212,7 @@ class AdminOverviewFragment : Fragment() {
      * Reads cached plan count immediately, then reconciles from network (stale responses dropped via [healthHubPlanFetchSeq]).
      */
     private fun refreshStandaloneHealthHubPillCounts(host: View) {
-        if (!isUserApp() || !StandaloneUi.isUserStandalone(requireContext())) return
+        if (!CareUi.effectiveStandaloneShell(requireContext())) return
         val tvPlanned = host.findViewById<TextView>(R.id.tv_standalone_summary_total) ?: return
         val tvAlerts = host.findViewById<TextView>(R.id.tv_standalone_summary_alerts) ?: return
         tvAlerts.text = standaloneHealthHubAlertCount().toString()
@@ -1540,7 +1608,7 @@ class AdminOverviewFragment : Fragment() {
 
         view.findViewById<View>(R.id.cardKpiRefill)?.setOnClickListener {
             val zeroStockLines = allItems.filter { it.stock == 0 }.sortedBy { it.box }.map { formatMedicineLine(it) }
-            val lines = if (StandaloneUi.isUserStandalone(requireContext())) {
+            val lines = if (CareUi.effectiveStandaloneShell(requireContext())) {
                 zeroStockLines
             } else {
                 val used = allItems.map { it.box.uppercase() }.toSet()
@@ -1548,7 +1616,7 @@ class AdminOverviewFragment : Fragment() {
                     .map { "Box: $it | Empty | Refill needed" }
                 zeroStockLines + emptyBoxes
             }
-            val subtitle = if (StandaloneUi.isUserStandalone(requireContext())) {
+            val subtitle = if (CareUi.effectiveStandaloneShell(requireContext())) {
                 "Medicines on your list with stock at zero (not tied to six slots)"
             } else {
                 "Zero-stock medicines and empty B1–B6 slots"
@@ -1557,7 +1625,7 @@ class AdminOverviewFragment : Fragment() {
                 title = "Refill Required",
                 subtitle = subtitle,
                 lines = lines,
-                emptyMessage = if (StandaloneUi.isUserStandalone(requireContext())) {
+                emptyMessage = if (CareUi.effectiveStandaloneShell(requireContext())) {
                     "Refill is zero — no medicines on your list have stock at zero."
                 } else {
                     "No refills needed: no empty boxes and no zero-stock medicines."

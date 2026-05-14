@@ -68,13 +68,26 @@
         </LinearLayout>
 
         <TextView
+            android:id="@+id/tvAdminUserMode"
+            android:layout_width="88dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="2"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            tools:text="Standalone" />
+
+        <TextView
             android:id="@+id/tvAdminUserStatus"
-            android:layout_width="wrap_content"
+            android:layout_width="88dp"
             android:layout_height="wrap_content"
             android:layout_marginEnd="10dp"
             android:background="@drawable/bg_admin_hub_status_pill"
-            android:maxWidth="100dp"
-            android:paddingHorizontal="10dp"
+            android:gravity="center"
+            android:paddingHorizontal="6dp"
             android:paddingVertical="6dp"
             android:textColor="@color/connection_panel_title"
             android:textSize="11sp"
@@ -84,15 +97,17 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAdminUserCareMode"
             style="@style/Widget.MaterialComponents.Button"
-            android:layout_width="wrap_content"
+            android:layout_width="96dp"
             android:layout_height="wrap_content"
             android:minWidth="0dp"
-            android:minHeight="40dp"
-            android:paddingHorizontal="10dp"
+            android:minHeight="44dp"
+            android:paddingHorizontal="6dp"
             android:text="@string/admin_users_care_mode"
             android:textAllCaps="false"
+            android:textColor="#FFFFFFFF"
             android:textSize="12sp"
-            app:backgroundTint="@color/connect_button_bg"
-            app:cornerRadius="10dp" />
+            app:backgroundTint="@android:color/black"
+            app:cornerRadius="10dp"
+            app:rippleColor="#44FFFFFF" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

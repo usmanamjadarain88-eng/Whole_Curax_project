@@ -21,6 +21,8 @@ import android.os.IBinder
 import android.view.Menu
 import android.view.MenuItem
 import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import org.json.JSONArray
 import androidx.appcompat.app.AppCompatActivity
@@ -65,12 +67,15 @@ class AdminDashboardActivity : AppCompatActivity() {
     private var adminDataSyncReceiverRegistered = false
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
 
+    /** Throttle sidebar linked/pending HTTP: [ACTION_ADMIN_DATA_SYNCED] can fire very often over WebSocket. */
+    private var lastSidebarLinkedOverviewFetchAtMs: Long = 0L
+
     private val adminDataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
                 runOnUiThread {
                     updateReturnToAdminBar()
-                    fetchSidebarHealthOverview()
+                    fetchSidebarHealthOverview(force = false)
                 }
             }
         }
@@ -121,8 +126,9 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        delegate.setLocalNightMode(prefs.adminLocalNightMode)
+        super.onCreate(savedInstanceState)
         if (AppLockPolicy.shouldRequireLockOnEntry(this)) {
             startActivity(Intent(this, PinEntryActivity::class.java))
             finish()
@@ -152,14 +158,6 @@ class AdminDashboardActivity : AppCompatActivity() {
             viewPager?.setCurrentItem(1, true)
         }
 
-        findViewById<MaterialButton>(R.id.btnSidebarReturnToAdmin).setOnClickListener {
-            prefs.actAsUserId = ""
-            prefs.actAsUserName = ""
-            refreshTabsForActAsUser()
-            updateReturnToAdminBar()
-            fetchSidebarHealthOverview()
-            fetchAdminSnapshotFromServer()
-        }
         updateReturnToAdminBar()
 
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.adminToolbar)
@@ -203,7 +201,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             prefs.apiKey = apiKey
         }
 
-        fetchSidebarHealthOverview()
+        fetchSidebarHealthOverview(force = true)
 
         btnAdminConnect.setOnClickListener {
             if (connectionService?.isConnected() == true) {
@@ -229,13 +227,16 @@ class AdminDashboardActivity : AppCompatActivity() {
                 if (relayOn) android.R.color.holo_green_dark else android.R.color.holo_red_dark,
             ),
         )
-        tvSidebarStatAlerts.text = alertDb.getAllAlerts().size.toString()
+        tvSidebarStatAlerts.text = AdminDemoData.totalAdminAlertsVisibleCount(
+            AppRole.isAdmin(this),
+            alertDb.getAllAlerts().size,
+        ).toString()
         val placeholder = getString(R.string.admin_sidebar_stat_placeholder)
         tvSidebarStatSync.text = prefs.lastSyncTime.trim().ifEmpty { placeholder }
     }
 
     /** Sidebar care overview: relay + local alerts/sync + linked/pending counts from API when signed in. */
-    private fun fetchSidebarHealthOverview() {
+    private fun fetchSidebarHealthOverview(force: Boolean = false) {
         applySidebarLocalStats()
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -245,6 +246,14 @@ class AdminDashboardActivity : AppCompatActivity() {
             tvSidebarStatPending.text = placeholder
             return
         }
+        val now = System.currentTimeMillis()
+        if (!force &&
+            lastSidebarLinkedOverviewFetchAtMs > 0L &&
+            now - lastSidebarLinkedOverviewFetchAtMs < SIDEBAR_LINKED_OVERVIEW_MIN_INTERVAL_MS
+        ) {
+            return
+        }
+        lastSidebarLinkedOverviewFetchAtMs = now
         Thread {
             var linked = placeholder
             var pending = placeholder
@@ -297,6 +306,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         val actAsUserId = prefs.actAsUserId
         if (base.isEmpty() || accessCode.isEmpty() || actAsUserId.isEmpty()) {
             runOnUiThread {
+                if (actAsUserId.isEmpty()) prefs.actAsUserDisplayMode = ""
                 refreshTabsForActAsUser()
                 updateReturnToAdminBar()
                 updateToolbarSubtitle()
@@ -307,6 +317,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             if (result == AdminDataBusClient.SnapshotResult.FAILED) {
                 prefs.actAsUserId = ""
                 prefs.actAsUserName = ""
+                prefs.actAsUserDisplayMode = ""
             }
             refreshTabsForActAsUser()
             updateReturnToAdminBar()
@@ -352,15 +363,20 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
     }
 
-    /** Shows "Return to Admin" in sidebar when acting as a linked user (Care mode). */
+    /** Care mode: toolbar subtitle + overflow menu "Return to admin" (no sidebar duplicate). */
     private fun updateReturnToAdminBar() {
-        val container = findViewById<android.view.View>(R.id.sidebarReturnToAdminContainer)
-        if (prefs.actAsUserId.isNotEmpty()) {
-            container?.visibility = android.view.View.VISIBLE
-        } else {
-            container?.visibility = android.view.View.GONE
-        }
         updateToolbarSubtitle()
+        invalidateOptionsMenu()
+    }
+
+    private fun performReturnToAdminHome() {
+        prefs.actAsUserId = ""
+        prefs.actAsUserName = ""
+        prefs.actAsUserDisplayMode = ""
+        refreshTabsForActAsUser()
+        updateReturnToAdminBar()
+        fetchSidebarHealthOverview(force = true)
+        fetchAdminSnapshotFromServer()
     }
 
     private fun updateToolbarSubtitle() {
@@ -383,23 +399,40 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     /**
-     * Acting as user: Care dashboard + Reminders + Settings for that user’s plan.
-     * Pure admin: Dashboard · Users · Alerts · Reports · Connections; alert prefs from toolbar menu.
+     * Care mode: Overview, Reminders, optional temp adjustment, Logs, Settings — no Alerts/Dose/Reports
+     * (admin home strip already has Alerts/Reports). Pure admin: hub · Users · Alerts · Reports · Connections.
      */
     private fun refreshTabsForActAsUser() {
         val tl = tabLayout ?: return
         val vp = viewPager ?: return
         tabMediator?.detach()
         val actingAsUser = prefs.actAsUserId.isNotEmpty()
-        val count = if (actingAsUser) 3 else 5
+        val careStandalone =
+            actingAsUser && prefs.actAsUserDisplayMode.trim().equals("standalone", ignoreCase = true)
+        val count = when {
+            !actingAsUser -> 5
+            careStandalone -> 4
+            else -> 5
+        }
         vp.adapter = object : FragmentStateAdapter(this) {
             override fun getItemCount(): Int = count
             override fun createFragment(position: Int): androidx.fragment.app.Fragment {
                 return if (actingAsUser) {
-                    when (position) {
-                        0 -> AdminOverviewFragment()
-                        1 -> AdminMedicalRemindersFragment()
-                        else -> AdminSettingsFragment()
+                    if (careStandalone) {
+                        when (position) {
+                            0 -> AdminOverviewFragment()
+                            1 -> AdminMedicalRemindersFragment()
+                            2 -> AdminLogsFragment()
+                            else -> AdminSettingsFragment()
+                        }
+                    } else {
+                        when (position) {
+                            0 -> AdminOverviewFragment()
+                            1 -> AdminMedicalRemindersFragment()
+                            2 -> UserTempAdjustmentFragment()
+                            3 -> AdminLogsFragment()
+                            else -> AdminSettingsFragment()
+                        }
                     }
                 } else {
                     when (position) {
@@ -414,10 +447,21 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
         tabMediator = TabLayoutMediator(tl, vp) { tab, position ->
             tab.text = if (actingAsUser) {
-                when (position) {
-                    0 -> getString(R.string.admin_tab_user_dashboard)
-                    1 -> getString(R.string.admin_tab_user_reminders)
-                    else -> getString(R.string.admin_tab_settings)
+                if (careStandalone) {
+                    when (position) {
+                        0 -> getString(R.string.admin_tab_overview)
+                        1 -> getString(R.string.admin_tab_user_reminders)
+                        2 -> getString(R.string.admin_logs_screen_title)
+                        else -> getString(R.string.admin_tab_settings)
+                    }
+                } else {
+                    when (position) {
+                        0 -> getString(R.string.admin_tab_overview)
+                        1 -> getString(R.string.admin_tab_user_reminders)
+                        2 -> getString(R.string.tab_temp_adjustment)
+                        3 -> getString(R.string.admin_logs_screen_title)
+                        else -> getString(R.string.admin_tab_settings)
+                    }
                 }
             } else {
                 when (position) {
@@ -455,7 +499,13 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     /** Open per-user management (same rules as drawer list). Callable from [AdminUsersFragment]. */
-    fun openLinkedUserForManagement(userId: String, name: String, desktopLinked: Boolean, isDemo: Boolean = false) {
+    fun openLinkedUserForManagement(
+        userId: String,
+        name: String,
+        desktopLinked: Boolean,
+        isDemo: Boolean = false,
+        userDisplayMode: String = "",
+    ) {
         if (isDemo || userId.startsWith("demo_")) {
             CuraxFeedback.info(this, getString(R.string.admin_demo_user_open_blocked))
             return
@@ -472,8 +522,14 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
         prefs.actAsUserId = userId
         prefs.actAsUserName = name
+        prefs.actAsUserDisplayMode = when (userDisplayMode.trim().lowercase()) {
+            "standalone", "default" -> userDisplayMode.trim().lowercase()
+            else -> ""
+        }
         drawerLayout.closeDrawer(android.view.Gravity.START)
         updateToolbarSubtitle()
+        refreshTabsForActAsUser()
+        updateReturnToAdminBar()
         CuraxFeedback.info(this, getString(R.string.admin_hub_loading_user_data, name))
         fetchActAsUserDataThenNotify()
     }
@@ -525,27 +581,38 @@ class AdminDashboardActivity : AppCompatActivity() {
         val themeItem = menu.findItem(R.id.action_toggle_theme)
         themeItem?.setIcon(if (isDark) R.drawable.ic_theme_sun else R.drawable.ic_theme_moon)
         themeItem?.title = if (isDark) getString(R.string.light_mode) else getString(R.string.dark_mode)
-        menu.findItem(R.id.action_admin_care_settings)?.isVisible = prefs.actAsUserId.isEmpty()
+        menu.findItem(R.id.action_return_to_admin)?.apply {
+            isVisible = prefs.actAsUserId.isNotEmpty()
+            if (isVisible) {
+                icon?.mutate()?.setTint(Color.WHITE)
+            }
+        }
         findViewById<androidx.appcompat.widget.Toolbar>(R.id.adminToolbar).overflowIcon?.setTint(Color.WHITE)
         return super.onPrepareOptionsMenu(menu)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_return_to_admin -> {
+                performReturnToAdminHome()
+                true
+            }
             R.id.action_toggle_theme -> {
                 val newMode = if (isDarkModeEnabled()) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
                 AppLockState.grantUnlock()
-                prefs.themeMode = newMode
-                AppCompatDelegate.setDefaultNightMode(newMode)
+                prefs.adminLocalNightMode = newMode
+                delegate.setLocalNightMode(newMode)
                 window.decorView.post { recreate() }
                 true
             }
-            R.id.action_admin_care_settings -> {
-                startActivity(Intent(this, AdminCareSettingsActivity::class.java))
-                true
-            }
             R.id.action_settings -> {
-                startActivity(Intent(this, SettingsActivity::class.java))
+                if (prefs.actAsUserId.isNotEmpty()) {
+                    val vp = viewPager
+                    val n = vp?.adapter?.itemCount ?: 0
+                    if (n > 0) vp?.setCurrentItem(n - 1, true)
+                } else {
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                }
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -709,5 +776,10 @@ class AdminDashboardActivity : AppCompatActivity() {
             AdminDataBusClient.stop()
         }
         super.onDestroy()
+    }
+
+    companion object {
+        /** Throttle sidebar linked/pending counts over frequent [ACTION_ADMIN_DATA_SYNCED] (WebSocket). */
+        private const val SIDEBAR_LINKED_OVERVIEW_MIN_INTERVAL_MS = 90_000L
     }
 }

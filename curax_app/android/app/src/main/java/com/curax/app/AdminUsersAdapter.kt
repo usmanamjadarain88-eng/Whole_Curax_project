@@ -1,11 +1,15 @@
 package com.curax.app
 
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.widget.ImageViewCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 
@@ -16,7 +20,39 @@ data class AdminLinkedUserUiModel(
     val desktopLinked: Boolean,
     val profilePictureDataUrl: String = "",
     val isDemo: Boolean = false,
+    /** Server `user_display_mode`: `standalone` | `default` | empty */
+    val userDisplayMode: String = "",
 )
+
+private fun avatarAccentForRow(ctx: Context, row: AdminLinkedUserUiModel): Int {
+    if (row.isDemo) {
+        val resId = when (row.userId) {
+            "demo_usman" -> R.color.demo_user_avatar_tint_1
+            "demo_hamad" -> R.color.demo_user_avatar_tint_2
+            "demo_abdullah" -> R.color.demo_user_avatar_tint_3
+            "demo_zara" -> R.color.demo_user_avatar_tint_4
+            else -> R.color.demo_user_avatar_tint_1
+        }
+        return ContextCompat.getColor(ctx, resId)
+    }
+    val palette = intArrayOf(
+        R.color.demo_user_avatar_tint_1,
+        R.color.demo_user_avatar_tint_2,
+        R.color.demo_user_avatar_tint_3,
+        R.color.demo_user_avatar_tint_4,
+    )
+    val idx = kotlin.math.abs(row.userId.hashCode()) % palette.size
+    return ContextCompat.getColor(ctx, palette[idx])
+}
+
+private fun modeLabel(ctx: Context, row: AdminLinkedUserUiModel): String {
+    val m = row.userDisplayMode.trim().lowercase()
+    return when (m) {
+        "standalone" -> ctx.getString(R.string.user_mode_standalone)
+        "default" -> ctx.getString(R.string.user_mode_default)
+        else -> ctx.getString(R.string.admin_user_mode_unknown)
+    }
+}
 
 class AdminUsersAdapter(
     private val onCareMode: (AdminLinkedUserUiModel) -> Unit,
@@ -47,6 +83,7 @@ class AdminUsersAdapter(
         private val ivAvatar = itemView.findViewById<ImageView>(R.id.ivAdminUserAvatar)
         private val tvInitial = itemView.findViewById<TextView>(R.id.tvAdminUserInitial)
         private val tvName = itemView.findViewById<TextView>(R.id.tvAdminUserName)
+        private val tvMode = itemView.findViewById<TextView>(R.id.tvAdminUserMode)
         private val tvStatus = itemView.findViewById<TextView>(R.id.tvAdminUserStatus)
         private val btnCare = itemView.findViewById<MaterialButton>(R.id.btnAdminUserCareMode)
 
@@ -60,22 +97,41 @@ class AdminUsersAdapter(
             val initial = displayName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
             tvInitial.text = initial
             tvName.text = displayName
+            tvMode.text = modeLabel(ctx, row)
 
             val bmp = ProfilePictureDataUrl.decodeBitmap(row.profilePictureDataUrl)
             if (bmp != null) {
+                ivAvatar.background = null
                 ivAvatar.setImageBitmap(bmp)
+                ImageViewCompat.setImageTintList(ivAvatar, null)
+                ivAvatar.scaleType = ImageView.ScaleType.CENTER_CROP
+                ivAvatar.setPadding(0, 0, 0, 0)
                 ivAvatar.visibility = View.VISIBLE
-                tvInitial.visibility = View.INVISIBLE
+                tvInitial.visibility = View.GONE
             } else {
-                ivAvatar.setImageDrawable(null)
-                ivAvatar.visibility = View.GONE
-                tvInitial.visibility = View.VISIBLE
+                val accent = avatarAccentForRow(ctx, row)
+                ivAvatar.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(accent)
+                }
+                ivAvatar.setImageResource(R.drawable.ic_admin_avatar_silhouette)
+                ImageViewCompat.setImageTintList(
+                    ivAvatar,
+                    ColorStateList.valueOf(
+                        ContextCompat.getColor(ctx, android.R.color.white),
+                    ),
+                )
+                ivAvatar.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                val pad = (6f * ctx.resources.displayMetrics.density).toInt()
+                ivAvatar.setPadding(pad, pad, pad, pad)
+                ivAvatar.visibility = View.VISIBLE
+                tvInitial.visibility = View.GONE
             }
 
             if (row.desktopLinked) {
                 tvStatus.text = ctx.getString(R.string.admin_hub_status_ready_short)
-                btnCare.isEnabled = !row.isDemo
-                btnCare.alpha = if (row.isDemo) 0.45f else 1f
+                btnCare.isEnabled = true
+                btnCare.alpha = 1f
             } else {
                 tvStatus.text = ctx.getString(R.string.admin_hub_status_pending_short)
                 btnCare.isEnabled = false

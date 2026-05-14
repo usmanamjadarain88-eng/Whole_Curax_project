@@ -96,13 +96,19 @@
                 app:strokeColor="@color/summary_stroke"
                 app:strokeWidth="1dp">
 
-                <androidx.viewpager2.widget.ViewPager2
-                    android:id="@+id/userStandalonePager"
+                <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                    android:id="@+id/userStandaloneSwipeRefresh"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@color/surface_bg"
-                    android:clipChildren="false"
-                    android:clipToPadding="false" />
+                    android:layout_height="match_parent">
+
+                    <androidx.viewpager2.widget.ViewPager2
+                        android:id="@+id/userStandalonePager"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@color/surface_bg"
+                        android:clipChildren="false"
+                        android:clipToPadding="false" />
+                </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
 

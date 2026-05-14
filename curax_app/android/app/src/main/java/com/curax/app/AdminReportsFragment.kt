@@ -170,10 +170,30 @@ class AdminReportsFragment : Fragment() {
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
                     val id = o.optString("id", "").trim()
-                    val name = o.optString("name", "").trim().ifEmpty { "User" }
+                    val nameRaw = o.optString("name", "").trim()
                     val email = o.optString("email", "").trim()
-                    val display = if (email.isNotEmpty()) email else name
+                    val display = when {
+                        nameRaw.isNotEmpty() && !nameRaw.equals("null", ignoreCase = true) -> nameRaw
+                        email.contains("@") -> email.substringBefore("@").trim()
+                        else -> nameRaw
+                    }.ifEmpty { "User" }
                     if (id.isNotEmpty()) list.add(id to display)
+                }
+                if (list.isNotEmpty()) {
+                    AdminLinkedUserDirectory.ingestUsersJsonArray(arr)
+                } else {
+                    AdminLinkedUserDirectory.ingestFromUiModels(
+                        demoReportUserPairs().mapIndexed { index, (id, name) ->
+                            AdminLinkedUserUiModel(
+                                userId = id,
+                                name = name,
+                                email = "",
+                                desktopLinked = true,
+                                isDemo = true,
+                                userDisplayMode = if (index % 2 == 0) "default" else "standalone",
+                            )
+                        },
+                    )
                 }
                 activity?.runOnUiThread {
                     val finalList = if (list.isEmpty()) demoReportUserPairs() else list

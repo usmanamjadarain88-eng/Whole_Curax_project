@@ -39,6 +39,18 @@ class Prefs(context: Context) {
         get() = prefs.getInt(KEY_THEME_MODE, AppCompatDelegate.MODE_NIGHT_NO)
         set(value) = prefs.edit().putInt(KEY_THEME_MODE, value).apply()
 
+    /**
+     * Night palette for [AdminDashboardActivity] only ([AppCompatDelegate.setLocalNightMode]).
+     * When unset, defaults to dark; does not change global [themeMode] or other screens.
+     */
+    var adminLocalNightMode: Int
+        get() = if (prefs.contains(KEY_ADMIN_LOCAL_NIGHT_MODE)) {
+            prefs.getInt(KEY_ADMIN_LOCAL_NIGHT_MODE, AppCompatDelegate.MODE_NIGHT_YES)
+        } else {
+            AppCompatDelegate.MODE_NIGHT_YES
+        }
+        set(value) = prefs.edit().putInt(KEY_ADMIN_LOCAL_NIGHT_MODE, value).apply()
+
     var appPin: String
         get() = prefs.getString(KEY_APP_PIN, "") ?: ""
         set(value) = prefs.edit().putString(KEY_APP_PIN, value).apply()
@@ -142,6 +154,14 @@ class Prefs(context: Context) {
     var actAsUserName: String
         get() = prefs.getString(KEY_ACT_AS_USER_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_ACT_AS_USER_NAME, value?.trim().orEmpty()).apply()
+
+    /**
+     * Server `user_display_mode` for the user currently in Care mode (`standalone` | `default` | empty).
+     * Drives [CareUi.useStandaloneLayoutsInCare]; cleared when [actAsUserId] is cleared.
+     */
+    var actAsUserDisplayMode: String
+        get() = prefs.getString(KEY_ACT_AS_USER_DISPLAY_MODE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_ACT_AS_USER_DISPLAY_MODE, value?.trim().orEmpty()).apply()
 
     var userStandaloneMode: Boolean
         /** Default false = Default mode until the user saves Standalone in the mode popup. */
@@ -519,6 +539,7 @@ class Prefs(context: Context) {
         private const val KEY_BOT_ID = "bot_id"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_ADMIN_LOCAL_NIGHT_MODE = "admin_local_night_mode"
         private const val KEY_APP_PIN = "app_pin"
         private const val KEY_AUTO_LOCK_SECONDS = "auto_lock_minutes"
         private const val KEY_LAST_BACKGROUND_AT_MS = "last_background_at_ms"
@@ -535,6 +556,7 @@ class Prefs(context: Context) {
         private const val KEY_DATA_BUS_ABLY_SUBSCRIBE_KEY = "data_bus_ably_subscribe_key"
         private const val KEY_ACT_AS_USER_ID = "act_as_user_id"
         private const val KEY_ACT_AS_USER_NAME = "act_as_user_name"
+        private const val KEY_ACT_AS_USER_DISPLAY_MODE = "act_as_user_display_mode"
         private const val KEY_USER_STANDALONE_MODE = "user_standalone_mode"
         private const val KEY_USER_INITIAL_MODE_SHEET = "user_initial_app_mode_sheet_completed"
         private const val KEY_USER_HOME_COLD_START_COUNT = "user_home_cold_start_count"

@@ -18,7 +18,8 @@
     <color name="splash_orbit_hub">#0E7A57</color>
     <!-- Very soft disk under launcher only (not a stroked orbit ring). -->
     <color name="splash_hub_plate">#F4FAF7</color>
-
+    <color name="splash_screen_bg">#FFFFFF</color>
+    <color name="splash_progress_track">#E6F2EC</color>
     <color name="toolbar_start">#06402B</color>
     <color name="toolbar_end">#0E7A57</color>
 
@@ -64,6 +65,33 @@
     <color name="chart_status_low">#D97706</color>
     <color name="chart_status_expiring">#DC2626</color>
     <color name="chart_missed">#94A3B8</color>
+    <!-- Solid fill matching "Same week · daily counts" bars on admin dashboard (~#7FB39F). -->
+    <color name="admin_insights_chart_muted">#7FB39F</color>
+    <color name="admin_insights_hero_stroke">#5A9078</color>
+    <!-- Hub hero + users table header: pure white (no off-white / masked look on sage) -->
+    <color name="admin_insights_hero_title">#FFFFFF</color>
+    <color name="admin_insights_hero_subtitle">#F0FFF9</color>
+    <!-- Care banner: light theme = rich black strip; dark theme overrides to #000000 in values-night -->
+    <color name="admin_care_banner_bg">#121212</color>
+    <color name="admin_care_on_dark_primary">#FFFFFF</color>
+    <color name="admin_care_on_dark_secondary">#DCEBE6</color>
+    <color name="admin_care_outline_stroke">#66FFFFFF</color>
+    <color name="admin_insights_on_sage_cta_text">#0F2419</color>
+    <color name="admin_tab_text_selected">@color/connection_panel_title</color>
+    <color name="admin_tab_text_unselected">@color/text_secondary</color>
+    <color name="admin_tab_indicator">@color/button_primary_bg</color>
+    <!-- Admin Users · demo row avatar tints (silhouette on circle) -->
+    <color name="demo_user_avatar_tint_1">#1D6FA5</color>
+    <color name="demo_user_avatar_tint_2">#6D28D9</color>
+    <color name="demo_user_avatar_tint_3">#0F766E</color>
+    <color name="demo_user_avatar_tint_4">#C2410C</color>
+    <!-- Admin hub · readiness bar (linked segment = same sage as weekly chart bars) -->
+    <color name="hub_readiness_linked">@color/admin_insights_chart_muted</color>
+    <color name="hub_readiness_pending">@color/chart_status_monitor</color>
+    <color name="hub_readiness_placeholder_linked">#997FB39F</color>
+    <color name="hub_readiness_placeholder_pending">#990891B2</color>
+    <color name="hub_readiness_bar_track">#D0E8DF</color>
+    <color name="hub_readiness_bar_gloss">#59FFFFFF</color>
     <color name="pin_lock_icon">#7A6122</color>
 
     <color name="checkbox_tint">#0E7A57</color>

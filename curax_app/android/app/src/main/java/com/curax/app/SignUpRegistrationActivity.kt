@@ -114,13 +114,11 @@ class SignUpRegistrationActivity : AppCompatActivity() {
 
         prefs = Prefs(this)
 
+        // Email + profile only → device account chooser. ID token is optional for signup (OTP path);
+        // requesting id token in the same intent often triggers Google’s web-style sign-in UI.
         val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestProfile()
-        val webClientId = resolveGoogleWebClientId()
-        if (webClientId.isNotEmpty()) {
-            gsoBuilder.requestIdToken(webClientId)
-        }
         googleSignInClient = GoogleSignIn.getClient(this, gsoBuilder.build())
 
         facebookCallbackManager = CallbackManager.Factory.create()
@@ -231,15 +229,19 @@ class SignUpRegistrationActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvSignInHere).setOnClickListener { finish() }
 
         findViewById<ImageButton>(R.id.btnGoogleSignup).setOnClickListener {
-            try {
-                googleSignInLauncher.launch(googleSignInClient.signInIntent)
-            } catch (e: Exception) {
-                CuraxFeedback.warn(
-                    this,
-                    getString(R.string.social_google_failed, e.message ?: "error"),
-                    long = true,
-                )
-            }
+            googleSignInClient.signOut()
+                .continueWithTask { googleSignInClient.revokeAccess() }
+                .addOnCompleteListener {
+                    try {
+                        googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                    } catch (e: Exception) {
+                        CuraxFeedback.warn(
+                            this,
+                            getString(R.string.social_google_failed, e.message ?: "error"),
+                            long = true,
+                        )
+                    }
+                }
         }
         findViewById<ImageButton>(R.id.btnFacebookSignup).setOnClickListener {
             try {
@@ -358,14 +360,6 @@ class SignUpRegistrationActivity : AppCompatActivity() {
             it.text?.toString()?.trim().orEmpty().isNotEmpty()
         }
         btnCreateAccount.isEnabled = fieldsOk && cbTermsAgree.isChecked
-    }
-
-    /** Firebase Gradle plugin injects `default_web_client_id` after OAuth clients exist; optional override in strings.xml. */
-    private fun resolveGoogleWebClientId(): String {
-        val overrideId = getString(R.string.google_web_client_id).trim()
-        if (overrideId.isNotEmpty()) return overrideId
-        val resId = resources.getIdentifier("default_web_client_id", "string", packageName)
-        return if (resId != 0) getString(resId).trim() else ""
     }
 
     /** SHA-1 with colons (uppercase hex) for the installed APK — same value Firebase expects under fingerprints. */

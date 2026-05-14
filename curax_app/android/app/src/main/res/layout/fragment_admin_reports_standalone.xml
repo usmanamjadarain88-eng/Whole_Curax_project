@@ -127,7 +127,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:textColor="#0E7A57"
+                            android:textColor="@color/admin_insights_chart_muted"
                             android:textSize="42sp"
                             android:textStyle="bold" />
 
@@ -181,7 +181,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical">
-                        <View android:layout_width="10dp" android:layout_height="10dp" android:background="#1A9A6A" />
+                        <View android:layout_width="10dp" android:layout_height="10dp" android:background="@color/admin_insights_chart_muted" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text=" Taken" android:textColor="@color/text_secondary" android:textSize="11sp" />
                         <View android:layout_width="16dp" android:layout_height="1dp" />
                         <View android:layout_width="10dp" android:layout_height="10dp" android:background="#D95C4A" />
@@ -201,7 +201,7 @@
                             android:layout_width="0dp"
                             android:layout_height="match_parent"
                             android:layout_weight="1"
-                            android:background="#1A9A6A" />
+                            android:background="@color/admin_insights_chart_muted" />
 
                         <View
                             android:id="@+id/barMissedSegment"
@@ -223,7 +223,7 @@
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
                             android:text="Taken: 0"
-                            android:textColor="#1A9A6A"
+                            android:textColor="@color/admin_insights_chart_muted"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -282,7 +282,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:textColor="#0E7A57"
+                        android:textColor="@color/admin_insights_chart_muted"
                         android:textSize="15sp"
                         android:textStyle="bold"
                         android:maxLines="2"
@@ -422,7 +422,7 @@
                                 android:id="@+id/barAfternoon"
                                 android:layout_width="0dp"
                                 android:layout_height="match_parent"
-                                android:background="#0E7A57" />
+                                android:background="@color/admin_insights_chart_muted" />
                         </FrameLayout>
 
                         <TextView
@@ -502,8 +502,8 @@
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:text="Export PDF"
-                android:textColor="@color/button_primary_text"
-                app:backgroundTint="@color/button_primary_bg" />
+                android:textColor="@color/admin_insights_on_sage_cta_text"
+                app:backgroundTint="@color/admin_insights_chart_muted" />
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

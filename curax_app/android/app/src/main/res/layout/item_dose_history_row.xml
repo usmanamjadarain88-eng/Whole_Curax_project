@@ -9,7 +9,7 @@
 
     <TextView
         android:id="@+id/tvDoseHistTs"
-        android:layout_width="128dp"
+        android:layout_width="152dp"
         android:layout_height="@dimen/dose_history_table_row_height"
         android:background="@drawable/bg_table_cell"
         android:ellipsize="end"

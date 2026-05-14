@@ -60,7 +60,11 @@ class SignInActivity : AppCompatActivity() {
     private lateinit var etEmail: TextInputEditText
     private lateinit var etPassword: TextInputEditText
     private lateinit var btnSignIn: AppCompatButton
-    private lateinit var googleSignInClient: GoogleSignInClient
+    /** Step 1: native account list (email + profile only — avoids web “sign in” screen when possible). */
+    private lateinit var googleSignInClientPickAccount: GoogleSignInClient
+    /** Step 2: same session, ID token for `/signup/sign-in` (silent first, then short consent if needed). */
+    private lateinit var googleSignInClientWithIdToken: GoogleSignInClient
+    private var awaitingGoogleIdTokenInteractive = false
     private lateinit var facebookCallbackManager: CallbackManager
     private lateinit var btnGoogleSignIn: ImageButton
     private lateinit var btnFacebookSignIn: ImageButton
@@ -76,12 +80,22 @@ class SignInActivity : AppCompatActivity() {
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        val data = result.data ?: return@registerForActivityResult
+        setSocialBusy(false)
+        val data = result.data ?: run {
+            awaitingGoogleIdTokenInteractive = false
+            return@registerForActivityResult
+        }
         val task = GoogleSignIn.getSignedInAccountFromIntent(data)
         try {
             val account = task.getResult(ApiException::class.java)
-            onGoogleSignInSuccess(account)
+            if (awaitingGoogleIdTokenInteractive) {
+                awaitingGoogleIdTokenInteractive = false
+                onGoogleSignInSuccess(account)
+            } else {
+                fetchGoogleIdTokenAfterAccountPicker()
+            }
         } catch (e: ApiException) {
+            awaitingGoogleIdTokenInteractive = false
             if (e.statusCode == GoogleSignInStatusCodes.SIGN_IN_CANCELLED) return@registerForActivityResult
             if (e.statusCode == ConnectionResult.DEVELOPER_ERROR) {
                 showGoogleSignInDeveloperSetupDialog()
@@ -143,14 +157,19 @@ class SignInActivity : AppCompatActivity() {
 
         btnSignIn.setOnClickListener { onSignInClicked() }
 
-        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        val webClientId = resolveGoogleWebClientId()
+        val pickOnly = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestProfile()
-        val webClientId = resolveGoogleWebClientId()
+            .build()
+        googleSignInClientPickAccount = GoogleSignIn.getClient(this, pickOnly)
+        val withTokenBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestProfile()
         if (webClientId.isNotEmpty()) {
-            gsoBuilder.requestIdToken(webClientId)
+            withTokenBuilder.requestIdToken(webClientId)
         }
-        googleSignInClient = GoogleSignIn.getClient(this, gsoBuilder.build())
+        googleSignInClientWithIdToken = GoogleSignIn.getClient(this, withTokenBuilder.build())
 
         facebookCallbackManager = CallbackManager.Factory.create()
         LoginManager.getInstance().registerCallback(
@@ -185,11 +204,18 @@ class SignInActivity : AppCompatActivity() {
         btnGoogleSignIn = findViewById(R.id.btnGoogleSignIn)
         btnFacebookSignIn = findViewById(R.id.btnFacebookSignIn)
         btnGoogleSignIn.setOnClickListener {
-            try {
-                googleSignInLauncher.launch(googleSignInClient.signInIntent)
-            } catch (e: Exception) {
-                CuraxFeedback.warn(this, getString(R.string.social_google_failed, e.message ?: "error"), long = true)
-            }
+            awaitingGoogleIdTokenInteractive = false
+            setSocialBusy(true)
+            googleSignInClientPickAccount.signOut()
+                .continueWithTask { googleSignInClientPickAccount.revokeAccess() }
+                .addOnCompleteListener {
+                    try {
+                        googleSignInLauncher.launch(googleSignInClientPickAccount.signInIntent)
+                    } catch (e: Exception) {
+                        setSocialBusy(false)
+                        CuraxFeedback.warn(this, getString(R.string.social_google_failed, e.message ?: "error"), long = true)
+                    }
+                }
         }
         btnFacebookSignIn.setOnClickListener {
             try {
@@ -389,7 +415,41 @@ class SignInActivity : AppCompatActivity() {
             }
             postGoogleSignIn(idToken, email)
         } finally {
-            googleSignInClient.signOut()
+            googleSignInClientPickAccount.signOut()
+            googleSignInClientWithIdToken.signOut()
+        }
+    }
+
+    /** After native account picker, obtain ID token without reopening full email entry when possible. */
+    private fun fetchGoogleIdTokenAfterAccountPicker() {
+        setSocialBusy(true)
+        googleSignInClientWithIdToken.silentSignIn().addOnCompleteListener { task ->
+            try {
+                val acc = task.getResult(ApiException::class.java)
+                val tok = acc.idToken?.trim()?.takeIf { it.isNotEmpty() }
+                if (tok != null) {
+                    setSocialBusy(false)
+                    onGoogleSignInSuccess(acc)
+                } else {
+                    awaitingGoogleIdTokenInteractive = true
+                    try {
+                        googleSignInLauncher.launch(googleSignInClientWithIdToken.signInIntent)
+                    } catch (e: Exception) {
+                        awaitingGoogleIdTokenInteractive = false
+                        setSocialBusy(false)
+                        CuraxFeedback.warn(this, getString(R.string.social_google_failed, e.message ?: "error"), long = true)
+                    }
+                }
+            } catch (_: ApiException) {
+                awaitingGoogleIdTokenInteractive = true
+                try {
+                    googleSignInLauncher.launch(googleSignInClientWithIdToken.signInIntent)
+                } catch (e: Exception) {
+                    awaitingGoogleIdTokenInteractive = false
+                    setSocialBusy(false)
+                    CuraxFeedback.warn(this, getString(R.string.social_google_failed, e.message ?: "error"), long = true)
+                }
+            }
         }
     }
 

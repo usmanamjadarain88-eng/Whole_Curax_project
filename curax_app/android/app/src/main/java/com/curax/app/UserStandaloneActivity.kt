@@ -63,6 +63,8 @@ import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import androidx.viewpager2.widget.ViewPager2
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import android.content.res.Configuration
 import androidx.annotation.ColorRes
 import androidx.annotation.DrawableRes
@@ -104,6 +106,12 @@ class UserStandaloneActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var tabLayout: TabLayout
     private lateinit var viewPager: ViewPager2
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private val userShellSwipePageCallback = object : ViewPager2.OnPageChangeCallback() {
+        override fun onPageSelected(position: Int) {
+            applyUserShellSwipeForTab(position)
+        }
+    }
     private var tabMediator: TabLayoutMediator? = null
     private var overviewFragmentRef: AdminOverviewFragment? = null
     private lateinit var btnConnect: MaterialButton
@@ -295,6 +303,31 @@ class UserStandaloneActivity : AppCompatActivity() {
             savedInstanceState?.getInt(STATE_VIEW_PAGER_TAB)?.coerceIn(0, maxTabIndex) ?: 0
         }
         setupTabs(restoreTab)
+        swipeRefresh = findViewById(R.id.userStandaloneSwipeRefresh)
+        val refreshAccent = ContextCompat.getColor(this, R.color.button_primary_bg)
+        swipeRefresh.setColorSchemeColors(refreshAccent)
+        swipeRefresh.setProgressBackgroundColorSchemeColor(
+            ContextCompat.getColor(this, R.color.surface_bg),
+        )
+        swipeRefresh.setOnChildScrollUpCallback { _, _ -> userShellPagerChildCanScrollUp() }
+        swipeRefresh.setOnRefreshListener {
+            val botId = prefs.id.trim()
+            val apiKey = prefs.apiKey.trim()
+            val base = prefs.centralApiUrl.trim().removeSuffix("/")
+            if (botId.isEmpty() || apiKey.isEmpty() || base.isEmpty()) {
+                swipeRefresh.isRefreshing = false
+                return@setOnRefreshListener
+            }
+            UserDataBusClient.fetchAndApplyUserData(
+                this,
+                base,
+                botId,
+                apiKey,
+                onFetchFinished = { swipeRefresh.isRefreshing = false },
+            )
+        }
+        viewPager.registerOnPageChangeCallback(userShellSwipePageCallback)
+        applyUserShellSwipeForTab(viewPager.currentItem)
         refreshUserShellChrome()
 
         btnConnect = findViewById(R.id.btnStandaloneConnect)
@@ -724,6 +757,7 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         }.apply { attach() }
         viewPager.setCurrentItem(restoreTab.coerceIn(0, tabCount - 1), false)
+        viewPager.attachSwipeRefreshNestedHandoff()
     }
 
     /**
@@ -879,6 +913,9 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         }
         deferredHomeUiRunnable = null
+        if (::viewPager.isInitialized) {
+            viewPager.unregisterOnPageChangeCallback(userShellSwipePageCallback)
+        }
         try {
             firstAppModeBottomSheet?.dismiss()
         } catch (_: Exception) {
@@ -1433,7 +1470,7 @@ class UserStandaloneActivity : AppCompatActivity() {
             base,
             botId,
             apiKey,
-            onSuccess = { showLoading(false) },
+            onFetchFinished = { showLoading(false) },
         )
     }
 
@@ -1617,11 +1654,69 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     /**
+     * Pull-to-refresh: Dashboard, Reminders, Settings. Disabled on Alerts, Dose, T adjustment, Logs, Reports
+     * (nested scroll / BLE screen — T adjustment uses per-Peltier icon refresh instead).
+     */
+    private fun userShellIsPullToRefreshDisabledTab(position: Int): Boolean {
+        val standalone = StandaloneUi.isUserStandalone(this)
+        return if (standalone) {
+            when (position) {
+                1, 2, 4, 5 -> true // Alerts, Dose, Logs, Reports
+                else -> false
+            }
+        } else {
+            when (position) {
+                1, 2, 4, 5, 6 -> true // Alerts, Dose, T adjustment, Logs, Reports
+                else -> false
+            }
+        }
+    }
+
+    private fun applyUserShellSwipeForTab(position: Int) {
+        if (!::swipeRefresh.isInitialized) return
+        val allow = !userShellIsPullToRefreshDisabledTab(position)
+        swipeRefresh.isEnabled = allow
+        if (!allow) swipeRefresh.isRefreshing = false
+    }
+
+    /**
      * After WebSocket/user/data applies [AdminDemoData], refresh every user-shell tab that currently has a view.
      * ViewPager2 destroys far off-screen fragments; those repaint from memory when opened. Tabs that stay alive must not depend on tab switches.
      */
+    private fun firstVerticalScrollableIn(view: View?): View? {
+        if (view == null) return null
+        if (view is androidx.core.widget.NestedScrollView || view is android.widget.ScrollView) return view
+        if (view is androidx.recyclerview.widget.RecyclerView) {
+            val lm = view.layoutManager
+            if (lm is androidx.recyclerview.widget.LinearLayoutManager &&
+                lm.orientation == androidx.recyclerview.widget.RecyclerView.VERTICAL
+            ) {
+                return view
+            }
+        }
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                firstVerticalScrollableIn(view.getChildAt(i))?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun userShellPagerChildCanScrollUp(): Boolean {
+        if (!::viewPager.isInitialized) return false
+        if (!swipeRefresh.isEnabled) return false
+        val fsa = viewPager.adapter as? FragmentStateAdapter ?: return false
+        val tag = "f${fsa.getItemId(viewPager.currentItem)}"
+        val frag = supportFragmentManager.findFragmentByTag(tag) ?: return false
+        val scrollable = firstVerticalScrollableIn(frag.view)
+        return scrollable?.canScrollVertically(-1) == true
+    }
+
     private fun refreshAllUserShellFragments() {
+        supportFragmentManager.executePendingTransactions()
+        val seen = mutableSetOf<androidx.fragment.app.Fragment>()
         fun notifyFragment(f: androidx.fragment.app.Fragment) {
+            if (!seen.add(f)) return
             when (f) {
                 is AdminOverviewFragment ->
                     if (f.isAdded && f.view != null) {
@@ -1663,6 +1758,15 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
         for (top in supportFragmentManager.fragments) {
             notifyFragment(top)
+        }
+        if (::viewPager.isInitialized) {
+            val fsa = viewPager.adapter as? FragmentStateAdapter
+            if (fsa != null) {
+                for (i in 0 until fsa.itemCount) {
+                    val tag = "f${fsa.getItemId(i)}"
+                    supportFragmentManager.findFragmentByTag(tag)?.let { notifyFragment(it) }
+                }
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatImageButton
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -21,14 +22,18 @@ class UserTempAdjustmentFragment : Fragment() {
     private var demoTick = 0
     private val demoRunnable = object : Runnable {
         override fun run() {
-            demoTick += 1
-            val t = demoTick * 0.4
-            val c1 = 17.8 + 0.9 * sin(t)
-            val c2 = 6.0 + 0.5 * sin(t * 1.1 + 0.8)
-            tvCurr1?.text = getString(R.string.user_temp_current_reading, String.format(Locale.US, "%.1f", c1))
-            tvCurr2?.text = getString(R.string.user_temp_current_reading, String.format(Locale.US, "%.1f", c2))
+            advanceDemoReadings()
             demoHandler.postDelayed(this, 2500L)
         }
+    }
+
+    private fun advanceDemoReadings() {
+        demoTick += 1
+        val t = demoTick * 0.4
+        val c1 = 17.8 + 0.9 * sin(t)
+        val c2 = 6.0 + 0.5 * sin(t * 1.1 + 0.8)
+        tvCurr1?.text = getString(R.string.user_temp_current_reading, String.format(Locale.US, "%.1f", c1))
+        tvCurr2?.text = getString(R.string.user_temp_current_reading, String.format(Locale.US, "%.1f", c2))
     }
 
     private var tvCurr1: TextView? = null
@@ -95,6 +100,13 @@ class UserTempAdjustmentFragment : Fragment() {
             } else {
                 CuraxFeedback.info(this@UserTempAdjustmentFragment, getString(R.string.user_temp_hardware_pending))
             }
+        }
+
+        view.findViewById<AppCompatImageButton>(R.id.btnRefreshPeltier1Readings).setOnClickListener {
+            advanceDemoReadings()
+        }
+        view.findViewById<AppCompatImageButton>(R.id.btnRefreshPeltier2Readings).setOnClickListener {
+            advanceDemoReadings()
         }
     }
 

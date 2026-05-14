@@ -359,8 +359,8 @@ def _send_admin_email_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
             server.send_message(msg)
     else:
         with smtplib.SMTP_SSL(host, port, timeout=smtp_timeout) as server:
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
     return True
 
 
@@ -4627,8 +4627,8 @@ class CentralDB:
             )
             row = cur.fetchone()
             if row:
-                return {
-                    "ok": True,
+        return {
+            "ok": True,
                     "status": "pending",
                     "request_id": row.get("request_id"),
                     "admin_id": row.get("admin_id"),

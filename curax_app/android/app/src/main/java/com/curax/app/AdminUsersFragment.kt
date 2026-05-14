@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.HorizontalScrollView
+import androidx.appcompat.widget.AppCompatImageButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.fragment.app.Fragment
@@ -20,6 +22,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -38,7 +41,7 @@ class AdminUsersFragment : Fragment() {
     private lateinit var tvEmptyLinked: TextView
     private lateinit var tvError: TextView
     private lateinit var btnRetry: MaterialButton
-    private lateinit var btnRefresh: MaterialButton
+    private lateinit var btnRefresh: AppCompatImageButton
     private lateinit var cardManaging: MaterialCardView
     private lateinit var tvManagingName: TextView
     private lateinit var btnExitCare: MaterialButton
@@ -63,6 +66,8 @@ class AdminUsersFragment : Fragment() {
         tvError = view.findViewById(R.id.tvAdminUsersError)
         btnRetry = view.findViewById(R.id.btnAdminUsersRetry)
         btnRefresh = view.findViewById(R.id.btnAdminUsersRefresh)
+        view.findViewById<HorizontalScrollView>(R.id.hsvAdminUsersTable)
+            ?.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = false)
         cardManaging = view.findViewById(R.id.cardAdminUsersManaging)
         tvManagingName = view.findViewById(R.id.tvAdminUsersManagingName)
         btnExitCare = view.findViewById(R.id.btnAdminUsersExitCare)
@@ -74,6 +79,7 @@ class AdminUsersFragment : Fragment() {
                     name = row.name,
                     desktopLinked = row.desktopLinked,
                     isDemo = row.isDemo,
+                    userDisplayMode = row.userDisplayMode,
                 )
             },
         )
@@ -81,11 +87,12 @@ class AdminUsersFragment : Fragment() {
         recyclerLinked.isNestedScrollingEnabled = false
         recyclerLinked.adapter = linkedAdapter
 
-        btnRefresh.setOnClickListener { refreshAll() }
         btnRetry.setOnClickListener { refreshAll() }
+        btnRefresh.setOnClickListener { refreshAll() }
         btnExitCare.setOnClickListener {
             prefs.actAsUserId = ""
             prefs.actAsUserName = ""
+            prefs.actAsUserDisplayMode = ""
             (activity as? AdminDashboardActivity)?.applyActAsUserUiFromChild()
             updateManagingBanner()
             refreshAll()
@@ -184,6 +191,8 @@ class AdminUsersFragment : Fragment() {
                             email.contains("@") -> email.substringBefore("@").trim()
                             else -> nameRaw
                         }
+                        val rawDm = u.optString("user_display_mode", "").trim().lowercase(Locale.US)
+                        val displayMode = if (rawDm == "standalone" || rawDm == "default") rawDm else ""
                         lr.add(
                             AdminLinkedUserUiModel(
                                 userId = u.optString("id", "").trim(),
@@ -191,6 +200,7 @@ class AdminUsersFragment : Fragment() {
                                 email = email,
                                 desktopLinked = u.optString("bot_id", "").trim().isNotEmpty(),
                                 profilePictureDataUrl = u.optString("profile_picture", "").trim(),
+                                userDisplayMode = displayMode,
                             ),
                         )
                     }
@@ -201,9 +211,10 @@ class AdminUsersFragment : Fragment() {
             }
 
             activity?.runOnUiThread {
-                if (gen != loadGen.get()) return@runOnUiThread
+                if (gen != loadGen.get()) {
+                    return@runOnUiThread
+                }
                 progress.visibility = View.GONE
-
                 if (httpErr != null) {
                     tvError.visibility = View.VISIBLE
                     tvError.text = httpErr
@@ -215,9 +226,13 @@ class AdminUsersFragment : Fragment() {
                 }
 
                 val linkedForUi = if (linkedRows.isEmpty()) demoLinkedUsers() else linkedRows
+                AdminLinkedUserDirectory.ingestFromUiModels(linkedForUi)
                 linkedAdapter.submit(linkedForUi)
                 tvEmptyLinked.visibility = View.GONE
                 updateManagingBanner()
+                if (linkedRows.isNotEmpty()) {
+                    requireContext().sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_HUB_REFRESH_METRICS))
+                }
             }
         }.start()
     }
@@ -229,6 +244,7 @@ class AdminUsersFragment : Fragment() {
             email = "usman.preview@example.com",
             desktopLinked = true,
             isDemo = true,
+            userDisplayMode = "default",
         ),
         AdminLinkedUserUiModel(
             userId = "demo_hamad",
@@ -236,6 +252,7 @@ class AdminUsersFragment : Fragment() {
             email = "hamad.preview@example.com",
             desktopLinked = true,
             isDemo = true,
+            userDisplayMode = "standalone",
         ),
         AdminLinkedUserUiModel(
             userId = "demo_abdullah",
@@ -243,6 +260,7 @@ class AdminUsersFragment : Fragment() {
             email = "abdullah.preview@example.com",
             desktopLinked = true,
             isDemo = true,
+            userDisplayMode = "default",
         ),
         AdminLinkedUserUiModel(
             userId = "demo_zara",
@@ -250,6 +268,7 @@ class AdminUsersFragment : Fragment() {
             email = "zara.preview@example.com",
             desktopLinked = true,
             isDemo = true,
+            userDisplayMode = "standalone",
         ),
     )
 }
