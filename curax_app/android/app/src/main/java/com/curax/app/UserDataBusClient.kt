@@ -378,6 +378,9 @@ object UserDataBusClient {
                             val data = JSONObject(bodyStr.ifBlank { "{}" })
                             appContext?.let { ctx ->
                                 mainHandler.post {
+                                    ctx.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                                }
+                                mainHandler.post {
                                     applyUserPayload(ctx, data)
                                     persistUserSnapshot(ctx, data)
                                     onUserDataApplied?.invoke()
@@ -385,20 +388,26 @@ object UserDataBusClient {
                                 }
                             }
                         }
-                        isTerminalUserDataAuthFailure(res.code) ->
+                        isTerminalUserDataAuthFailure(res.code) -> {
+                            mainHandler.post {
+                                appContext?.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                            }
                             handleTerminalAuthFailure(appContext, bodyStr, null)
-                        else ->
+                        }
+                        else -> {
                             Log.w(TAG, "user/data fetch failed: HTTP ${res.code}")
+                            mainHandler.post {
+                                appContext?.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to fetch user data", e)
-            } finally {
-                appContext?.let { ctx ->
-                    mainHandler.post {
-                        ctx.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
-                    }
+                mainHandler.post {
+                    appContext?.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
                 }
+            } finally {
                 synchronized(this) {
                     fetchInFlight = false
                     if (pendingFetch) {
@@ -450,27 +459,43 @@ object UserDataBusClient {
                     when {
                         res.isSuccessful -> {
                             val data = JSONObject(bodyStr.ifBlank { "{}" })
+                            val appCtx = context.applicationContext
+                            // End pull-to-refresh / fetch UI first so the indicator does not "stick" while JSON applies.
                             mainHandler.post {
-                                applyUserPayload(context.applicationContext, data)
-                                persistUserSnapshot(context.applicationContext, data)
+                                appCtx.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                                onFetchFinished?.invoke()
+                            }
+                            mainHandler.post {
+                                applyUserPayload(appCtx, data)
+                                persistUserSnapshot(appCtx, data)
                                 onUserDataApplied?.invoke()
                                 context.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
                                 onSuccess?.invoke()
                             }
                         }
-                        isTerminalUserDataAuthFailure(res.code) ->
+                        isTerminalUserDataAuthFailure(res.code) -> {
+                            mainHandler.post {
+                                context.applicationContext.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                                onFetchFinished?.invoke()
+                            }
                             handleTerminalAuthFailure(context.applicationContext, bodyStr, onAuthRejected)
-                        else ->
+                        }
+                        else -> {
                             Log.w(TAG, "Bootstrap user/data fetch failed: HTTP ${res.code}")
+                            mainHandler.post {
+                                context.applicationContext.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
+                                onFetchFinished?.invoke()
+                            }
+                        }
                     }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Bootstrap fetch user data failed", e)
-            } finally {
                 mainHandler.post {
                     context.applicationContext.sendBroadcast(Intent(AlertEvents.ACTION_USER_STANDALONE_DATA_FETCH_ENDED))
                     onFetchFinished?.invoke()
                 }
+            } finally {
                 synchronized(this) {
                     fetchInFlight = false
                     if (pendingFetch) {
@@ -534,7 +559,10 @@ object UserDataBusClient {
             list.add(m)
         }
         AdminDemoData.replaceMedicines(AdminDemoData.fromApiMedicines(list))
-        DoseTrackingLocalStore.mergeFromPayloadArray(ctx, data.optJSONArray("dose_log"))
+        // Personal Health: dose history is only rows the user marked on-device (no server/auto merge).
+        if (!(StandaloneUi.isUserStandalone(ctx) && AppRole.isUser(ctx))) {
+            DoseTrackingLocalStore.mergeFromPayloadArray(ctx, data.optJSONArray("dose_log"))
+        }
         AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))

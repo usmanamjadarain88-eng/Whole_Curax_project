@@ -41,7 +41,7 @@ fun View.attachHorizontalScrollNestedHandoff(immediateDisallowOnDown: Boolean = 
                 } else {
                     val dx = kotlin.math.abs(ev.x - start[0])
                     val dy = kotlin.math.abs(ev.y - start[1])
-                    if (dx > dy + 10f) {
+                    if (dx > dy + 4f) {
                         disallowAllParents(v, true)
                     }
                 }

@@ -33,14 +33,20 @@ class LocalAlertReceiver : BroadcastReceiver() {
         val title = payload.optString("title", "Curax")
         val message = payload.optString("message", "")
         val nid = (id.hashCode() and 0x7fff_0000) xor (System.currentTimeMillis() % 0xffff).toInt()
+        val combined = if (title.isNotBlank() && title != message) "$title — $message" else message
         NotificationHelper.showAlertNotification(
             app,
             notificationId = nid,
             alertId = -(1L + (id.hashCode() and 0xfffffff)), // negative = not DB row
             type = type,
-            message = if (title.isNotBlank() && title != message) "$title — $message" else message,
+            message = combined,
             receivedAt = System.currentTimeMillis(),
         )
+        if (AppRole.isUser(app) && StandaloneUi.isUserStandalone(app)) {
+            AdminDemoData.prependStandaloneLocalAlert(type, combined, System.currentTimeMillis())
+            StandaloneOfflineMirror.persistMergedSnapshot(app)
+            app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+        }
         LocalAlertsController.clearPayload(app, id)
 
         // Roll forward next windows after a fire

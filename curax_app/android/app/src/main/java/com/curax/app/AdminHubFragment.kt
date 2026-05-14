@@ -10,16 +10,20 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.card.MaterialCardView
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -500,6 +504,37 @@ class AdminHubFragment : Fragment() {
         return t
     }
 
+    private fun postClearUserDoseHistory(userId: String) {
+        val base = prefs.centralApiUrl.trim().removeSuffix("/")
+        val ac = prefs.adminAccessCode.trim()
+        if (base.isEmpty() || ac.isEmpty() || userId.isEmpty()) return
+        Thread {
+            var ok = false
+            try {
+                val payload = JSONObject().apply {
+                    put("access_code", ac)
+                    put("user_id", userId)
+                }.toString()
+                val req = Request.Builder()
+                    .url("$base/admin/clear-user-dose-logs")
+                    .post(payload.toRequestBody(JSON_MEDIA))
+                    .build()
+                http.newCall(req).execute().use { res -> ok = res.isSuccessful }
+            } catch (_: Exception) {
+                ok = false
+            }
+            activity?.runOnUiThread {
+                if (!isAdded) return@runOnUiThread
+                if (ok) {
+                    CuraxFeedback.success(this, getString(R.string.admin_hub_dose_history_cleared))
+                    scheduleHubMetricsFetchDebounced(force = true)
+                } else {
+                    CuraxFeedback.warn(this, getString(R.string.admin_hub_dose_history_clear_failed))
+                }
+            }
+        }.start()
+    }
+
     private fun populateHubDoseTables(usersArr: JSONArray = JSONArray(), loadFailed: Boolean = false) {
         if (!this::containerHubDoseTables.isInitialized) return
         containerHubDoseTables.removeAllViews()
@@ -550,7 +585,20 @@ class AdminHubFragment : Fragment() {
             if (uniqueRows.isEmpty()) continue
             anyBlock = true
             val block = inflater.inflate(R.layout.admin_hub_user_dose_block, containerHubDoseTables, false)
+            val userId = u.optString("id", "").trim()
             block.findViewById<TextView>(R.id.tvHubDoseBlockUserName).text = blockTitle
+            block.findViewById<ImageButton>(R.id.btnHubDoseClearHistory).apply {
+                visibility = if (userId.isNotEmpty()) View.VISIBLE else View.GONE
+                setOnClickListener {
+                    if (userId.isEmpty()) return@setOnClickListener
+                    AlertDialog.Builder(requireContext())
+                        .setTitle(R.string.admin_hub_clear_dose_history_title)
+                        .setMessage(getString(R.string.admin_hub_clear_dose_history_message, blockTitle))
+                        .setPositiveButton(R.string.delete) { _, _ -> postClearUserDoseHistory(userId) }
+                        .setNegativeButton(android.R.string.cancel, null)
+                        .show()
+                }
+            }
             val rowsParent = block.findViewById<LinearLayout>(R.id.containerHubDoseRowsForUser)
             for (d in uniqueRows) {
                 val row = inflater.inflate(R.layout.item_dose_history_row, rowsParent, false)
@@ -652,6 +700,8 @@ class AdminHubFragment : Fragment() {
     }
 
     companion object MetricsCache {
+        private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+
         /** Min time between automatic hub linked-users + dose-preview pulls when only re-opening the Dashboard tab. */
         const val RESUME_MIN_INTERVAL_MS = 5 * 60 * 1000L
         @Volatile var lastSuccessAtMs: Long = 0L

@@ -480,7 +480,7 @@
                     <LinearLayout
                         android:id="@+id/ll_stock_bar_segments"
                         android:layout_width="match_parent"
-                        android:layout_height="12dp"
+                        android:layout_height="8dp"
                         android:orientation="horizontal"
                         android:padding="2dp">
 

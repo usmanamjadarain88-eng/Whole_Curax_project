@@ -3,9 +3,7 @@ package com.curax.app
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.LinkedHashSet
 import java.util.Locale
 
@@ -123,73 +121,9 @@ object DoseTrackingLocalStore {
         writeLog(app, trimmed)
     }
 
-    /**
-     * Standalone + no linked admin + empty log: seed sample rows so the dose history table shows realistic columns.
-     * Does not write suppress keys — safe for demo. Skipped if user already has log rows.
-     */
+    /** Legacy no-op: dose history stays empty until the user marks a dose (Personal Health). */
+    @Suppress("UNUSED_PARAMETER")
     fun seedStandaloneDemoHistoryIfNeeded(context: Context) {
-        val app = context.applicationContext
-        if (!AppRole.isUser(app)) return
-        if (!StandaloneUi.isUserStandalone(app)) return
-        if (Prefs(app).linkedAdminId.trim().isNotEmpty()) return
-        if (readLog(app).isNotEmpty()) return
-
-        val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-        val now = System.currentTimeMillis()
-        val hour = 3_600_000L
-        val day = 86_400_000L
-        // Newest first (same as [appendLogEntry]); timestamps in the past so they don't block today's slot logic.
-        val demo = listOf(
-            mapOf(
-                "timestamp" to fmt.format(Date(now - hour * 2)),
-                "box" to "B1",
-                "medicine" to "Panadol",
-                "dose_taken" to 1,
-                "remaining" to 27,
-                "kind" to "taken_on_time",
-            ),
-            mapOf(
-                "timestamp" to fmt.format(Date(now - day)),
-                "box" to "B2",
-                "medicine" to "Amoxil",
-                "dose_taken" to 1,
-                "remaining" to 14,
-                "kind" to "taken_late",
-            ),
-            mapOf(
-                "timestamp" to fmt.format(Date(now - day - hour * 5)),
-                "box" to "B3",
-                "medicine" to "Vitamin D",
-                "dose_taken" to 1,
-                "remaining" to 42,
-                "kind" to "taken_on_time",
-            ),
-            mapOf(
-                "timestamp" to fmt.format(Date(now - day * 2)),
-                "box" to "B1",
-                "medicine" to "Panadol",
-                "dose_taken" to 1,
-                "remaining" to 28,
-                "kind" to "taken_on_time",
-            ),
-            mapOf(
-                "timestamp" to fmt.format(Date(now - day * 2 - hour * 3)),
-                "box" to "B4",
-                "medicine" to "Ibuprofen",
-                "dose_taken" to 1,
-                "remaining" to 8,
-                "kind" to "missed",
-            ),
-            mapOf(
-                "timestamp" to fmt.format(Date(now - day * 3)),
-                "box" to "B2",
-                "medicine" to "Amoxil",
-                "dose_taken" to 1,
-                "remaining" to 15,
-                "kind" to "taken_on_time",
-            ),
-        )
-        writeLog(app, demo)
     }
 
     fun doseLogToJsonArray(context: Context): JSONArray {

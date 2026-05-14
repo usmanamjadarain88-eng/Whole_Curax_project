@@ -1616,6 +1616,30 @@ def admin_sync(body, query, headers):
     notify_databus(access_code)
     trigger_alert_checks_for_admin(admin_id)
     return (200, {"message": "ok"})
+
+
+def admin_clear_user_dose_logs(body, query, headers):
+    """POST { access_code, user_id } — delete all dose_logs for that linked user (admin hub dose preview)."""
+    data = body if isinstance(body, dict) else {}
+    access_code = (data.get("access_code") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
+    if not access_code or not user_id:
+        return (400, {"message": "access_code and user_id required"})
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    admin = db.get_admin_by_access_code(access_code)
+    if not admin:
+        return (404, {"message": "Admin not found"})
+    admin_id = admin.get("id")
+    ok = db.clear_dose_logs_for_linked_user(admin_id, user_id)
+    if not ok:
+        return (404, {"message": "User not found or not linked to this admin"})
+    notify_databus(access_code)
+    trigger_alert_checks_for_admin(admin_id)
+    return (200, {"ok": True})
+
+
 def admin_notify(body, query, headers):
     """POST { "access_code": "..." } ΓåÆ tell data bus to push latest admin data to connected clients (WebSocket)."""
     data = body

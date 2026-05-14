@@ -31,8 +31,18 @@ import java.util.Locale
  */
 class DoseTrackingFragment : Fragment() {
 
-    private fun doseSlotsForMode(): List<String> =
-        listOf("B1", "B2", "B3", "B4", "B5", "B6")
+    private fun doseSlotsForMode(): List<String> {
+        if (!CareUi.effectiveStandaloneShell(requireContext())) {
+            return listOf("B1", "B2", "B3", "B4", "B5", "B6")
+        }
+        val meds = AdminDemoData.medicines
+        val maxN = meds.mapNotNull { m ->
+            val s = m.box.trim().uppercase(Locale.US)
+            if (!s.startsWith("B") || s.length < 2) null else s.substring(1).toIntOrNull()
+        }.maxOrNull() ?: 0
+        val hi = maxOf(maxN, 6)
+        return (1..hi).map { "B$it" }
+    }
 
     private fun doseSlotSet(): Set<String> =
         doseSlotsForMode().map { it.uppercase(Locale.US) }.toSet()
@@ -282,9 +292,6 @@ class DoseTrackingFragment : Fragment() {
 
     private fun refreshAll() {
         val v = view ?: return
-        if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
-            DoseTrackingLocalStore.seedStandaloneDemoHistoryIfNeeded(requireContext())
-        }
         DoseAutoMissedMarker.run(requireContext())
         val still = selectedMedicine?.let { sel ->
             AdminDemoData.medicines.find { it.box.equals(sel.box, ignoreCase = true) }
@@ -344,7 +351,7 @@ class DoseTrackingFragment : Fragment() {
         val threshold = AdminDemoData.getLowStockThreshold()
         return when {
             isExpiringSoon(item.expiry) -> "Expiring"
-            item.stock in 1..threshold -> "Low"
+            item.stock <= threshold -> "Low"
             else -> "Normal"
         }
     }
@@ -382,25 +389,9 @@ class DoseTrackingFragment : Fragment() {
 
         when (phase) {
             DoseIntakeClassifier.SlotPhase.NO_SCHEDULE -> {
-                appendHistoryRow(
-                    ts,
-                    m.box,
-                    "${m.name} (${getString(R.string.dose_tracking_result_no_schedule)})",
-                    0,
-                    m.stock,
-                    "missed",
-                )
                 CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_no_time))
             }
             DoseIntakeClassifier.SlotPhase.TOO_EARLY -> {
-                appendHistoryRow(
-                    ts,
-                    m.box,
-                    "${m.name} (${getString(R.string.dose_tracking_result_too_early)})",
-                    0,
-                    m.stock,
-                    "skipped_early",
-                )
                 CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_too_early))
             }
             DoseIntakeClassifier.SlotPhase.ON_TIME, DoseIntakeClassifier.SlotPhase.LATE -> {
@@ -455,28 +446,6 @@ class DoseTrackingFragment : Fragment() {
             }
         }
         refreshAll()
-    }
-
-    private fun appendHistoryRow(
-        ts: String,
-        box: String,
-        medicine: String,
-        doseTaken: Int,
-        remaining: Int,
-        kind: String,
-    ) {
-        DoseTrackingLocalStore.appendLogEntry(
-            requireContext(),
-            mapOf(
-                "timestamp" to ts,
-                "box" to box,
-                "medicine" to medicine,
-                "dose_taken" to doseTaken,
-                "remaining" to remaining,
-                "kind" to kind,
-            ),
-        )
-        StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
     }
 
     private class DoseHistoryRowsAdapter : RecyclerView.Adapter<DoseHistoryRowsAdapter.VH>() {

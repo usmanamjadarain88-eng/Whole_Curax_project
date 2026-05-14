@@ -78,6 +78,11 @@
     <string name="user_sidebar_health_config">Configuration incomplete</string>
     <string name="user_sidebar_health_no_admin">No admin linked</string>
     <string name="user_sidebar_health_offline">Live sync offline</string>
+    <string name="user_sidebar_health_ok_standalone">All good · Local alerts on · Realtime connected</string>
+    <string name="user_sidebar_health_offline_standalone">Live sync offline · Local alerts still on</string>
+    <string name="user_sidebar_detail_health_ok_standalone">Personal Health mode is healthy.\n\n• Local alerts: always on — medicine and reminder notifications are scheduled on this device (your tone and settings).\n\n• Realtime (DataBus): connected — medicines, reminders, and admin edits sync live.\n\n• You do not need the old Connect-for-alerts / FCM path for daily dose reminders in this mode.</string>
+    <string name="user_sidebar_detail_health_offline_standalone">Realtime is offline, but a recent snapshot may still be on this device.\n\n• Local alerts stay on for schedules already on the phone.\n\n• Reopen the app on a stable network so Realtime can reconnect and refresh data.</string>
+    <string name="user_sidebar_detail_health_issues_standalone">Something is blocking a good experience.\n\n• Check server URL, bot id, and API key in User Settings.\n\n• Ensure you are linked to an admin.\n\n• Open the app online and wait for Realtime to show Connected.</string>
     <string name="user_sidebar_alerts_active">Active</string>
     <string name="user_sidebar_alerts_inactive">Inactive</string>
     <string name="user_sidebar_realtime_connected">Connected</string>
@@ -215,6 +220,10 @@
     <string name="user_sidebar_detail_health_offline">Realtime and relay are both down, but a past snapshot exists — you may see older data.\n\n• Open the app on a stable network.\n\n• Tap Connect to start the relay.\n\n• Realtime reconnects automatically when possible.</string>
     <string name="user_sidebar_detail_alerts_active">Notifications are ready.\n\n• FCM token is registered and notification permission is granted (Android 13+).\n\n• You still need the relay connected for server-side alert delivery.</string>
     <string name="user_sidebar_detail_alerts_inactive">Alerts are limited until this is active.\n\n• Grant notification permission when the system asks (Android 13+).\n\n• Tap Connect so the app can register FCM with the relay.\n\n• Check that battery optimization is not killing background work.</string>
+    <string name="user_sidebar_alerts_local_standalone">Local alerts on</string>
+    <string name="user_sidebar_detail_alerts_local_standalone">Medicine and reminder notifications are scheduled on this device (your chosen tone). They do not require relay or FCM. Use Alert settings to change sounds and toggles.</string>
+    <string name="standalone_logout">Logout</string>
+    <string name="reminder_menu_view_details">View details</string>
     <string name="user_sidebar_detail_realtime_connected">DataBus WebSocket is open.\n\n• Medicine list, reminders, and admin changes can sync in real time.\n\n• If data looks wrong, pull to refresh from Dashboard or reopen the app.</string>
     <string name="user_sidebar_detail_realtime_reconnecting">The app is trying to reopen the DataBus connection.\n\n• Stay online; this usually resolves in a few seconds.\n\n• If it sticks, check network and that your admin has not revoked access.</string>
     <string name="user_sidebar_detail_realtime_disconnected">Live sync is off — you will not receive instant admin updates until this shows Connected.\n\n• DataBus starts automatically when you are linked and credentials are valid.\n\n• Try closing and reopening the drawer after a few seconds.</string>
@@ -467,6 +476,11 @@
     <string name="admin_hub_dose_preview_footer">From your relay server. Open a user in Care mode to edit medicines and schedules.</string>
     <string name="admin_hub_dose_preview_load_failed">Could not load dose activity.</string>
     <string name="admin_hub_dose_preview_loading">Loading dose activity…</string>
+    <string name="admin_hub_clear_dose_history_cd">Clear dose history for this user</string>
+    <string name="admin_hub_clear_dose_history_title">Clear dose history?</string>
+    <string name="admin_hub_clear_dose_history_message">Remove all dose log rows for %1$s from the server? This cannot be undone.</string>
+    <string name="admin_hub_dose_history_cleared">Dose history cleared</string>
+    <string name="admin_hub_dose_history_clear_failed">Could not clear dose history. Check network and try again.</string>
     <string name="admin_hub_roster_hint">Open the Users tab for invites, pending requests, roster, and Care mode.</string>
     <string name="admin_hub_chart_accounts_title">Connection readiness</string>
     <string name="admin_hub_chart_accounts_desc">Share of linked accounts that are ready versus waiting on device setup.</string>

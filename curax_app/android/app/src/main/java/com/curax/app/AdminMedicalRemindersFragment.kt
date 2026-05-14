@@ -226,7 +226,7 @@ class AdminMedicalRemindersFragment : Fragment() {
             if (tv.text.isBlank()) tv.text = "-"
             card.setOnClickListener {
                 if (isUserApp()) {
-                    showReminderDetailsDialog(r)
+                    showReminderDetailsDialog(category, r)
                 } else {
                     showReminderOptionsDialog(category, index, r)
                 }
@@ -235,7 +235,31 @@ class AdminMedicalRemindersFragment : Fragment() {
         }
     }
 
-    private fun showReminderDetailsDialog(item: Map<String, Any?>) {
+    private fun reminderToggleOn(key: String, reminders: Map<*, *>): Boolean =
+        (reminders[key] as? Boolean) ?: true
+
+    private fun formatReminderAlertsSection(category: String, item: Map<String, Any?>): String {
+        val raw = item["reminders"]
+        val reminders = if (raw is Map<*, *>) raw else emptyMap<Any, Any>()
+        val lines = mutableListOf<String>()
+        lines.add("Alerts enabled:")
+        when (category) {
+            "prescriptions" -> {
+                lines += "  7 days before: ${if (reminderToggleOn("7d", reminders)) "Yes" else "No"}"
+                lines += "  3 days before: ${if (reminderToggleOn("3d", reminders)) "Yes" else "No"}"
+                lines += "  1 day before: ${if (reminderToggleOn("1d", reminders)) "Yes" else "No"}"
+                lines += "  Send alert: ${if (reminderToggleOn("alert", reminders)) "Yes" else "No"}"
+            }
+            else -> {
+                lines += "  24h before: ${if (reminderToggleOn("24h", reminders)) "Yes" else "No"}"
+                lines += "  2h before: ${if (reminderToggleOn("2h", reminders)) "Yes" else "No"}"
+                lines += "  Send alert: ${if (reminderToggleOn("alert", reminders)) "Yes" else "No"}"
+            }
+        }
+        return lines.joinToString("\n")
+    }
+
+    private fun showReminderDetailsDialog(category: String, item: Map<String, Any?>) {
         val title = item["title"]?.toString()
             ?: item["doctor"]?.toString()
             ?: item["medicine"]?.toString()
@@ -250,6 +274,8 @@ class AdminMedicalRemindersFragment : Fragment() {
             add("Time", item["time"])
             add("Location", item["location"] ?: item["pharmacy"])
             add("Details", item["description"] ?: item["specialty"])
+            append("\n")
+            append(formatReminderAlertsSection(category, item))
         }.trim()
 
         AlertDialog.Builder(requireContext())
@@ -265,12 +291,30 @@ class AdminMedicalRemindersFragment : Fragment() {
             ?: item["medicine"]?.toString()
             ?: item["test_name"]?.toString()
             ?: "Reminder"
+        val careStandalone = CareUi.useStandaloneLayoutsInCare(requireContext())
+        val menu = if (careStandalone) {
+            arrayOf(
+                getString(R.string.reminder_menu_view_details),
+                "Edit",
+                getString(R.string.delete),
+            )
+        } else {
+            arrayOf("Edit", getString(R.string.delete))
+        }
         AlertDialog.Builder(requireContext())
             .setTitle(title)
-            .setItems(arrayOf("Edit", "Delete")) { _, which ->
-                when (which) {
-                    0 -> showEditReminderDialog(category, index, item)
-                    1 -> confirmDeleteReminder(category, index, title)
+            .setItems(menu) { _, which ->
+                if (careStandalone) {
+                    when (which) {
+                        0 -> showReminderDetailsDialog(category, item)
+                        1 -> showEditReminderDialog(category, index, item)
+                        2 -> confirmDeleteReminder(category, index, title)
+                    }
+                } else {
+                    when (which) {
+                        0 -> showEditReminderDialog(category, index, item)
+                        1 -> confirmDeleteReminder(category, index, title)
+                    }
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)

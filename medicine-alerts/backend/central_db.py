@@ -2070,6 +2070,25 @@ class CentralDB:
         finally:
             cur.close()
 
+    def clear_dose_logs_for_linked_user(self, admin_id, user_id):
+        """Delete all dose log rows for a user if they belong to this admin."""
+        if not user_id or not admin_id:
+            return False
+        if not self.user_belongs_to_admin(user_id, admin_id):
+            return False
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("DELETE FROM dose_logs WHERE user_id = %s::uuid", (user_id,))
+            conn.commit()
+            return True
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB clear_dose_logs_for_linked_user: {e}")
+            return False
+        finally:
+            cur.close()
+
     def get_alert_settings(self, user_id):
         if not user_id:
             return {}

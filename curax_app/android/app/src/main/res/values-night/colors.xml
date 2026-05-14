@@ -113,13 +113,13 @@
     <color name="standalone_medicine_chip_normal">@color/standalone_tab_strip_bg</color>
     <color name="standalone_medicine_chip_low">@color/standalone_tab_strip_bg</color>
     <color name="standalone_medicine_chip_exp">@color/standalone_tab_strip_bg</color>
-    <color name="standalone_medicine_chip_stroke_normal">@color/standalone_inventory_row_stroke</color>
+    <color name="standalone_medicine_chip_stroke_normal">#4ADE80</color>
     <color name="standalone_medicine_chip_stroke_low">#FBBF24</color>
-    <color name="standalone_medicine_chip_stroke_exp">#FB7185</color>
+    <color name="standalone_medicine_chip_stroke_exp">#FCA5A5</color>
     <color name="standalone_medicine_chip_ripple">#402CA77F</color>
     <color name="standalone_medicine_chip_dot_tint_normal">#2CA77F</color>
     <color name="standalone_medicine_chip_dot_tint_low">#FBBF24</color>
-    <color name="standalone_medicine_chip_dot_tint_exp">#FB7185</color>
+    <color name="standalone_medicine_chip_dot_tint_exp">#FDA4AF</color>
     <color name="standalone_medicine_chip_dot_tint_placeholder">#64748B</color>
 
     <!-- Splash / launcher: match app night palette when dark theme is on -->

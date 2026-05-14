@@ -163,6 +163,10 @@
       "destination": "/api/admin_sync"
     },
     {
+      "source": "/admin/clear-user-dose-logs",
+      "destination": "/api/admin_clear_user_dose_logs"
+    },
+    {
       "source": "/admin/notify",
       "destination": "/api/admin_notify"
     },

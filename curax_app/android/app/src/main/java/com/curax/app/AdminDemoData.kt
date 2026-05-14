@@ -20,6 +20,30 @@ object AdminDemoData {
     private val apiAlertsStore = mutableListOf<AlertItem>()
     fun getApiAlerts(): List<AlertItem> = apiAlertsStore.toList()
 
+    private const val MAX_STANDALONE_LOCAL_ALERT_ROWS = 400
+
+    /**
+     * Inserts a locally fired standalone alarm at the front of the API alert list so the Alerts tab
+     * shows the same items as heads-up notifications (Personal Health).
+     */
+    fun prependStandaloneLocalAlert(type: String, message: String, receivedAt: Long) {
+        val base = (receivedAt * 31L) xor (type.hashCode().toLong() shl 16) xor message.hashCode().toLong()
+        val id = if (base >= 0L) -base - 1L else base
+        apiAlertsStore.add(
+            0,
+            AlertItem(
+                id = id,
+                type = type,
+                message = message,
+                receivedAt = receivedAt,
+                userName = "Local",
+            ),
+        )
+        while (apiAlertsStore.size > MAX_STANDALONE_LOCAL_ALERT_ROWS) {
+            apiAlertsStore.removeAt(apiAlertsStore.lastIndex)
+        }
+    }
+
     /**
      * Same basis as Admin Alerts tab totals: synced API alerts + local relay DB rows.
      * When admin has no linked data yet (empty API + empty inbox), use preview list size so counts

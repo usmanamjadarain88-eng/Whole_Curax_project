@@ -1,20 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingBottom="16dp">
 
-    <TextView
-        android:id="@+id/tvHubDoseBlockUserName"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="8dp"
-        android:textColor="@color/text_primary"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        tools:text="Jamie" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvHubDoseBlockUserName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            tools:text="Jamie" />
+
+        <ImageButton
+            android:id="@+id/btnHubDoseClearHistory"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/admin_hub_clear_dose_history_cd"
+            android:padding="10dp"
+            android:scaleType="centerInside"
+            app:srcCompat="@drawable/ic_delete_toolbar"
+            app:tint="@color/text_secondary" />
+    </LinearLayout>
 
     <HorizontalScrollView
         android:layout_width="match_parent"

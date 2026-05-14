@@ -22,7 +22,7 @@ object AdminRegistrationHelper {
 
     /**
      * After [accessCode] is known (desktop code or email-verify flow), register this device,
-     * pull admin data, save local admin session, go to PIN setup.
+     * pull admin data, save local admin session, open admin dashboard (no PIN setup step).
      */
     fun provisionAdminMobileSession(
         activity: AppCompatActivity,
@@ -145,10 +145,16 @@ object AdminRegistrationHelper {
                     store.saveUser(email, password, LocalUserStore.ROLE_ADMIN)
                     val msg = activity.getString(R.string.admin_welcome_signed_in)
                     CuraxFeedback.successThen(activity, msg) {
-                        activity.startActivity(
-                            Intent(activity, PinSetupActivity::class.java)
-                                .putExtra(PinSetupActivity.EXTRA_NEXT_ROLE, LocalUserStore.ROLE_ADMIN),
-                        )
+                        store.disablePin()
+                        prefs.appPin = ""
+                        AppLockState.grantUnlock(60_000L)
+                        AppLockState.markProcessEntryHandled()
+                        AppLockState.clearBackgroundTimestamp()
+                        prefs.lastBackgroundAtMs = 0L
+                        prefs.lastExitWasClose = false
+                        val dash = Intent(activity, AdminDashboardActivity::class.java)
+                        dash.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                        activity.startActivity(dash)
                         activity.finish()
                     }
                 }

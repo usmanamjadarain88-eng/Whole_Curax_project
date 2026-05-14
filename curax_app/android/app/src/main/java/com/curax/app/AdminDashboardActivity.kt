@@ -126,9 +126,8 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        prefs = Prefs(this)
-        delegate.setLocalNightMode(prefs.adminLocalNightMode)
         super.onCreate(savedInstanceState)
+        prefs = Prefs(this)
         if (AppLockPolicy.shouldRequireLockOnEntry(this)) {
             startActivity(Intent(this, PinEntryActivity::class.java))
             finish()
@@ -600,8 +599,8 @@ class AdminDashboardActivity : AppCompatActivity() {
             R.id.action_toggle_theme -> {
                 val newMode = if (isDarkModeEnabled()) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
                 AppLockState.grantUnlock()
-                prefs.adminLocalNightMode = newMode
-                delegate.setLocalNightMode(newMode)
+                prefs.themeMode = newMode
+                AppCompatDelegate.setDefaultNightMode(newMode)
                 window.decorView.post { recreate() }
                 true
             }

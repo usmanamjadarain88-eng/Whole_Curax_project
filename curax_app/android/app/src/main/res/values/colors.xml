@@ -172,12 +172,12 @@
     <color name="standalone_medicine_chip_low">@color/standalone_tab_strip_bg</color>
     <color name="standalone_medicine_chip_exp">@color/standalone_tab_strip_bg</color>
     <!-- Match adherence trend card stroke (bg_standalone_adherence_chart_well) -->
-    <color name="standalone_medicine_chip_stroke_normal">#C7D2FE</color>
+    <color name="standalone_medicine_chip_stroke_normal">#22C55E</color>
     <color name="standalone_medicine_chip_stroke_low">#D97706</color>
-    <color name="standalone_medicine_chip_stroke_exp">#E11D48</color>
+    <color name="standalone_medicine_chip_stroke_exp">#F9A8A8</color>
     <color name="standalone_medicine_chip_ripple">#402563EB</color>
-    <color name="standalone_medicine_chip_dot_tint_normal">#6366F1</color>
+    <color name="standalone_medicine_chip_dot_tint_normal">#16A34A</color>
     <color name="standalone_medicine_chip_dot_tint_low">#D97706</color>
-    <color name="standalone_medicine_chip_dot_tint_exp">#E11D48</color>
+    <color name="standalone_medicine_chip_dot_tint_exp">#FB7185</color>
     <color name="standalone_medicine_chip_dot_tint_placeholder">#94A3B8</color>
 </resources>

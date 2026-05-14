@@ -919,7 +919,7 @@ class AdminOverviewFragment : Fragment() {
             addView(btnExpiry)
         }
         val etBox = EditText(requireContext()).apply {
-            hint = "Box (B1-B6)"
+            hint = if (CareUi.effectiveStandaloneShell(requireContext())) "Box (B1, B2, … any number)" else "Box (B1-B6)"
             setText(existing.box)
         }
 
@@ -941,11 +941,18 @@ class AdminOverviewFragment : Fragment() {
                 val expiry = selectedExpiry
                 val box = etBox.text.toString().trim().uppercase()
 
-                val validBox = box in setOf("B1", "B2", "B3", "B4", "B5", "B6")
+                val validBox = isValidMedicineBoxInput(box)
                 val occupiedByOther = allItems.any { it.id != existing.id && it.box.equals(box, true) }
 
                 if (name.isBlank() || stock < 0 || dosePerDay !in 1..4 || expiry.isBlank() || !validBox || occupiedByOther) {
-                    CuraxFeedback.warn(this, "Use valid data. Dose/day 1..4 and unique box B1-B6")
+                    CuraxFeedback.warn(
+                        this,
+                        if (CareUi.effectiveStandaloneShell(requireContext())) {
+                            "Use valid data. Dose/day 1..4 and a unique box id (B1, B2, …)."
+                        } else {
+                            "Use valid data. Dose/day 1..4 and unique box B1-B6"
+                        },
+                    )
                     return@setPositiveButton
                 }
 
@@ -1064,10 +1071,31 @@ class AdminOverviewFragment : Fragment() {
         )
     }
 
+    private fun parseMedicineBoxIndex(box: String): Int? {
+        val s = box.trim().uppercase(Locale.US)
+        if (!s.startsWith("B") || s.length < 2) return null
+        val n = s.substring(1).toIntOrNull() ?: return null
+        return if (n > 0) n else null
+    }
+
+    /** B1–B6 only in default mode; B1, B2, … in standalone / care-standalone shell. */
+    private fun isValidMedicineBoxInput(box: String): Boolean {
+        val s = box.trim().uppercase(Locale.US)
+        return if (CareUi.effectiveStandaloneShell(requireContext())) {
+            s.matches(Regex("^B([1-9][0-9]*)$"))
+        } else {
+            s in setOf("B1", "B2", "B3", "B4", "B5", "B6")
+        }
+    }
+
     private fun availableBoxes(): List<String> {
-        val all = listOf("B1", "B2", "B3", "B4", "B5", "B6")
-        val used = allItems.map { it.box.uppercase() }.toSet()
-        return all.filter { it !in used }
+        val used = allItems.map { it.box.uppercase(Locale.US) }.toSet()
+        if (!CareUi.effectiveStandaloneShell(requireContext())) {
+            return listOf("B1", "B2", "B3", "B4", "B5", "B6").filter { it !in used }
+        }
+        val maxUsed = allItems.mapNotNull { parseMedicineBoxIndex(it.box) }.maxOrNull() ?: 0
+        val hi = maxOf(maxUsed + 24, 6)
+        return (1..hi).map { "B$it" }.filter { it !in used }.sortedBy { parseMedicineBoxIndex(it) ?: 0 }
     }
 
     private fun applyStandaloneHealthHubTitle(view: View) {
@@ -1106,16 +1134,21 @@ class AdminOverviewFragment : Fragment() {
         val total = allItems.size
         val boxesWithMedicine = allItems.count { it.stock > 0 }
         val threshold = AdminDemoData.getLowStockThreshold()
-        val low = allItems.count { it.stock in 1..threshold }
-        val emptyBoxes = (6 - allItems.size).coerceAtLeast(0)
+        // Mutually exclusive buckets so counts match the bar + total (expiring wins over low stock).
+        val exp = allItems.count { isExpiringSoon(it.expiry) }
+        val low = allItems.count { !isExpiringSoon(it.expiry) && it.stock <= threshold }
+        val normal = allItems.count { !isExpiringSoon(it.expiry) && it.stock > threshold }
+        val emptyBoxes = if (CareUi.effectiveStandaloneShell(requireContext())) {
+            0
+        } else {
+            (6 - allItems.size).coerceAtLeast(0)
+        }
         val zeroStockItems = allItems.count { it.stock == 0 }
         val refill = if (CareUi.effectiveStandaloneShell(requireContext())) {
             zeroStockItems
         } else {
             emptyBoxes + zeroStockItems
         }
-        val exp = allItems.count { isExpiringSoon(it.expiry) }
-        val normal = allItems.count { computedStatus(it) == "Normal" }
 
         if (view.findViewById<TextView>(R.id.tvBoxB1Name) != null) {
             bindMedicineBoxes(view)
@@ -1181,6 +1214,8 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun maybeShowStandaloneDoseNudges() {
+        // Standalone / care standalone: no "missed multiple doses" or adherence pop-ups on open.
+        if (CareUi.effectiveStandaloneShell(requireContext())) return
         if (!isUserApp() || !StandaloneUi.isUserStandalone(requireContext())) return
         val act = activity ?: return
         if (DoseNudgeController.shouldShowMissedDosesNudge(requireContext())) {
@@ -1588,11 +1623,10 @@ class AdminOverviewFragment : Fragment() {
         }
 
         view.findViewById<View>(R.id.cardKpiLow)?.setOnClickListener {
-            val threshold = AdminDemoData.getLowStockThreshold()
-            val items = allItems.filter { it.stock in 1..threshold }.sortedBy { it.box }
+            val items = allItems.filter { computedStatus(it) == "Low" }.sortedBy { it.box }
             showKpiDetailsDialog(
                 title = "Low Stock Medicines",
-                subtitle = "Medicines with stock between 1 and $threshold",
+                subtitle = "Medicines in the low-stock band (not expiring-within-30-days)",
                 lines = items.map { formatMedicineLine(it) }
             )
         }

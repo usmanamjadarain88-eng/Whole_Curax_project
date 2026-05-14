@@ -51,6 +51,7 @@ SIMPLE = [
     ("user_databus_room", {"GET": "user_databus_room"}),
     ("user_plans", {"GET": "user_plans_get", "POST": "user_plans_post", "PATCH": "user_plans_patch", "DELETE": "user_plans_delete"}),
     ("admin_sync", {"POST": "admin_sync"}),
+    ("admin_clear_user_dose_logs", {"POST": "admin_clear_user_dose_logs"}),
     ("admin_notify", {"POST": "admin_notify"}),
     ("admin_delete", {"DELETE": "delete_admin"}),
     ("admin_create_desktop_link_code", {"POST": "create_desktop_link_code"}),

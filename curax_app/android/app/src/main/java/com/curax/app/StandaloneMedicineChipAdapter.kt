@@ -53,7 +53,7 @@ fun MaterialCardView.bindStandaloneMedicineChip(
         strokeColor = if (slotSelected) {
             ContextCompat.getColor(ctx, R.color.standalone_medicine_chip_stroke_exp)
         } else {
-            ContextCompat.getColor(ctx, R.color.summary_stroke)
+            ContextCompat.getColor(ctx, R.color.standalone_medicine_chip_stroke_normal)
         }
         strokeWidth = if (slotSelected) medicineChipSelectedStrokePx(ctx) else medicineChipStrokePx(ctx)
         ivCornerDot.imageTintList = ColorStateList.valueOf(

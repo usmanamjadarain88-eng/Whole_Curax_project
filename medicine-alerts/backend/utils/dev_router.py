@@ -53,6 +53,7 @@ _STATIC: List[Tuple[str, str, str]] = [
     ("PATCH", "/user/plans", "user_plans_patch"),
     ("DELETE", "/user/plans", "user_plans_delete"),
     ("POST", "/admin/sync", "admin_sync"),
+    ("POST", "/admin/clear-user-dose-logs", "admin_clear_user_dose_logs"),
     ("POST", "/admin/notify", "admin_notify"),
     ("DELETE", "/admin", "delete_admin"),
     ("POST", "/admin/create-desktop-link-code", "create_desktop_link_code"),
@@ -84,6 +85,7 @@ _DYN = [
 
 _NAME_TO_FN = {
     "admin_accept_user_link_request": rh.admin_accept_user_link_request,
+    "admin_clear_user_dose_logs": rh.admin_clear_user_dose_logs,
     "admin_data": rh.admin_data,
     "admin_email_signup_start": rh.admin_email_signup_start,
     "admin_email_signup_verify": rh.admin_email_signup_verify,

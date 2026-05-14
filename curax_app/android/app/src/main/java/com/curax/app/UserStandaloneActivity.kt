@@ -111,6 +111,17 @@ class UserStandaloneActivity : AppCompatActivity() {
         override fun onPageSelected(position: Int) {
             applyUserShellSwipeForTab(position)
         }
+
+        /** While swiping tabs, [SwipeRefreshLayout] must not steal horizontal drags (e.g. Reminders + pull-to-refresh). */
+        override fun onPageScrollStateChanged(state: Int) {
+            if (!::swipeRefresh.isInitialized || !::viewPager.isInitialized) return
+            if (state != ViewPager2.SCROLL_STATE_IDLE) {
+                swipeRefresh.isEnabled = false
+                swipeRefresh.isRefreshing = false
+            } else {
+                applyUserShellSwipeForTab(viewPager.currentItem)
+            }
+        }
     }
     private var tabMediator: TabLayoutMediator? = null
     private var overviewFragmentRef: AdminOverviewFragment? = null
@@ -147,11 +158,23 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
     private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
-    /** Debounced: [LocalAlertsController.reschedule] + [DoseAutoMissedMarker.run] are heavy on the main thread. */
+    /** Debounced: [LocalAlertsController.reschedule] is heavy (many alarms); run off the UI thread so the Health Hub ECG does not freeze after resume. */
     private val standaloneHeavyResumeRunnable = Runnable {
         if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@Runnable
-        LocalAlertsController.reschedule(this@UserStandaloneActivity)
-        DoseAutoMissedMarker.run(this@UserStandaloneActivity)
+        val app = applicationContext
+        Thread {
+            try {
+                LocalAlertsController.reschedule(app)
+            } catch (_: Exception) {
+            }
+            mainHandler.post {
+                if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@post
+                try {
+                    DoseAutoMissedMarker.run(this@UserStandaloneActivity)
+                } catch (_: Exception) {
+                }
+            }
+        }.start()
     }
     private var connectionService: AlertConnectionService? = null
     @Volatile
@@ -378,6 +401,21 @@ class UserStandaloneActivity : AppCompatActivity() {
         })
 
         btnConnect.setOnClickListener {
+            if (StandaloneUi.isUserStandalone(this)) {
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.logout)
+                    .setMessage(R.string.logout_confirm_message)
+                    .setPositiveButton(R.string.logout) { _, _ ->
+                        if (connectionService?.isConnected() == true) {
+                            disconnectService()
+                        }
+                        UserLogoutHelper.clearLocalSession(this)
+                        UserLogoutHelper.navigateToSignIn(this)
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+                return@setOnClickListener
+            }
             val id = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
             if (connectionService?.isConnected() == true) {
@@ -440,7 +478,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         val decor = window.decorView
         decor.removeCallbacks(standaloneHeavyResumeRunnable)
         val delayMs =
-            if (StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(this)) 450L else 180L
+            if (StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(this)) 48L else 16L
         decor.postDelayed(standaloneHeavyResumeRunnable, delayMs)
     }
 
@@ -688,14 +726,34 @@ class UserStandaloneActivity : AppCompatActivity() {
         btnConnect.backgroundTintList = null
     }
 
+    private fun applySidebarConnectIconForMode() {
+        if (!::btnConnect.isInitialized) return
+        if (StandaloneUi.isUserStandalone(this)) {
+            btnConnect.icon = ContextCompat.getDrawable(this, R.drawable.ic_logout)
+            btnConnect.iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
+            btnConnect.iconTint = ColorStateList.valueOf(Color.WHITE)
+            btnConnect.iconPadding = (resources.displayMetrics.density * 6f).toInt().coerceAtLeast(0)
+        } else {
+            btnConnect.icon = null
+            btnConnect.iconPadding = 0
+        }
+    }
+
     private fun syncSidebarConnectButtonStyleWithRelayState() {
         if (!::btnConnect.isInitialized) return
+        if (StandaloneUi.isUserStandalone(this)) {
+            btnConnect.text = getString(R.string.standalone_logout)
+            setSidebarConnectBackgroundDrawable(connected = false, connecting = false)
+            applySidebarConnectIconForMode()
+            return
+        }
         val connected = connectionService?.isConnected() == true
         if (sidebarConnectShowsConnecting) {
             setSidebarConnectBackgroundDrawable(connected = false, connecting = true)
         } else {
             setSidebarConnectBackgroundDrawable(connected = connected, connecting = false)
         }
+        applySidebarConnectIconForMode()
     }
 
     /** Standalone: 7 tabs (includes Dose). Default (Smart System): 8 tabs (Dose + T Adjustment + ambient sidebar). */
@@ -864,8 +922,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
         bootstrapStandaloneDataOnce()
         ConnectionManager.requestReconnectRelayNow(this)
-        window.decorView.postDelayed({ refreshUserSidebar() }, 900L)
-        window.decorView.postDelayed({ refreshUserSidebar() }, 2800L)
+        if (!StandaloneUi.isUserStandalone(this)) {
+            window.decorView.postDelayed({ refreshUserSidebar() }, 900L)
+            window.decorView.postDelayed({ refreshUserSidebar() }, 2800L)
+        }
         startAmbientSidebarPreviewIfNeeded()
     }
 
@@ -1021,19 +1081,33 @@ class UserStandaloneActivity : AppCompatActivity() {
 
     private fun updateConnectionUi(connected: Boolean) {
         sidebarConnectShowsConnecting = false
+        if (StandaloneUi.isUserStandalone(this)) {
+            btnConnect.text = getString(R.string.standalone_logout)
+            setSidebarConnectBackgroundDrawable(connected = false, connecting = false)
+            applySidebarConnectIconForMode()
+            refreshUserSidebar()
+            return
+        }
         btnConnect.text = if (connected) {
             getString(R.string.disconnect)
         } else {
             getString(R.string.user_sidebar_connect_for_alerts)
         }
         setSidebarConnectBackgroundDrawable(connected = connected, connecting = false)
+        applySidebarConnectIconForMode()
         refreshUserSidebar()
     }
 
     private fun applyConnectionButtonConnectingUi() {
+        if (StandaloneUi.isUserStandalone(this)) {
+            btnConnect.text = getString(R.string.standalone_logout)
+            applySidebarConnectIconForMode()
+            return
+        }
         sidebarConnectShowsConnecting = true
         btnConnect.text = getString(R.string.connecting)
         setSidebarConnectBackgroundDrawable(connected = false, connecting = true)
+        applySidebarConnectIconForMode()
         refreshUserSidebar()
     }
 
@@ -1044,8 +1118,13 @@ class UserStandaloneActivity : AppCompatActivity() {
         connectionService = null
         ConnectionManager.requestDisconnectRelay(this)
         sidebarConnectShowsConnecting = false
-        btnConnect.text = getString(R.string.user_sidebar_connect_for_alerts)
+        btnConnect.text = if (StandaloneUi.isUserStandalone(this)) {
+            getString(R.string.standalone_logout)
+        } else {
+            getString(R.string.user_sidebar_connect_for_alerts)
+        }
         setSidebarConnectBackgroundDrawable(connected = false, connecting = false)
+        applySidebarConnectIconForMode()
         refreshUserSidebar()
     }
 
@@ -1312,49 +1391,88 @@ class UserStandaloneActivity : AppCompatActivity() {
             setSidebarLine(tvUserSidebarAdminStatus, 0, label)
         }
 
-        when {
-            !configOk -> setSidebarLine(
-                tvUserSidebarHealthStatus,
-                2,
-                getString(R.string.user_sidebar_health_config),
-            )
-            awaitingAdmin -> setSidebarLine(
-                tvUserSidebarHealthStatus,
-                1,
-                getString(R.string.user_sidebar_health_local_until_admin),
-            )
-            !adminLinked -> setSidebarLine(
-                tvUserSidebarHealthStatus,
-                1,
-                getString(R.string.user_sidebar_health_no_admin),
-            )
-            databusOk && relayOk -> setSidebarLine(
-                tvUserSidebarHealthStatus,
-                0,
-                getString(R.string.user_sidebar_health_ok),
-            )
-            databusOk || relayOk -> setSidebarLine(
-                tvUserSidebarHealthStatus,
-                1,
-                getString(R.string.user_sidebar_health_partial),
-            )
-            snapshotOk -> setSidebarLine(
-                tvUserSidebarHealthStatus,
-                1,
-                getString(R.string.user_sidebar_health_offline),
-            )
-            else -> setSidebarLine(
-                tvUserSidebarHealthStatus,
-                2,
-                getString(R.string.user_sidebar_health_issues),
-            )
+        if (StandaloneUi.isUserStandalone(this)) {
+            // Personal Health: dose/reminder alerts are local; health is green when account + admin + realtime are OK.
+            when {
+                !configOk -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    2,
+                    getString(R.string.user_sidebar_health_config),
+                )
+                awaitingAdmin -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    1,
+                    getString(R.string.user_sidebar_health_local_until_admin),
+                )
+                !adminLinked -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    1,
+                    getString(R.string.user_sidebar_health_no_admin),
+                )
+                databusOk -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    0,
+                    getString(R.string.user_sidebar_health_ok_standalone),
+                )
+                snapshotOk -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    1,
+                    getString(R.string.user_sidebar_health_offline_standalone),
+                )
+                else -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    2,
+                    getString(R.string.user_sidebar_health_issues),
+                )
+            }
+        } else {
+            when {
+                !configOk -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    2,
+                    getString(R.string.user_sidebar_health_config),
+                )
+                awaitingAdmin -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    1,
+                    getString(R.string.user_sidebar_health_local_until_admin),
+                )
+                !adminLinked -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    1,
+                    getString(R.string.user_sidebar_health_no_admin),
+                )
+                databusOk && relayOk -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    0,
+                    getString(R.string.user_sidebar_health_ok),
+                )
+                databusOk || relayOk -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    1,
+                    getString(R.string.user_sidebar_health_partial),
+                )
+                snapshotOk -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    1,
+                    getString(R.string.user_sidebar_health_offline),
+                )
+                else -> setSidebarLine(
+                    tvUserSidebarHealthStatus,
+                    2,
+                    getString(R.string.user_sidebar_health_issues),
+                )
+            }
         }
 
-        // Alerts are "active" only when relay is connected (Connect for alerts completed), not merely when FCM token exists.
         val alertsRelayReady = relayOk &&
             prefs.fcmToken.trim().isNotEmpty() &&
             notificationsChannelReady()
-        if (alertsRelayReady) {
+
+        // Personal Health (standalone): on-device alerts; relay/FCM not required for dose/reminder notifications.
+        if (StandaloneUi.isUserStandalone(this)) {
+            setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_local_standalone))
+        } else if (alertsRelayReady) {
             setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
         } else {
             val prefix = "⚪ "
@@ -1401,21 +1519,33 @@ class UserStandaloneActivity : AppCompatActivity() {
             else -> getString(R.string.user_sidebar_detail_admin_not_linked)
         }
 
-        val healthDetailRes = when {
-            !configOk -> R.string.user_sidebar_detail_health_config
-            awaitingAdmin -> R.string.user_sidebar_detail_health_until_admin_detail
-            !adminLinked -> R.string.user_sidebar_detail_health_no_admin
-            databusOk && relayOk -> R.string.user_sidebar_detail_health_ok
-            databusOk || relayOk -> R.string.user_sidebar_detail_health_partial
-            snapshotOk -> R.string.user_sidebar_detail_health_offline
-            else -> R.string.user_sidebar_detail_health_issues
+        val healthDetailRes = if (StandaloneUi.isUserStandalone(this)) {
+            when {
+                !configOk -> R.string.user_sidebar_detail_health_config
+                awaitingAdmin -> R.string.user_sidebar_detail_health_until_admin_detail
+                !adminLinked -> R.string.user_sidebar_detail_health_no_admin
+                databusOk -> R.string.user_sidebar_detail_health_ok_standalone
+                snapshotOk -> R.string.user_sidebar_detail_health_offline_standalone
+                else -> R.string.user_sidebar_detail_health_issues_standalone
+            }
+        } else {
+            when {
+                !configOk -> R.string.user_sidebar_detail_health_config
+                awaitingAdmin -> R.string.user_sidebar_detail_health_until_admin_detail
+                !adminLinked -> R.string.user_sidebar_detail_health_no_admin
+                databusOk && relayOk -> R.string.user_sidebar_detail_health_ok
+                databusOk || relayOk -> R.string.user_sidebar_detail_health_partial
+                snapshotOk -> R.string.user_sidebar_detail_health_offline
+                else -> R.string.user_sidebar_detail_health_issues
+            }
         }
         tvUserSidebarHealthDetail.setText(healthDetailRes)
 
-        tvUserSidebarAlertsDetail.text = if (alertsRelayReady) {
-            getString(R.string.user_sidebar_detail_alerts_active)
-        } else {
-            getString(R.string.user_sidebar_detail_alerts_inactive)
+        tvUserSidebarAlertsDetail.text = when {
+            StandaloneUi.isUserStandalone(this) ->
+                getString(R.string.user_sidebar_detail_alerts_local_standalone)
+            alertsRelayReady -> getString(R.string.user_sidebar_detail_alerts_active)
+            else -> getString(R.string.user_sidebar_detail_alerts_inactive)
         }
 
         tvUserSidebarRealtimeDetail.text = when (rtState) {

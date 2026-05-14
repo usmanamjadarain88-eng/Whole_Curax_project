@@ -39,15 +39,6 @@ class Prefs(context: Context) {
         get() = prefs.getInt(KEY_THEME_MODE, AppCompatDelegate.MODE_NIGHT_NO)
         set(value) = prefs.edit().putInt(KEY_THEME_MODE, value).apply()
 
-    /** Admin dashboard only; unset = dark. Independent of [themeMode]. */
-    var adminLocalNightMode: Int
-        get() = if (prefs.contains(KEY_ADMIN_LOCAL_NIGHT_MODE)) {
-            prefs.getInt(KEY_ADMIN_LOCAL_NIGHT_MODE, AppCompatDelegate.MODE_NIGHT_YES)
-        } else {
-            AppCompatDelegate.MODE_NIGHT_YES
-        }
-        set(value) = prefs.edit().putInt(KEY_ADMIN_LOCAL_NIGHT_MODE, value).apply()
-
     var appPin: String
         get() = prefs.getString(KEY_APP_PIN, "") ?: ""
         set(value) = prefs.edit().putString(KEY_APP_PIN, value).apply()
@@ -536,7 +527,6 @@ class Prefs(context: Context) {
         private const val KEY_BOT_ID = "bot_id"
         private const val KEY_API_KEY = "api_key"
         private const val KEY_THEME_MODE = "theme_mode"
-        private const val KEY_ADMIN_LOCAL_NIGHT_MODE = "admin_local_night_mode"
         private const val KEY_APP_PIN = "app_pin"
         private const val KEY_AUTO_LOCK_SECONDS = "auto_lock_minutes"
         private const val KEY_LAST_BACKGROUND_AT_MS = "last_background_at_ms"
