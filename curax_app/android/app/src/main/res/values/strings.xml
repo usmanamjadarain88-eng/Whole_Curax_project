@@ -820,7 +820,7 @@
     <string name="admin_desktop_link_result_simple">Your code is %1$s and will expire in %2$d minutes.</string>
     <string name="create_code">Create code</string>
     <string name="desktop_link_code_not_signed_in">Open the admin app while signed in, then try again.</string>
-    <string name="desktop_link_code_failed_404">Could not create code. Ask support to add desktop_link_codes on the server, then redeploy backend.</string>
+    <string name="desktop_link_code_failed_404">Could not create code. Check you are signed in as admin and try again.</string>
     <string name="desktop_link_code_failed_http">Could not create code (server %1$d). Try again in a moment.</string>
     <string name="return_to_admin">Return to Admin</string>
     <string name="health_hub_alerts_report_title">Alerts report</string>

@@ -495,6 +495,55 @@ class CentralDB:
                 cur.close()
         return "C" + (secrets.token_hex(4).upper()[: _ADMIN_CODE_LENGTH - 1])  # fallback
 
+    def purge_expired_desktop_link_codes(self, admin_id=None):
+        """Remove expired rows (and optionally stale rows for one admin). Keeps DB session-clean."""
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            if admin_id:
+                cur.execute(
+                    "DELETE FROM desktop_link_codes WHERE expires_at <= NOW() OR admin_id = %s",
+                    (admin_id,),
+                )
+            else:
+                cur.execute("DELETE FROM desktop_link_codes WHERE expires_at <= NOW()")
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB purge_expired_desktop_link_codes: {e}")
+        finally:
+            cur.close()
+
+    def ensure_admin_access_code(self, admin_id):
+        """Return admin_access_code for sync/databus; generate and persist if missing."""
+        aid = (admin_id or "").strip()
+        if not aid:
+            return None
+        existing = self.get_admin_access_code_by_id(aid)
+        if existing:
+            return existing
+        code = self._generate_admin_access_code()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE admins SET admin_access_code = %s, updated_at = NOW() "
+                "WHERE id = %s AND (admin_access_code IS NULL OR admin_access_code = '') "
+                "RETURNING admin_access_code",
+                (code, aid),
+            )
+            row = cur.fetchone()
+            conn.commit()
+            if row and row[0]:
+                return str(row[0]).strip()
+            return self.get_admin_access_code_by_id(aid) or code
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB ensure_admin_access_code: {e}")
+            return None
+        finally:
+            cur.close()
+
     def create_desktop_link_code_for_bot(self, bot_id, api_key, expires_seconds=300):
         """Admin app (signed in on phone): create one-time PC link code from this device's bot_id + api_key."""
         bot_id = (bot_id or "").strip()
@@ -504,6 +553,7 @@ class CentralDB:
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
+            self.purge_expired_desktop_link_codes()
             cur.execute(
                 "SELECT id, name FROM admins WHERE bot_id = %s AND api_key = %s LIMIT 1",
                 (bot_id, api_key),
@@ -513,6 +563,8 @@ class CentralDB:
                 return None, None, None
             admin_id = row["id"] if hasattr(row, "keys") else row[0]
             admin_name = (row["name"] if hasattr(row, "keys") else row[1]) or "Admin"
+            # One active link session per admin: replace any previous code.
+            cur.execute("DELETE FROM desktop_link_codes WHERE admin_id = %s", (admin_id,))
             from datetime import timedelta
             expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_seconds)
             for _ in range(20):
@@ -576,16 +628,17 @@ class CentralDB:
         finally:
             cur.close()
 
-    def get_admin_by_desktop_link_code(self, code):
-        """Validate desktop link code, return admin info and consume the code. Returns { admin_id, admin_name } or None."""
+    def redeem_desktop_link_code(self, code):
+        """Validate code, load admin, delete code row. Returns dict or None. Purges expired rows first."""
         code = (code or "").strip().upper()
         if not code:
             return None
+        self.purge_expired_desktop_link_codes()
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
             cur.execute(
-                "SELECT d.admin_id, a.name, a.admin_access_code, a.connection_code "
+                "SELECT d.admin_id, a.name, a.connection_code "
                 "FROM desktop_link_codes d JOIN admins a ON a.id = d.admin_id "
                 "WHERE d.code = %s AND d.expires_at > NOW() LIMIT 1",
                 (code,),
@@ -596,24 +649,29 @@ class CentralDB:
             if hasattr(row, "keys"):
                 admin_id = row["admin_id"]
                 admin_name = row["name"] or "Admin"
-                access_code = (row.get("admin_access_code") or "").strip()
                 connection_code = (row.get("connection_code") or "").strip()
             else:
-                admin_id, admin_name, access_code, connection_code = row[0], row[1] or "Admin", (row[2] or "").strip(), (row[3] or "").strip()
+                admin_id, admin_name, connection_code = row[0], row[1] or "Admin", (row[2] or "").strip()
             cur.execute("DELETE FROM desktop_link_codes WHERE code = %s", (code,))
             conn.commit()
+            admin_id_str = str(admin_id)
+            sync_key = self.ensure_admin_access_code(admin_id_str)
             return {
-                "admin_id": str(admin_id),
+                "admin_id": admin_id_str,
                 "admin_name": admin_name,
-                "admin_access_code": access_code,
                 "connection_code": connection_code,
+                "sync_key": sync_key or "",
             }
         except Exception as e:
             conn.rollback()
-            print(f"CentralDB get_admin_by_desktop_link_code: {e}")
+            print(f"CentralDB redeem_desktop_link_code: {e}")
             return None
         finally:
             cur.close()
+
+    def get_admin_by_desktop_link_code(self, code):
+        """Legacy alias — prefer redeem_desktop_link_code."""
+        return self.redeem_desktop_link_code(code)
 
     def _admin_id_by_email(self, email):
         """Return admin id that has this email (normalized: strip + lower), or None."""

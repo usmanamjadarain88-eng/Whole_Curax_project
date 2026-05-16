@@ -1676,13 +1676,10 @@ def create_desktop_link_code(body, query, headers):
     expires_seconds = 300
     code, admin_id, admin_name = db.create_desktop_link_code_for_bot(bot_id, api_key, expires_seconds=expires_seconds)
     if not code:
-        return (503, {
-            "message": "Could not create desktop link code. Check that desktop_link_codes table exists on the server database.",
-        })
+        return (503, {"message": "Could not create link code. Open the admin app signed in, then try again."})
     return (200, {"code": code, "expires_in": expires_seconds, "admin_name": admin_name})
 def desktop_link_to_admin(body, query, headers):
-    """POST { "code": "..." } → desktop redeems admin's one-time Desktop linking code (from Android Settings).
-    Returns admin_id, admin_name, admin_access_code, connection_code so the PC can load the same hub as the phone."""
+    """POST { "code": "..." } → one-shot: redeem code + return full admin hub (same as GET /admin/data)."""
     data = body
     code = (data.get("code") or "").strip()
     db = get_db()
@@ -1690,14 +1687,20 @@ def desktop_link_to_admin(body, query, headers):
         return (503, {"message": "Central DB not configured"})
     if not code:
         return (400, {"message": "code required"})
-    info = db.get_admin_by_desktop_link_code(code)
+    info = db.redeem_desktop_link_code(code)
     if not info:
-        return (404, {"message": "Invalid or expired code"})
+        return (404, {"message": "Invalid or expired code. Create a new code in the admin app."})
+    admin_id = info["admin_id"]
+    raw = db.get_admin_dashboard_data(admin_id, last_sync_time=None)
+    if raw is None:
+        return (500, {"message": "Could not load admin hub"})
+    hub = _normalize_user_data_response(raw)
     return (200, {
-        "admin_id": info["admin_id"],
-        "admin_name": info["admin_name"],
-        "admin_access_code": info.get("admin_access_code", ""),
-        "connection_code": info.get("connection_code", ""),
+        "admin_id": admin_id,
+        "admin_name": info.get("admin_name") or "Admin",
+        "connection_code": info.get("connection_code") or "",
+        "hub": hub,
+        "sync_key": info.get("sync_key") or "",
     })
 def put_admin_medical_reminders(body, query, headers):
     """PUT { "access_code": "...", "medical_reminders": { "appointments": [], "prescriptions": [], "lab_tests": [], "custom": [] } }.

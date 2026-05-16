@@ -1130,14 +1130,45 @@ class AppController(QObject):
         self.admin_alerts = []
         self.admin_status_changed.emit()
 
+    def apply_admin_hub_link_session(self, data: dict):
+        """Apply POST /desktop/link-to-admin response: hub payload + local session (no access-code UI)."""
+        if not data or not isinstance(data, dict):
+            return False, "Invalid server response."
+        hub = data.get("hub")
+        if not hub or not isinstance(hub, dict):
+            return False, "Could not load admin hub. Create a new code in the app."
+        admin_name = (data.get("admin_name") or "Admin").strip() or "Admin"
+        admin_id_str = str(data.get("admin_id") or "").strip()
+        connection_code = (data.get("connection_code") or "").strip()
+        sync_key = (data.get("sync_key") or "").strip().upper()
+        db = getattr(self, "_db", None)
+        if db and hasattr(db, "set") and sync_key:
+            db.set("admin_access_code", sync_key)
+            if connection_code:
+                db.set("admin_connection_code", connection_code)
+        if db and hasattr(db, "set_admin_credentials"):
+            db.set_admin_credentials(admin_name, admin_id_str, "", "", "")
+        self.apply_data_sync_from_central(hub)
+        self.admin_logged_in = True
+        self.logged_in_admin_name = admin_name
+        try:
+            self.reschedule_all_medicine_alerts()
+        except Exception:
+            pass
+        if hasattr(self, "restart_databus"):
+            try:
+                self.restart_databus()
+            except Exception:
+                pass
+        if hasattr(self, "admin_status_changed"):
+            self.admin_status_changed.emit()
+        return True, ""
+
     def link_admin_desktop_by_link_code(self, code: str):
-        """
-        Redeem the admin's one-time Desktop linking code from the Android app
-        (Admin → Settings → Desktop linking code). Loads the full admin hub on this PC.
-        """
+        """Redeem code from admin app → load full hub on this PC (single API call)."""
         code = (code or "").strip().upper()
         if not code:
-            return False, "Please enter the Desktop linking code from the app."
+            return False, "Enter the code from your phone."
         base = (self.get_central_api_base_url() or "").strip().rstrip("/")
         if not base:
             return False, "Backend URL not configured."
@@ -1151,22 +1182,19 @@ class AppController(QObject):
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            access_code = (data.get("admin_access_code") or "").strip().upper()
-            if not access_code:
-                return False, "Server did not return admin credentials. Try creating a new code in the app."
-            return self.recover_admin_by_access_code(access_code)
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            return self.apply_admin_hub_link_session(payload)
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8") if e.fp else ""
             try:
-                data = json.loads(body) if body.strip() else {}
-                msg = (data.get("message") or "").strip() if isinstance(data, dict) else body
+                err = json.loads(body) if body.strip() else {}
+                msg = (err.get("message") or "").strip() if isinstance(err, dict) else body
             except Exception:
                 msg = body or str(e)
             if e.code == 404:
-                return False, msg or "Invalid or expired code. Create a new code in the admin app."
-            return False, msg or f"Server error ({e.code})."
+                return False, msg or "Invalid or expired code. Create a new code in the app."
+            return False, msg or f"Link failed ({e.code})."
         except Exception as e:
             return False, str(e) or "Could not link desktop."
 
