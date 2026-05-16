@@ -227,7 +227,22 @@ class SettingsActivity : AppCompatActivity() {
                 }
                 .show()
         } else {
-            CuraxFeedback.warn(this, "Failed to create code")
+            val body = response.body?.string().orEmpty()
+            val serverMsg = try {
+                JSONObject(body).optString("message", "").trim()
+            } catch (_: Exception) {
+                ""
+            }
+            val detail = when (response.code) {
+                404 -> serverMsg.ifEmpty {
+                    getString(R.string.desktop_link_code_failed_404)
+                }
+                503 -> serverMsg.ifEmpty { getString(R.string.request_failed) }
+                else -> serverMsg.ifEmpty {
+                    getString(R.string.desktop_link_code_failed_http, response.code)
+                }
+            }
+            CuraxFeedback.warn(this, detail, long = true)
         }
     }
 

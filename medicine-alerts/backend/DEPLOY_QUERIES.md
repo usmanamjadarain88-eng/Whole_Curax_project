@@ -14,7 +14,9 @@ Or from repo root:
 python -m backend.run_schema
 ```
 
-This ensures extensions, tables, indexes, signup/password-reset columns, and removal of retired desktop-link artifacts (`desktop_linked_at`, `desktop_link_codes`, `user_desktop_link_codes`) match current code.
+This ensures extensions, tables, indexes, signup/password-reset columns, and admin desktop link table (`desktop_link_codes`) match current code. User desktop link (`user_desktop_link_codes`) is dropped.
+
+If admin desktop linking returns **404** on create-code, run `sql/restore_desktop_link_tables.sql` (or re-run `central_schema.sql`) on the production database, then redeploy the backend.
 
 ## After deploy
 

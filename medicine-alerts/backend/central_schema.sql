@@ -153,8 +153,15 @@ WHERE bot_id IS DISTINCT FROM 'dashboard';
 
 ALTER TABLE users DROP COLUMN IF EXISTS desktop_linked_at;
 
+-- One-time codes: admin Settings → Desktop linking code (PC) and user → Link desktop.
+CREATE TABLE IF NOT EXISTS desktop_link_codes (
+    code VARCHAR(16) PRIMARY KEY,
+    admin_id UUID NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_desktop_link_codes_expires ON desktop_link_codes(expires_at);
+
 DROP TABLE IF EXISTS user_desktop_link_codes;
-DROP TABLE IF EXISTS desktop_link_codes;
 
 -- ---------------------------------------------------------------------------
 -- signup_sessions (email-first signup staging)

@@ -1675,7 +1675,10 @@ def create_desktop_link_code(body, query, headers):
         return (400, {"message": "access_code required"})
     code, admin_id, admin_name = db.create_desktop_link_code(access_code, expires_seconds=300)
     if not code:
-        return (404, {"message": "Invalid access code or could not create code"})
+        return (404, {
+            "message": "Invalid access code, session expired, or desktop link storage unavailable. "
+            "Sign out and sign in again as admin, then retry. If it persists, run central_schema.sql on the database.",
+        })
     return (200, {"code": code, "expires_in": 300, "admin_name": admin_name})
 def desktop_link_to_admin(body, query, headers):
     """POST { "code": "..." } → desktop redeems admin's one-time Desktop linking code (from Android Settings).
@@ -1695,42 +1698,6 @@ def desktop_link_to_admin(body, query, headers):
         "admin_name": info["admin_name"],
         "admin_access_code": info.get("admin_access_code", ""),
         "connection_code": info.get("connection_code", ""),
-    })
-def user_create_desktop_link_code(body, query, headers):
-    """POST { "bot_id": "...", "api_key": "..." } ΓåÆ user (app) creates a one-time code for desktop to link to this user.
-    Returns { "code": "...", "expires_in": 300, "user_name": "..." }. Code valid 5 min; one-time use."""
-    data = body
-    bot_id = (data.get("bot_id") or "").strip()
-    api_key = (data.get("api_key") or "").strip()
-    db = get_db()
-    if not db:
-        return (503, {"message": "Central DB not configured"})
-    if not bot_id or not api_key:
-        return (400, {"message": "bot_id and api_key required"})
-    code, user_id, user_name = db.create_user_desktop_link_code(bot_id, api_key, expires_seconds=300)
-    if not code:
-        return (404, {"message": "User not found or could not create code"})
-    return (200, {"code": code, "expires_in": 300, "user_name": user_name})
-def user_desktop_by_code(body, query, headers):
-    """POST { "code": "..." } ΓåÆ desktop enters the code from the user app; links to that user.
-    Returns { "user_id": "...", "user_name": "..." }. Code is consumed (one-time use)."""
-    data = body
-    code = (data.get("code") or "").strip()
-    db = get_db()
-    if not db:
-        return (503, {"message": "Central DB not configured"})
-    if not code:
-        return (400, {"message": "code required"})
-    info = db.get_user_by_desktop_link_code(code)
-    if not info:
-        return (404, {"message": "Invalid or expired code"})
-    return (200, {
-        "user_id": info["user_id"],
-        "user_name": info["user_name"],
-        "bot_id": info.get("bot_id", ""),
-        "api_key": info.get("api_key", ""),
-        "admin_id": info.get("admin_id", ""),
-        "admin_name": info.get("admin_name", "Admin"),
     })
 def put_admin_medical_reminders(body, query, headers):
     """PUT { "access_code": "...", "medical_reminders": { "appointments": [], "prescriptions": [], "lab_tests": [], "custom": [] } }.

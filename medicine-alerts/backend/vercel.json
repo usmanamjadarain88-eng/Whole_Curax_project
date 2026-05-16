@@ -171,10 +171,6 @@
       "destination": "/api/admin_notify"
     },
     {
-      "source": "/admin",
-      "destination": "/api/admin_delete"
-    },
-    {
       "source": "/admin/create-desktop-link-code",
       "destination": "/api/admin_create_desktop_link_code"
     },
@@ -183,12 +179,8 @@
       "destination": "/api/desktop_link_to_admin"
     },
     {
-      "source": "/user/create-desktop-link-code",
-      "destination": "/api/user_create_desktop_link_code"
-    },
-    {
-      "source": "/user/desktop-by-code",
-      "destination": "/api/user_desktop_by_code"
+      "source": "/admin",
+      "destination": "/api/admin_delete"
     },
     {
       "source": "/admin/medical_reminders",

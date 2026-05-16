@@ -817,12 +817,11 @@
     <string name="account_removed_sign_up_again">You can sign up again with a new connection code from your admin.</string>
     <string name="desktop_linking_code">Desktop linking code</string>
     <string name="desktop_linking_code_instructions">• Links your Curax desktop on a PC to this same admin account as the phone.\n• After you create a code, open the desktop app and enter it where it connects or links to your hub (exact menu varies by version).\n• Use it when you want a large screen to manage users, alerts, and reports — not to invite new users.\n• People join your hub on mobile with your invite or connection code (Connections tab or sign-up), not with this desktop code.\n• The code expires in a few minutes and works once. Tap Create code when you are at the computer.</string>
-    <string name="desktop_link_code_user_instructions">Create a one-time code to link the desktop app to your account. Enter the code in the desktop app under Settings → System → Link this desktop to you. Code expires in 5 minutes.</string>
     <string name="create_code">Create code</string>
     <string name="admin_desktop_link_result_message_core">• Your one-time code: %1$s\n• On your PC, open Curax desktop and enter it where this install links to your admin hub.\n• That desktop then runs as you — same workspace as this phone.\n• Do not share with patients; they link phones using your invite or connection code.\n• Expires in %2$d minutes · single use only.</string>
     <string name="admin_desktop_link_result_admin_line">\n\nWorkspace: %1$s</string>
-    <string name="user_link_desktop_first_title">User has not linked desktop</string>
-    <string name="user_link_desktop_first_message">Ask this user to link their desktop first.\n\nThey must:\n1. Open the desktop app\n2. Go to Settings → System → Link this desktop to you\n3. Choose \"Use existing admin\" and enter the desktop code you gave them\n\nSetup is complete only after they do this. Then you can manage their desktop here.</string>
+    <string name="desktop_link_code_failed_404">Could not create code. Sign out, sign in again as admin, then retry. If it still fails, the server database may need the desktop link tables (contact support).</string>
+    <string name="desktop_link_code_failed_http">Could not create code (server %1$d). Try again in a moment.</string>
     <string name="return_to_admin">Return to Admin</string>
     <string name="health_hub_alerts_report_title">Alerts report</string>
     <string name="health_hub_sync_history_title">Last sync history</string>

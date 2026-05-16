@@ -509,16 +509,6 @@ class AdminDashboardActivity : AppCompatActivity() {
             CuraxFeedback.info(this, getString(R.string.admin_demo_user_open_blocked))
             return
         }
-        if (!desktopLinked) {
-            drawerLayout.closeDrawer(android.view.Gravity.START)
-            CuraxFeedback.warn(this, getString(R.string.user_link_desktop_first_title), long = true)
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle(getString(R.string.user_link_desktop_first_title))
-                .setMessage(getString(R.string.user_link_desktop_first_message))
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
-            return
-        }
         prefs.actAsUserId = userId
         prefs.actAsUserName = name
         prefs.actAsUserDisplayMode = when (userDisplayMode.trim().lowercase()) {

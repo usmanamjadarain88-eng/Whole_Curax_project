@@ -1125,54 +1125,6 @@ class AppController(QObject):
         self.admin_alerts = []
         self.admin_status_changed.emit()
 
-    def link_desktop_user(self, code):
-        """
-        Link this desktop to an app user using the one-time code from the app.
-        Returns (True, None) on success, (False, error_message) on failure.
-        When backend supports POST /user/desktop-by-code (or similar), call it and use returned user_id/name.
-        """
-        code = (code or "").strip()
-        if not code:
-            return False, "Please enter the code from the app."
-        try:
-            base = (self.get_central_api_base_url() or "").strip().rstrip("/")
-            if base:
-                try:
-                    import urllib.request
-                    import urllib.error
-                    req = urllib.request.Request(
-                        base + "/user/desktop-by-code",
-                        data=json.dumps({"code": code}).encode("utf-8"),
-                        headers={"Content-Type": "application/json"},
-                        method="POST",
-                    )
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        data = json.loads(resp.read().decode("utf-8"))
-                    user_id = (data.get("user_id") or data.get("id") or "").strip()
-                    user_name = (data.get("user_name") or data.get("name") or "Linked user").strip()
-                    bot_id = (data.get("bot_id") or "").strip()
-                    api_key = (data.get("api_key") or "").strip()
-                    if user_id:
-                        self._db.set_linked_user(user_id, user_name, bot_id=bot_id or None, api_key=api_key or None)
-                        return True, None
-                    return False, data.get("message") or "Invalid or expired code."
-                except urllib.error.HTTPError as e:
-                    body = e.read().decode("utf-8") if e.fp else ""
-                    try:
-                        msg = json.loads(body).get("message", body) if body else str(e)
-                    except Exception:
-                        msg = body or str(e)
-                    return False, msg or "Code invalid or expired."
-                except Exception as e:
-                    return False, str(e) or "Could not reach server."
-            # No central API URL or backend not ready: save locally so UI flow works (placeholder)
-            if hasattr(self._db, "set_linked_user"):
-                self._db.set_linked_user(code, "Linked user")
-                return True, None
-            return False, "Linking not configured."
-        except Exception as e:
-            return False, str(e) or "Link failed."
-
     def link_admin_desktop_by_link_code(self, code: str):
         """
         Redeem the admin's one-time Desktop linking code from the Android app
@@ -1201,8 +1153,6 @@ class AppController(QObject):
                 return False, "Server did not return admin credentials. Try creating a new code in the app."
             return self.recover_admin_by_access_code(access_code)
         except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return False, None  # caller may try user desktop code
             body = e.read().decode("utf-8") if e.fp else ""
             try:
                 msg = json.loads(body).get("message", body) if body else str(e)
@@ -1211,107 +1161,6 @@ class AppController(QObject):
             return False, msg or "Code invalid or expired."
         except Exception as e:
             return False, str(e) or "Could not link desktop."
-
-    def link_desktop_by_app_code(self, code: str):
-        """Try admin Desktop linking code first, then user desktop link code."""
-        ok, msg = self.link_admin_desktop_by_link_code(code)
-        if ok:
-            return True, msg or ""
-        if msg is not None:
-            return False, msg
-        return self.link_desktop_to_admin(code)
-
-    def link_desktop_to_admin(self, code):
-        """
-        User desktop link: code from the USER's Android app (Settings → Create desktop link code).
-        Calls POST /user/desktop-by-code. Saves linked user and desktop_linked_admin, then fetches user data.
-        Returns (True, None) on success, (False, error_message) on failure.
-        """
-        code = (code or "").strip()
-        if not code:
-            return False, "Please enter the code from your Android app (Settings → Use desktop app → Create desktop link code)."
-        try:
-            base = (self.get_central_api_base_url() or "").strip().rstrip("/")
-            if not base:
-                return False, "Backend URL not configured."
-            import urllib.request
-            import urllib.error
-            req = urllib.request.Request(
-                base + "/user/desktop-by-code",
-                data=json.dumps({"code": code}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            user_id = (data.get("user_id") or "").strip()
-            user_name = (data.get("user_name") or "User").strip()
-            admin_id = (data.get("admin_id") or "").strip()
-            admin_name = (data.get("admin_name") or "Admin").strip()
-            bot_id = (data.get("bot_id") or "").strip()
-            api_key = (data.get("api_key") or "").strip()
-            if not user_id:
-                return False, data.get("message") or "Invalid or expired code."
-            if getattr(self._db, "set_linked_user", None):
-                self._db.set_linked_user(user_id, user_name, bot_id=bot_id, api_key=api_key)
-            if admin_id and getattr(self._db, "set_desktop_linked_admin", None):
-                self._db.set_desktop_linked_admin(admin_id, admin_name)
-            self.linked_user_changed.emit()
-            self.fetch_from_central_and_apply()
-            return True, None
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8") if e.fp else ""
-            try:
-                msg = json.loads(body).get("message", body) if body else str(e)
-            except Exception:
-                msg = body or str(e)
-            return False, msg or "Code invalid or expired."
-        except Exception as e:
-            return False, str(e) or "Could not link to admin."
-
-    def link_desktop_to_admin_by_connection_code(self, connection_code: str):
-        """
-        Desktop already has linked_user (from Settings 'Link this desktop to me').
-        User enters admin's connection code; we resolve admin and set desktop_linked_admin, then fetch data.
-        Returns (True, None) on success, (False, error_message) on failure.
-        """
-        code = (connection_code or "").strip().upper()
-        if not code:
-            return False, "Please enter the admin's Connection Code."
-        base = (self.get_central_api_base_url() or "").strip().rstrip("/")
-        if not base:
-            return False, "Backend URL not configured."
-        try:
-            import urllib.request
-            import urllib.error
-            url = f"{base}/admin/by-connection-code?connection_code={urllib.parse.quote(code, safe='')}"
-            req = urllib.request.Request(url, method="GET")
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status != 200:
-                    return False, "Invalid or unknown connection code."
-                body = resp.read().decode("utf-8", errors="replace")
-                data = json.loads(body) if body.strip() else {}
-            admin_id = (data.get("admin_id") or "").strip()
-            admin_name = (data.get("admin_name") or "Admin").strip()
-            if not admin_id:
-                return False, "Invalid response from server."
-            if getattr(self._db, "set_desktop_linked_admin", None):
-                self._db.set_desktop_linked_admin(admin_id, admin_name)
-            self.linked_user_changed.emit()
-            if hasattr(self, "admin_status_changed"):
-                self.admin_status_changed.emit()
-            self.fetch_from_central_and_apply()
-            return True, None
-        except urllib.error.HTTPError as e:
-            try:
-                body = e.read().decode("utf-8") if e.fp else ""
-                data = json.loads(body) if body.strip() else {}
-                msg = (data.get("message") or "").strip() or e.reason or "Request failed"
-            except Exception:
-                msg = e.reason or "Request failed"
-            return False, msg
-        except Exception as e:
-            return False, str(e) or "Could not link to admin."
 
     def connect_to_port(self, port_name):
         from connection import serial_connection

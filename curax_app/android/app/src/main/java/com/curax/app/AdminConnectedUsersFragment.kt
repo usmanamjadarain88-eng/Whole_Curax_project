@@ -156,20 +156,19 @@ class AdminConnectedUsersFragment : Fragment() {
                             val listLayout = view?.findViewById<android.widget.LinearLayout>(R.id.llConnectedUsersList)
                             listLayout?.removeAllViews()
                             if (usersArr.length() == 0) {
-                                infoTv?.text = "No users connected yet. Share your connection code so users can link to you. Then they can link their desktop; you manage each user's desktop here."
+                                infoTv?.text = "No users connected yet. Share your connection code so users can link to you on mobile."
                             } else {
-                                infoTv?.text = "${usersArr.length()} user(s) — tap one to manage their desktop."
+                                infoTv?.text = "${usersArr.length()} user(s) — tap one to open Care mode and manage their data."
                                 for (i in 0 until usersArr.length()) {
                                     val u = usersArr.optJSONObject(i) ?: continue
                                     val userId = u.optString("id", "").trim()
                                     val name = u.optString("name", "").ifEmpty { "Unknown" }
                                     val botId = u.optString("bot_id", "").trim()
-                                    val desktopLinked = u.optBoolean("desktop_linked", false)
                                     val row = layoutInflater.inflate(R.layout.item_admin_linked_user_row, listLayout, false)
                                     row.findViewById<android.widget.TextView>(R.id.tvLinkedUserName).text = name
                                     row.findViewById<android.widget.TextView>(R.id.tvLinkedUserSubtitle).text =
-                                        if (desktopLinked) "Tap to manage desktop · $botId"
-                                        else "Desktop not linked — user must sign in on desktop first"
+                                        if (botId.isNotEmpty()) "Tap for Care mode · $botId"
+                                        else "Linked user"
                                     val iv = row.findViewById<ShapeableImageView>(R.id.ivLinkedUserAvatar)
                                     val pic = u.optString("profile_picture", "").trim()
                                     if (pic.isEmpty()) {
@@ -184,14 +183,6 @@ class AdminConnectedUsersFragment : Fragment() {
                                         }.start()
                                     }
                                     row.setOnClickListener {
-                                        if (!desktopLinked) {
-                                            AlertDialog.Builder(requireContext())
-                                                .setTitle(getString(R.string.user_link_desktop_first_title))
-                                                .setMessage(getString(R.string.user_link_desktop_first_message))
-                                                .setPositiveButton(android.R.string.ok, null)
-                                                .show()
-                                            return@setOnClickListener
-                                        }
                                         val p = Prefs(requireContext())
                                         p.actAsUserDisplayMode = ""
                                         p.actAsUserId = userId

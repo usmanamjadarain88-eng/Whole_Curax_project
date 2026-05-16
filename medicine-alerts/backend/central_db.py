@@ -359,8 +359,8 @@ def _send_admin_email_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
             server.send_message(msg)
     else:
         with smtplib.SMTP_SSL(host, port, timeout=smtp_timeout) as server:
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
     return True
 
 
@@ -570,90 +570,6 @@ class CentralDB:
         except Exception as e:
             conn.rollback()
             print(f"CentralDB get_admin_by_desktop_link_code: {e}")
-            return None
-        finally:
-            cur.close()
-
-    def create_user_desktop_link_code(self, bot_id, api_key, expires_seconds=300):
-        """User (app) creates a one-time code for desktop to link to this user. Code valid 5 min; one-time use. Returns (code, user_id, user_name) or (None, None, None)."""
-        bot_id = (bot_id or "").strip()
-        api_key = (api_key or "").strip()
-        if not bot_id or not api_key:
-            return None, None, None
-        conn = self._ensure_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
-        try:
-            cur.execute(
-                "SELECT id, name FROM users WHERE bot_id = %s AND api_key = %s LIMIT 1",
-                (bot_id, api_key),
-            )
-            row = cur.fetchone()
-            if not row:
-                return None, None, None
-            user_id = row["id"] if hasattr(row, "keys") else row[0]
-            user_name = (row["name"] if hasattr(row, "keys") else row[1]) or "User"
-            from datetime import timedelta
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_seconds)
-            for _ in range(20):
-                link_code = "".join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(8))
-                try:
-                    cur.execute(
-                        "INSERT INTO user_desktop_link_codes (code, user_id, expires_at) VALUES (%s, %s, %s)",
-                        (link_code, user_id, expires_at),
-                    )
-                    if cur.rowcount:
-                        conn.commit()
-                        return link_code, str(user_id), user_name
-                except Exception:
-                    conn.rollback()
-                    continue
-            return None, None, None
-        except Exception as e:
-            conn.rollback()
-            print(f"CentralDB create_user_desktop_link_code: {e}")
-            return None, None, None
-        finally:
-            cur.close()
-
-    def get_user_by_desktop_link_code(self, code):
-        """Validate user desktop link code, return user info and admin info; consume the code.
-        Returns { user_id, user_name, bot_id, api_key, admin_id, admin_name } or None."""
-        code = (code or "").strip().upper()
-        if not code:
-            return None
-        conn = self._ensure_conn()
-        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
-        try:
-            cur.execute(
-                """SELECT d.user_id, u.name AS user_name, u.bot_id, u.api_key, u.admin_id, a.name AS admin_name
-                   FROM user_desktop_link_codes d
-                   JOIN users u ON u.id = d.user_id
-                   JOIN admins a ON a.id = u.admin_id
-                   WHERE d.code = %s AND d.expires_at > NOW() LIMIT 1""",
-                (code,),
-            )
-            row = cur.fetchone()
-            if not row:
-                return None
-            user_id = row["user_id"] if hasattr(row, "keys") else row[0]
-            user_name = (row["user_name"] if hasattr(row, "keys") else row[1]) or "User"
-            bot_id = (row["bot_id"] if hasattr(row, "keys") else row[2]) or ""
-            api_key = (row["api_key"] if hasattr(row, "keys") else row[3]) or ""
-            admin_id = row["admin_id"] if hasattr(row, "keys") else row[4]
-            admin_name = (row["admin_name"] if hasattr(row, "keys") else row[5]) or "Admin"
-            cur.execute("DELETE FROM user_desktop_link_codes WHERE code = %s", (code,))
-            conn.commit()
-            return {
-                "user_id": str(user_id),
-                "user_name": user_name,
-                "bot_id": bot_id,
-                "api_key": api_key,
-                "admin_id": str(admin_id) if admin_id else "",
-                "admin_name": admin_name,
-            }
-        except Exception as e:
-            conn.rollback()
-            print(f"CentralDB get_user_by_desktop_link_code: {e}")
             return None
         finally:
             cur.close()
@@ -4675,8 +4591,8 @@ class CentralDB:
             )
             row = cur.fetchone()
             if row:
-                return {
-                    "ok": True,
+        return {
+            "ok": True,
                     "status": "pending",
                     "request_id": row.get("request_id"),
                     "admin_id": row.get("admin_id"),

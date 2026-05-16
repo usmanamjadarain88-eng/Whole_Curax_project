@@ -267,44 +267,6 @@ class SettingsTab(QWidget):
         g_admin_layout.setContentsMargins(0, 0, 0, 0)
         g_admin_layout.setSpacing(8)
 
-        # --- Link to admin only (when user linked desktop via Settings but not yet linked to admin) ---
-        self.link_to_admin_only_group = QGroupBox("🔗 Link to admin")
-        self.link_to_admin_only_group.setStyleSheet(f"QGroupBox {{ font-weight: bold; color: {self._title_color()}; }}")
-        link_to_admin_layout = QVBoxLayout(self.link_to_admin_only_group)
-        link_to_admin_layout.setSpacing(8)
-        self._link_to_admin_desc = QLabel("This desktop is linked to your account. Enter the Connection Code your admin gave you to finish setup.")
-        self._link_to_admin_desc.setWordWrap(True)
-        self._link_to_admin_desc.setStyleSheet(f"color: {self._secondary_color()}; font-size: 10pt;")
-        link_to_admin_layout.addWidget(self._link_to_admin_desc)
-        self.link_to_admin_code_edit = QLineEdit()
-        self.link_to_admin_code_edit.setPlaceholderText("Admin's Connection Code")
-        self.link_to_admin_code_edit.setMaxLength(16)
-        self.link_to_admin_code_edit.setMinimumWidth(200)
-        self.link_to_admin_code_edit.setMaximumWidth(320)
-        link_to_admin_layout.addWidget(self.link_to_admin_code_edit)
-        self.link_to_admin_btn = QPushButton("🔗 Link to admin")
-        self.link_to_admin_btn.setStyleSheet("background-color:#2563eb;color:#ffffff;font-weight:700;padding:8px 18px;border-radius:8px;border:1.5px solid #1d4ed8;font-size:9pt;")
-        self.link_to_admin_btn.clicked.connect(self._on_link_to_admin_clicked)
-        link_to_admin_layout.addWidget(self.link_to_admin_btn)
-        self.link_to_admin_only_group.setVisible(False)
-        g_admin_layout.addWidget(self.link_to_admin_only_group)
-
-        # --- Linked to admin (user view only): show this instead of admin form when desktop is linked ---
-        self.linked_to_admin_group = QGroupBox("User view")
-        self.linked_to_admin_group.setStyleSheet(f"QGroupBox {{ font-weight: bold; color: {self._title_color()}; }}")
-        linked_layout = QVBoxLayout(self.linked_to_admin_group)
-        linked_layout.setSpacing(8)
-        self.linked_to_admin_label = QLabel("You are linked to [Admin]. User view only.")
-        self.linked_to_admin_label.setWordWrap(True)
-        self.linked_to_admin_label.setStyleSheet(f"color: {self._secondary_color()}; font-size: 10pt;")
-        linked_layout.addWidget(self.linked_to_admin_label)
-        self.unlink_desktop_btn = QPushButton("Unlink this desktop")
-        self.unlink_desktop_btn.setStyleSheet("background-color:#dc2626;color:#ffffff;font-weight:700;padding:8px 18px;border-radius:8px;border:1.5px solid #b91c1c;font-size:9pt;")
-        self.unlink_desktop_btn.clicked.connect(self._on_unlink_desktop_clicked)
-        linked_layout.addWidget(self.unlink_desktop_btn)
-        self.linked_to_admin_group.setVisible(False)
-        g_admin_layout.addWidget(self.linked_to_admin_group)
-
         self.admin_status_label = QLabel()
         self.admin_status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 9pt;")
         g_admin_layout.addWidget(self.admin_status_label)
@@ -499,10 +461,6 @@ class SettingsTab(QWidget):
             except Exception:
                 return
         has_admin = db.has_admin_credentials() if hasattr(db, "has_admin_credentials") else False
-        if hasattr(self, "linked_to_admin_group"):
-            self.linked_to_admin_group.setVisible(False)
-        if hasattr(self, "link_to_admin_only_group"):
-            self.link_to_admin_only_group.setVisible(False)
         self.admin_status_label.setVisible(True)
         # When device has admin (admin-specific), no Login/Logout button
         self.admin_action_btn.setVisible(not has_admin)
@@ -532,58 +490,13 @@ class SettingsTab(QWidget):
             self.admin_status_label.setStyleSheet("color: #f97316; font-size: 9pt;")
             self.admin_action_btn.setText("Create Admin (fill form and Save)")
 
-    def _on_unlink_desktop_clicked(self):
-        """Unlink this desktop from the admin (user view); clear linked user and desktop_linked_admin."""
-        db = self.controller.get_db()
-        if hasattr(db, "clear_desktop_linked_admin"):
-            db.clear_desktop_linked_admin()
-        if hasattr(db, "clear_linked_user"):
-            db.clear_linked_user()
-        if hasattr(self.controller, "admin_status_changed"):
-            self.controller.admin_status_changed.emit()
-        if hasattr(self.controller, "linked_user_changed"):
-            try:
-                self.controller.linked_user_changed.emit()
-            except Exception:
-                pass
-        self._load()
-        QMessageBox.information(self, "Unlinked", "This desktop is no longer linked. You can link again with a new code or create an admin.")
-
-    def _on_link_to_admin_clicked(self):
-        """User (who already linked desktop via Settings) enters admin's connection code; link to that admin."""
-        code = (self.link_to_admin_code_edit.text() or "").strip() if hasattr(self, "link_to_admin_code_edit") else ""
-        if not code:
-            QMessageBox.information(self, "Link to admin", "Please enter the Connection Code your admin gave you.")
-            return
-        ok, message = self.controller.link_desktop_to_admin_by_connection_code(code)
-        if ok:
-            if hasattr(self, "link_to_admin_code_edit"):
-                self.link_to_admin_code_edit.clear()
-            self._load()
-            if hasattr(self.controller, "admin_status_changed"):
-                self.controller.admin_status_changed.emit()
-            QMessageBox.information(
-                self,
-                "Linked to admin",
-                "This desktop is now linked to your admin. You are in user view. You can close and reopen the app; your data will load automatically.",
-            )
-            if self.main_window and hasattr(self.main_window, "switch_to_main_panel"):
-                self.main_window.switch_to_main_panel()
-        else:
-            QMessageBox.warning(self, "Link to admin failed", message or "Invalid code. Try again.")
-
     def _update_admin_tab_visibility(self):
-        """Show Admin Panel whenever relevant: admin's device (always show when unlocked), no admin yet, desktop linked, or linked user. No longer hide when admin is logged in."""
+        """Show Admin Panel for admin workstation setup and credentials."""
         if not hasattr(self, "_settings_tabs") or not hasattr(self, "_admin_tab_index"):
             return
         try:
             db = self.controller.get_db()
-            has_admin = db.has_admin_credentials() if hasattr(db, "has_admin_credentials") else False
-            desktop_linked = db.get_desktop_linked_admin() if hasattr(db, "get_desktop_linked_admin") else None
-            linked = db.get_linked_user() if hasattr(db, "get_linked_user") else None
-            # Admin Panel visible: admin's device (has_admin), or no admin (setup), or user views (desktop_linked / linked)
-            show = has_admin or not has_admin or bool(desktop_linked) or (bool(linked) and not bool(desktop_linked))
-            self._settings_tabs.setTabVisible(self._admin_tab_index, show)
+            self._settings_tabs.setTabVisible(self._admin_tab_index, True)
             self._refresh_admin_ui(db)
         except Exception:
             pass

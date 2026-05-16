@@ -3972,8 +3972,8 @@ class MainWindow(QMainWindow):
         h_lo.addWidget(title_lbl)
 
         sub_lbl = QLabel(
-            "Admin: Access Code (permanent) or Desktop linking code (one-time, Settings → Desktop linking code). "
-            "User: desktop link code from your app Settings."
+            "Enter your Admin Access Code or the one-time Desktop linking code from the Curax admin app "
+            "(Settings → Desktop linking code)."
         )
         sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub_lbl.setWordWrap(True)
@@ -3995,15 +3995,10 @@ class MainWindow(QMainWindow):
         # Radio buttons
         radio_admin = QRadioButton("Admin — Access Code or Desktop linking code")
         radio_admin.setChecked(True)
+        radio_admin.setVisible(False)
         radio_admin.setStyleSheet(
             f"color: {radio_c}; font-size: {r_pt}pt; font-weight: 600; background: transparent;"
         )
-        radio_user = QRadioButton("User — Desktop link code from app")
-        radio_user.setStyleSheet(
-            f"color: {radio_c}; font-size: {r_pt}pt; background: transparent;"
-        )
-        b_lo.addWidget(radio_admin)
-        b_lo.addWidget(radio_user)
 
         b_lo.addSpacing(max(4, int(4 * s)))
 
@@ -4092,19 +4087,13 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-            if radio_admin.isChecked():
-                ok, msg = False, "Not supported"
-                if hasattr(self.controller, "link_admin_desktop_by_link_code"):
-                    ok, msg = self.controller.link_admin_desktop_by_link_code(code)
-                    if not ok and msg is None and hasattr(self.controller, "recover_admin_by_access_code"):
-                        ok, msg = self.controller.recover_admin_by_access_code(code.upper())
-                elif hasattr(self.controller, "recover_admin_by_access_code"):
+            ok, msg = False, "Not supported"
+            if hasattr(self.controller, "link_admin_desktop_by_link_code"):
+                ok, msg = self.controller.link_admin_desktop_by_link_code(code)
+                if not ok and hasattr(self.controller, "recover_admin_by_access_code"):
                     ok, msg = self.controller.recover_admin_by_access_code(code.upper())
-            else:
-                fn = getattr(self.controller, "link_desktop_by_app_code", None) or getattr(
-                    self.controller, "link_desktop_to_admin", None
-                )
-                ok, msg = fn(code) if fn else (False, "Not supported")
+            elif hasattr(self.controller, "recover_admin_by_access_code"):
+                ok, msg = self.controller.recover_admin_by_access_code(code.upper())
 
             if ok:
                 try:
