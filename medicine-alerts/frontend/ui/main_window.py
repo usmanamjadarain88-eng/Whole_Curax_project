@@ -2324,7 +2324,7 @@ class MainWindow(QMainWindow):
         )
         sidebar_layout.addWidget(self.unlock_admin_frame)
 
-        self.link_admin_access_btn = QPushButton("🔗 Link admin — Access Code from app")
+        self.link_admin_access_btn = QPushButton("🔗 Link with code from app")
         self.link_admin_access_btn.setMinimumHeight(28)
         self.link_admin_access_btn.setStyleSheet(
             "QPushButton { background-color: #1E40AF; color: #fff; border: none; border-radius: 8px; "
@@ -2332,10 +2332,10 @@ class MainWindow(QMainWindow):
             "QPushButton:hover { background-color: #1D4ED8; } "
             "QPushButton:pressed { background-color: #1E3A8A; }"
         )
-        self.link_admin_access_btn.clicked.connect(self._recover_admin_from_code)
+        self.link_admin_access_btn.clicked.connect(self._link_admin_desktop_code_dialog)
         self.link_admin_access_btn.setVisible(False)
         self.link_admin_access_btn.setToolTip(
-            "Enter Admin Access Code or the one-time Desktop linking code from Curax mobile (Admin → Settings)."
+            "Enter the one-time code from the admin app (Settings → Desktop linking code)."
         )
         sidebar_layout.addWidget(self.link_admin_access_btn)
 
@@ -3891,210 +3891,135 @@ class MainWindow(QMainWindow):
         layout.addWidget(close_btn)
         dlg.exec()
 
-    def _recover_admin_from_code(self):
+    def _link_admin_desktop_code_dialog(self):
+        """Compact dialog: enter one-time code from admin app → link this PC to that admin hub."""
         try:
             from PyQt6.QtWidgets import (
                 QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel,
-                QPushButton, QFrame, QRadioButton, QApplication
+                QPushButton, QApplication,
             )
             from PyQt6.QtCore import Qt, QTimer
         except ImportError:
             from PyQt5.QtWidgets import (
                 QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel,
-                QPushButton, QFrame, QRadioButton, QApplication
+                QPushButton, QApplication,
             )
             from PyQt5.QtCore import Qt, QTimer
 
         theme = getattr(self, "_current_theme", "light") or "light"
         is_dark = theme == "dark"
-
         if is_dark:
-            dlg_bg = "#0B1220"; hdr_bg1 = "#0D1828"; hdr_bg2 = "#091525"
-            hdr_border = "#1A3040"; body_bg = "#0A0F1E"; title_c = "#2DD4BF"
-            sub_c = "#64748B"; input_bg = "#0D1828"; input_border = "#1A3040"
-            input_focus = "#2DD4BF"; input_c = "#E2E8F0"; label_c = "#94A3B8"
-            btn_bg = "#0D9488"; btn_hover = "#14B8A6"; err_c = "#EF4444"
-            cancel_bg = "#1E293B"; cancel_c = "#94A3B8"; cancel_bdr = "#334155"
-            radio_c = "#E2E8F0"; success_c = "#2DD4BF"
+            dlg_bg = "#0B1220"
+            sub_c = "#94A3B8"
+            input_bg = "#0D1828"
+            input_border = "#1A3040"
+            input_focus = "#2DD4BF"
+            input_c = "#E2E8F0"
+            btn_bg = "#0D9488"
+            btn_hover = "#14B8A6"
+            err_c = "#EF4444"
+            ok_c = "#2DD4BF"
+            cancel_bg = "#1E293B"
+            cancel_c = "#94A3B8"
+            cancel_bdr = "#334155"
         else:
-            dlg_bg = "#F0FAF8"; hdr_bg1 = "#FFFFFF"; hdr_bg2 = "#EDF8F5"
-            hdr_border = "#C0DDD8"; body_bg = "#F0FAF8"; title_c = "#0D6B61"
-            sub_c = "#64748B"; input_bg = "#FFFFFF"; input_border = "#B2D8D4"
-            input_focus = "#0D9488"; input_c = "#0F172A"; label_c = "#475569"
-            btn_bg = "#0D9488"; btn_hover = "#0F766E"; err_c = "#EF4444"
-            cancel_bg = "#F1F5F9"; cancel_c = "#475569"; cancel_bdr = "#CBD5E1"
-            radio_c = "#0F172A"; success_c = "#0D9488"
+            dlg_bg = "#F0FAF8"
+            sub_c = "#64748B"
+            input_bg = "#FFFFFF"
+            input_border = "#B2D8D4"
+            input_focus = "#0D9488"
+            input_c = "#0F172A"
+            btn_bg = "#0D9488"
+            btn_hover = "#0F766E"
+            err_c = "#EF4444"
+            ok_c = "#0D9488"
+            cancel_bg = "#F1F5F9"
+            cancel_c = "#475569"
+            cancel_bdr = "#CBD5E1"
 
-        s = max(0.52, min(1.0, float(getattr(self, "_content_scale", getattr(self, "_topbar_scale", 1.0)))))
+        s = max(0.45, min(1.0, float(getattr(self, "_content_scale", getattr(self, "_topbar_scale", 1.0)))))
+        w = max(240, int(300 * s))
+        pad = max(12, int(16 * s))
+        pt = max(8, int(10 * s))
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("CuraX — Link or restore by code")
+        dlg.setWindowTitle("Link admin")
         dlg.setModal(True)
-        dlg.setMinimumWidth(max(280, int(420 * s)))
-        dlg.setMaximumWidth(max(320, int(500 * s)))
+        dlg.setFixedWidth(w)
         try:
             dlg.setWindowFlag(Qt.WindowType.MSWindowsFixedSizeDialogHint, True)
         except AttributeError:
             pass
         dlg.setStyleSheet(f"QDialog {{ background-color: {dlg_bg}; }}")
 
-        root = QVBoxLayout(dlg)
-        root.setSpacing(0)
-        root.setContentsMargins(0, 0, 0, 0)
+        lo = QVBoxLayout(dlg)
+        lo.setContentsMargins(pad, pad, pad, pad)
+        lo.setSpacing(max(8, int(10 * s)))
 
-        # ── Header ──────────────────────────────────────────────────
-        header = QFrame()
-        header.setObjectName("recoverHeader")
-        header.setStyleSheet(f"""
-            QFrame#recoverHeader {{
-                background: qlineargradient(x1:0,y1:0,x2:1,y2:1,
-                    stop:0 {hdr_bg1}, stop:1 {hdr_bg2});
-                border-bottom: 1px solid {hdr_border};
-            }}
-        """)
-        hm = (max(20, int(32 * s)), max(18, int(28 * s)), max(20, int(32 * s)), max(14, int(24 * s)))
-        h_lo = QVBoxLayout(header)
-        h_lo.setContentsMargins(*hm)
-        h_lo.setSpacing(max(4, int(6 * s)))
-        h_lo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint = QLabel("Code from admin app (Settings → Desktop linking code)")
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color: {sub_c}; font-size: {pt}pt; background: transparent;")
+        lo.addWidget(hint)
 
-        icon_lbl = QLabel("🔄")
-        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setStyleSheet(f"font-size: {max(20, int(32 * s))}pt; background: transparent;")
-        h_lo.addWidget(icon_lbl)
-
-        title_lbl = QLabel("Link or restore")
-        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_lbl.setStyleSheet(
-            f"font-size: {max(11, int(16 * s))}pt; font-weight: 800; color: {title_c}; "
-            "background: transparent; letter-spacing: -0.3px;"
-        )
-        h_lo.addWidget(title_lbl)
-
-        sub_lbl = QLabel(
-            "Enter your Admin Access Code or the one-time Desktop linking code from the Curax admin app "
-            "(Settings → Desktop linking code)."
-        )
-        sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub_lbl.setWordWrap(True)
-        sub_lbl.setStyleSheet(f"font-size: {max(7, int(9 * s))}pt; color: {sub_c}; background: transparent;")
-        h_lo.addWidget(sub_lbl)
-
-        root.addWidget(header)
-
-        # ── Body ────────────────────────────────────────────────────
-        body = QFrame()
-        body.setObjectName("recoverBody")
-        body.setStyleSheet(f"QFrame#recoverBody {{ background-color: {body_bg}; }}")
-        bm = (max(20, int(32 * s)), max(16, int(24 * s)), max(20, int(32 * s)), max(20, int(32 * s)))
-        b_lo = QVBoxLayout(body)
-        b_lo.setContentsMargins(*bm)
-        b_lo.setSpacing(max(10, int(14 * s)))
-
-        r_pt = max(7, int(9 * s))
-        # Radio buttons
-        radio_admin = QRadioButton("Admin — Access Code or Desktop linking code")
-        radio_admin.setChecked(True)
-        radio_admin.setVisible(False)
-        radio_admin.setStyleSheet(
-            f"color: {radio_c}; font-size: {r_pt}pt; font-weight: 600; background: transparent;"
-        )
-
-        b_lo.addSpacing(max(4, int(4 * s)))
-
-        code_label = QLabel("Code")
-        code_label.setStyleSheet(
-            f"font-size: {r_pt}pt; font-weight: 700; color: {label_c}; background: transparent;"
-        )
-        b_lo.addWidget(code_label)
-
-        code_h = max(36, int(46 * s))
-        code_pt = max(9, int(11 * s))
         code_edit = QLineEdit()
-        code_edit.setPlaceholderText("Enter your code…")
-        code_edit.setMinimumHeight(code_h)
+        code_edit.setPlaceholderText("Enter code")
+        code_edit.setMaxLength(16)
+        code_edit.setMinimumHeight(max(32, int(38 * s)))
         code_edit.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {input_bg}; color: {input_c};
-                border: 1px solid {input_border}; border-radius: 10px;
-                padding: 10px 14px; font-size: {code_pt}pt; font-weight: 700;
+                border: 1px solid {input_border}; border-radius: 8px;
+                padding: 6px 10px; font-size: {max(9, int(11 * s))}pt; font-weight: 700;
                 letter-spacing: 2px;
             }}
             QLineEdit:focus {{ border: 2px solid {input_focus}; }}
         """)
-        b_lo.addWidget(code_edit)
+        lo.addWidget(code_edit)
 
-        # Status/error label
         status_lbl = QLabel("")
-        status_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_lbl.setWordWrap(True)
-        status_lbl.setStyleSheet(
-            f"font-size: {r_pt}pt; color: {err_c}; background: transparent; font-weight: 600;"
-        )
         status_lbl.setVisible(False)
-        b_lo.addWidget(status_lbl)
+        status_lbl.setStyleSheet(f"color: {err_c}; font-size: {max(8, int(9 * s))}pt; background: transparent;")
+        lo.addWidget(status_lbl)
 
-        b_lo.addSpacing(max(4, int(4 * s)))
-
-        # Buttons row
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(max(8, int(10 * s)))
-
-        btn_h = max(36, int(46 * s))
-        recover_btn = QPushButton("🔄  Recover")
-        recover_btn.setMinimumHeight(btn_h)
-        recover_btn.setStyleSheet(f"""
+        btn_row.setSpacing(8)
+        link_btn = QPushButton("Link")
+        link_btn.setMinimumHeight(max(32, int(36 * s)))
+        link_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {btn_bg}; color: #FFFFFF; border: none;
-                border-radius: 10px; font-size: {code_pt}pt; font-weight: 700; padding: 10px 16px;
+                background-color: {btn_bg}; color: #fff; border: none;
+                border-radius: 8px; font-weight: 700; padding: 6px 14px;
             }}
             QPushButton:hover {{ background-color: {btn_hover}; }}
-            QPushButton:pressed {{ background-color: #0F766E; }}
         """)
-
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setMinimumHeight(btn_h)
+        cancel_btn.setMinimumHeight(max(32, int(36 * s)))
         cancel_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {cancel_bg}; color: {cancel_c};
-                border: 1px solid {cancel_bdr}; border-radius: 10px;
-                font-size: {max(8, int(10 * s))}pt; font-weight: 600; padding: 10px 16px;
+                border: 1px solid {cancel_bdr}; border-radius: 8px; padding: 6px 12px;
             }}
-            QPushButton:hover {{ background-color: {hdr_border}; }}
         """)
-
-        btn_row.addWidget(recover_btn)
+        btn_row.addWidget(link_btn)
         btn_row.addWidget(cancel_btn)
-        b_lo.addLayout(btn_row)
+        lo.addLayout(btn_row)
 
-        root.addWidget(body)
-
-        def do_recover():
-            code = code_edit.text().strip()
+        def do_link():
+            code = code_edit.text().strip().upper()
             if not code:
-                status_lbl.setText("⚠  Please enter a code.")
-                status_lbl.setStyleSheet(
-                    f"font-size: {r_pt}pt; color: {err_c}; background: transparent; font-weight: 600;"
-                )
+                status_lbl.setText("Enter the code from your phone.")
+                status_lbl.setStyleSheet(f"color: {err_c}; font-size: {max(8, int(9 * s))}pt;")
                 status_lbl.setVisible(True)
-                code_edit.setFocus()
                 return
-
-            recover_btn.setEnabled(False)
-            recover_btn.setText("Recovering…")
+            link_btn.setEnabled(False)
+            link_btn.setText("…")
             try:
                 QApplication.processEvents()
             except Exception:
                 pass
-
-            ok, msg = False, "Not supported"
-            if hasattr(self.controller, "link_admin_desktop_by_link_code"):
-                ok, msg = self.controller.link_admin_desktop_by_link_code(code)
-                if not ok and hasattr(self.controller, "recover_admin_by_access_code"):
-                    ok, msg = self.controller.recover_admin_by_access_code(code.upper())
-            elif hasattr(self.controller, "recover_admin_by_access_code"):
-                ok, msg = self.controller.recover_admin_by_access_code(code.upper())
-
+            fn = getattr(self.controller, "link_admin_desktop_by_link_code", None)
+            ok, msg = fn(code) if fn else (False, "Linking not available.")
             if ok:
                 try:
                     self.controller.medicine_updated.emit()
@@ -4102,64 +4027,35 @@ class MainWindow(QMainWindow):
                     pass
                 self._update_admin_status_label()
 
-                # Show success state in dialog for 1 second, then close and show password screen
-                icon_lbl.setText("✅")
-                title_lbl.setText("Admin Recovered!")
-                title_lbl.setStyleSheet(
-                    f"font-size: {max(11, int(16 * s))}pt; font-weight: 800; color: {success_c}; "
-                    "background: transparent; letter-spacing: -0.3px;"
-                )
-                sub_lbl.setText(f"Welcome back! Please set your unlock password.")
-                recover_btn.setVisible(False)
-                cancel_btn.setVisible(False)
-                status_lbl.setText("✔  Account restored successfully")
-                status_lbl.setStyleSheet(
-                    f"font-size: {r_pt}pt; color: {success_c}; background: transparent; font-weight: 600;"
-                )
-                status_lbl.setVisible(True)
-                try:
-                    QApplication.processEvents()
-                except Exception:
-                    pass
-
-                needs_pwd = (msg == "__SET_PASSWORD__")
-                def _after_success():
+                def _done():
                     dlg.accept()
                     self._apply_locked_state()
                     self._update_status_text()
-                    if needs_pwd:
-                        self._show_set_password_after_recovery()
-                    elif hasattr(self, "switch_to_main_panel"):
-                        try:
-                            self.switch_to_main_panel()
-                        except Exception:
-                            pass
-                QTimer.singleShot(1000, _after_success)
+                    self._unlock_without_device()
+
+                QTimer.singleShot(150, _done)
             else:
-                recover_btn.setEnabled(True)
-                recover_btn.setText("🔄  Recover")
-                status_lbl.setText(f"✗  {msg or 'Recovery failed. Check your code.'}")
-                status_lbl.setStyleSheet(
-                    f"font-size: {r_pt}pt; color: {err_c}; background: transparent; font-weight: 600;"
-                )
+                link_btn.setEnabled(True)
+                link_btn.setText("Link")
+                status_lbl.setText(msg or "Invalid or expired code.")
                 status_lbl.setVisible(True)
 
-        recover_btn.clicked.connect(do_recover)
-        code_edit.returnPressed.connect(do_recover)
+        link_btn.clicked.connect(do_link)
+        code_edit.returnPressed.connect(do_link)
         cancel_btn.clicked.connect(dlg.reject)
-
-        # Position near sidebar (just right of the Tools area)
+        code_edit.setFocus()
+        dlg.adjustSize()
         try:
             pg = self.geometry()
-            pt = self.mapToGlobal(pg.topLeft())
-            dlg.adjustSize()
-            dh = dlg.sizeHint().height()
-            dlg.move(pt.x() + 270, pt.y() + (pg.height() - dh) // 4)
+            g = self.mapToGlobal(pg.topLeft())
+            dlg.move(g.x() + 200, g.y() + max(40, pg.height() // 5))
         except Exception:
             pass
-
-        code_edit.setFocus()
         dlg.exec()
+
+    def _recover_admin_from_code(self):
+        """Legacy alias — same compact link dialog."""
+        self._link_admin_desktop_code_dialog()
 
     def _show_set_password_after_recovery(self):
         """Show a full-screen dialog for admin to set their password after account recovery."""

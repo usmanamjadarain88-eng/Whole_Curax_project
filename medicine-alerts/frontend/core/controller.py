@@ -412,6 +412,11 @@ class AppController(QObject):
             self.reschedule_all_medicine_alerts()
         except Exception:
             pass
+        if hasattr(self, "restart_databus"):
+            try:
+                self.restart_databus()
+            except Exception:
+                pass
         if hasattr(self, "admin_status_changed"):
             self.admin_status_changed.emit()
         return True, ""
@@ -1155,10 +1160,13 @@ class AppController(QObject):
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8") if e.fp else ""
             try:
-                msg = json.loads(body).get("message", body) if body else str(e)
+                data = json.loads(body) if body.strip() else {}
+                msg = (data.get("message") or "").strip() if isinstance(data, dict) else body
             except Exception:
                 msg = body or str(e)
-            return False, msg or "Code invalid or expired."
+            if e.code == 404:
+                return False, msg or "Invalid or expired code. Create a new code in the admin app."
+            return False, msg or f"Server error ({e.code})."
         except Exception as e:
             return False, str(e) or "Could not link desktop."
 

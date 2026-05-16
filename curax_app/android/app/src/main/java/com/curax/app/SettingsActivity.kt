@@ -208,18 +208,12 @@ class SettingsActivity : AppCompatActivity() {
             val data = try { JSONObject(body) } catch (_: Exception) { JSONObject() }
             val code = data.optString("code", "").trim()
             val expiresIn = data.optInt("expires_in", 600)
-            val adminName = data.optString("admin_name", "").trim()
             if (code.isEmpty()) {
                 CuraxFeedback.warn(this, "No code returned")
                 return
             }
-            val minutes = (expiresIn / 60).coerceAtLeast(1)
-            val nameLine = if (adminName.isNotEmpty()) {
-                getString(R.string.admin_desktop_link_result_admin_line, adminName)
-            } else {
-                ""
-            }
-            val msg = getString(R.string.admin_desktop_link_result_message_core, code, minutes) + nameLine
+            val minutes = maxOf(1, expiresIn / 60)
+            val msg = getString(R.string.admin_desktop_link_result_simple, code, minutes)
             val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
             AlertDialog.Builder(this)
                 .setTitle(getString(R.string.desktop_linking_code))

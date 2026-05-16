@@ -816,10 +816,9 @@
     <string name="account_removed_by_admin">The admin has removed you from their account.</string>
     <string name="account_removed_sign_up_again">You can sign up again with a new connection code from your admin.</string>
     <string name="desktop_linking_code">Desktop linking code</string>
-    <string name="desktop_linking_code_instructions">• Links your Curax desktop on a PC to this same admin account as the phone.\n• After you create a code, open the desktop app and enter it where it connects or links to your hub (exact menu varies by version).\n• Use it when you want a large screen to manage users, alerts, and reports — not to invite new users.\n• People join your hub on mobile with your invite or connection code (Connections tab or sign-up), not with this desktop code.\n• The code expires in a few minutes and works once. Tap Create code when you are at the computer.</string>
+    <string name="desktop_linking_code_instructions">• Same admin hub on PC as this app.\n• Tap Create code when you are at the computer.\n• Enter that code in the Curax desktop app.\n• Code expires in 5 minutes · one-time use.</string>
+    <string name="admin_desktop_link_result_simple">Your code is %1$s and will expire in %2$d minutes.</string>
     <string name="create_code">Create code</string>
-    <string name="admin_desktop_link_result_message_core">• Your one-time code: %1$s\n• On your PC, open Curax desktop and enter it where this install links to your admin hub.\n• That desktop then runs as you — same workspace as this phone.\n• Do not share with patients; they link phones using your invite or connection code.\n• Expires in %2$d minutes · single use only.</string>
-    <string name="admin_desktop_link_result_admin_line">\n\nWorkspace: %1$s</string>
     <string name="desktop_link_code_not_signed_in">Open the admin app while signed in, then try again.</string>
     <string name="desktop_link_code_failed_404">Could not create code. Ask support to add desktop_link_codes on the server, then redeploy backend.</string>
     <string name="desktop_link_code_failed_http">Could not create code (server %1$d). Try again in a moment.</string>
