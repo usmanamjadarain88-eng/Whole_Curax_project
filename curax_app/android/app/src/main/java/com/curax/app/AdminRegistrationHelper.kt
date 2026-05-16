@@ -97,7 +97,7 @@ object AdminRegistrationHelper {
                                 }
                                 list.add(m)
                             }
-                            AdminDemoData.replaceMedicines(AdminDemoData.fromApiMedicines(list))
+                            AdminDemoData.replaceMedicines(activity.applicationContext, AdminDemoData.fromApiMedicines(list))
                             val alertsArray = dataJson.optJSONArray("alerts")
                             AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(alertsArray))
                             val medicalRemindersObj = dataJson.optJSONObject("medical_reminders")

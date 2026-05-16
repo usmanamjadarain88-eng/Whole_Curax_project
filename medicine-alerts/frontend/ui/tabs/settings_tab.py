@@ -90,53 +90,6 @@ class SettingsTab(QWidget):
         sys_layout.addWidget(self._sys_desc)
         sys_layout.addSpacing(8)
 
-        # --- Link this desktop to you (user-only / first-time flow: no local admin yet) ---
-        self.link_desktop_group = QGroupBox("📱 Link this desktop to you")
-        self.link_desktop_group.setStyleSheet(
-            f"QGroupBox {{ font-weight: bold; color: {self._title_color()}; }}"
-        )
-        link_layout = QVBoxLayout(self.link_desktop_group)
-        link_layout.setSpacing(10)
-        self._link_desc = QLabel(
-            "If you use the Curax app as a linked user (signed up with an admin's connection code), you can bind this desktop to your account.\n\n"
-            "1. Open the Curax app on your phone → Settings → \"Use on desktop\" (or similar).\n"
-            "2. Get the one-time code shown there.\n"
-            "3. Enter the code below and click Link. This desktop will then open with your data; the code is only needed once."
-        )
-        self._link_desc.setWordWrap(True)
-        self._link_desc.setStyleSheet(f"color: {self._secondary_color()}; font-size: 9pt;")
-        link_layout.addWidget(self._link_desc)
-        link_form = QFormLayout()
-        link_form.setSpacing(8)
-        self.link_code_edit = QLineEdit()
-        self.link_code_edit.setPlaceholderText("Enter code from app")
-        self.link_code_edit.setMaxLength(12)
-        self.link_code_edit.setMinimumWidth(200)
-        self.link_code_edit.setMaximumWidth(320)
-        link_form.addRow("Code from app:", self.link_code_edit)
-        link_layout.addLayout(link_form)
-        link_btn_row = QHBoxLayout()
-        self.link_desktop_btn = QPushButton("🔗 Link this desktop to me")
-        self.link_desktop_btn.setStyleSheet("background-color:#2563eb;color:#ffffff;font-weight:700;padding:8px 18px;border-radius:8px;border:1.5px solid #1d4ed8;font-size:9pt;")
-        self.link_desktop_btn.clicked.connect(self._on_link_desktop_clicked)
-        link_btn_row.addWidget(self.link_desktop_btn)
-        link_btn_row.addStretch()
-        link_layout.addLayout(link_btn_row)
-        sys_layout.addWidget(self.link_desktop_group)
-
-        # --- Linked / This desktop is now Yours (visible when desktop is linked to admin) ---
-        self.linked_desktop_done_group = QGroupBox("✅ Linked")
-        self.linked_desktop_done_group.setStyleSheet(
-            f"QGroupBox {{ font-weight: bold; color: {self._title_color()}; }}"
-        )
-        linked_done_layout = QVBoxLayout(self.linked_desktop_done_group)
-        self._linked_done_label = QLabel("This desktop is now yours. You are in user view.")
-        self._linked_done_label.setWordWrap(True)
-        self._linked_done_label.setStyleSheet(f"color: {self._secondary_color()}; font-size: 10pt;")
-        linked_done_layout.addWidget(self._linked_done_label)
-        self.linked_desktop_done_group.setVisible(False)
-        sys_layout.addWidget(self.linked_desktop_done_group)
-
         self.email_group = QGroupBox("📧 Email Alerts (Gmail)")
         email_layout = QVBoxLayout(self.email_group)
         email_layout.setSpacing(10)
@@ -251,15 +204,43 @@ class SettingsTab(QWidget):
         acc_layout.addWidget(self.acc_title)
 
         self.acc_rules = QLabel(
-            "Device password protects system unlock and all admin‑level actions.\n\n"
-            "• Use a strong, memorable password (numbers only)\n"
-            "• Minimum 4 digits recommended\n"
-            "• Keep your password secure and confidential\n"
-            "• Change regularly for better security"
+            "Two different secrets:\n\n"
+            "• Desktop unlock PIN — opens this app on this computer only (not synced; not your phone PIN).\n"
+            "• Admin account password — required for sensitive actions in Settings after you unlock.\n"
+            "• Device password (below) — your medicine box (ESP32) PIN when you use USB/Bluetooth.\n\n"
+            "Use strong digits and keep them confidential."
         )
         self.acc_rules.setWordWrap(True)
         self.acc_rules.setStyleSheet(f"color: {TEXT_SECONDARY};")
         acc_layout.addWidget(self.acc_rules)
+
+        self.desktop_pin_group = QGroupBox("🖥️ Desktop unlock PIN (this PC only)")
+        self.desktop_pin_group.setStyleSheet(f"QGroupBox {{ font-weight: bold; color: {self._title_color()}; }}")
+        dpg = QVBoxLayout(self.desktop_pin_group)
+        dpg.setSpacing(8)
+        self._desktop_pin_hint = QLabel(
+            "If you set a PIN here, you must enter it every time you open CuraX on this computer before the main window appears.\n"
+            "It is stored only in your local desktop data file — not on your phone and not sent to the server."
+        )
+        self._desktop_pin_hint.setWordWrap(True)
+        self._desktop_pin_hint.setStyleSheet(f"color: {self._secondary_color()}; font-size: 9pt;")
+        dpg.addWidget(self._desktop_pin_hint)
+        row_dp = QHBoxLayout()
+        self.set_desktop_pin_btn = QPushButton("Set / change desktop PIN")
+        self.set_desktop_pin_btn.setStyleSheet(
+            "background-color:#0D9488;color:#ffffff;font-weight:700;padding:8px 14px;border-radius:8px;border:1.5px solid #0F766E;font-size:9pt;"
+        )
+        self.set_desktop_pin_btn.clicked.connect(self._on_set_desktop_unlock_pin)
+        row_dp.addWidget(self.set_desktop_pin_btn)
+        self.clear_desktop_pin_btn = QPushButton("Remove desktop PIN")
+        self.clear_desktop_pin_btn.setStyleSheet(
+            "background-color:#64748b;color:#ffffff;font-weight:700;padding:8px 14px;border-radius:8px;border:1.5px solid #475569;font-size:9pt;"
+        )
+        self.clear_desktop_pin_btn.clicked.connect(self._on_clear_desktop_unlock_pin)
+        row_dp.addWidget(self.clear_desktop_pin_btn)
+        row_dp.addStretch()
+        dpg.addLayout(row_dp)
+        acc_layout.addWidget(self.desktop_pin_group)
 
         self.change_pwd_btn = QPushButton("🔐 Change Device Password")
         self.change_pwd_btn.setStyleSheet("background-color:#0D9488;color:#ffffff;font-weight:700;padding:8px 18px;border-radius:8px;border:1.5px solid #0F766E;font-size:9pt;")
@@ -508,21 +489,6 @@ class SettingsTab(QWidget):
         if hasattr(self.controller, "test_alert_done"):
             self.controller.test_alert_done.connect(self._on_test_alert_done)
 
-    def show_admin_panel_with_hint(self):
-        """Switch to Admin Panel tab and show setup instructions (e.g. from sidebar Admin Setup)."""
-        if not hasattr(self, "_settings_tabs") or not hasattr(self, "_admin_tab_index"):
-            return
-        try:
-            self._settings_tabs.setTabVisible(self._admin_tab_index, True)
-            self._settings_tabs.setCurrentIndex(self._admin_tab_index)
-            if hasattr(self, "admin_status_label"):
-                self.admin_status_label.setVisible(True)
-                self.admin_status_label.setText(
-                    "⚠️ Complete admin setup: fill Name, Email, and Password below, then click \"Save Admin Credentials\"."
-                )
-        except Exception:
-            pass
-
     def _refresh_admin_ui(self, db=None):
         """Admin workstation only — mobile app owns user/link flows; always show admin credentials UI."""
         if not hasattr(self, "admin_status_label") or not hasattr(self, "admin_action_btn"):
@@ -648,13 +614,6 @@ class SettingsTab(QWidget):
             self.admin_access_code_edit.setText((access_code or "").strip())
         if hasattr(self, "admin_connection_code_edit"):
             self.admin_connection_code_edit.setText((connection_code or "").strip())
-        # "Link this desktop to you" = for users who start in user view (no admin on this PC).
-        # If admin credentials already exist here, hide it — admin machine does not need this block.
-        if hasattr(self, "link_desktop_group"):
-            self.link_desktop_group.setVisible(False)
-        if hasattr(self, "linked_desktop_done_group"):
-            self.linked_desktop_done_group.setVisible(False)
-
         gmail = getattr(self.controller, "gmail_config", {})
         self.gmail_sender.setText(gmail.get("sender_email", ""))
         self.gmail_password.setText(gmail.get("sender_password", ""))
@@ -780,8 +739,6 @@ class SettingsTab(QWidget):
                 getattr(self, "email_group", None),
                 getattr(self, "appearance_group", None),
                 getattr(self, "dnd_group", None),
-                getattr(self, "link_desktop_group", None),
-                getattr(self, "linked_desktop_done_group", None),
                 getattr(self, "link_to_admin_only_group", None),
                 getattr(self, "linked_to_admin_group", None),
             ):
@@ -816,9 +773,6 @@ class SettingsTab(QWidget):
         try:
             link_w_min = max(120, int(200 * s))
             link_w_max = max(200, int(320 * s))
-            if hasattr(self, "link_code_edit"):
-                self.link_code_edit.setMinimumWidth(link_w_min)
-                self.link_code_edit.setMaximumWidth(link_w_max)
             if hasattr(self, "link_to_admin_code_edit"):
                 self.link_to_admin_code_edit.setMinimumWidth(link_w_min)
                 self.link_to_admin_code_edit.setMaximumWidth(link_w_max)
@@ -829,8 +783,6 @@ class SettingsTab(QWidget):
             pad_v = max(6, int(8 * s))
             pad_h = max(12, int(18 * s))
             base_btn = f"font-weight:700;padding:{pad_v}px {pad_h}px;border-radius:8px;font-size:{btn_pt}pt;"
-            if hasattr(self, "link_desktop_btn"):
-                self.link_desktop_btn.setStyleSheet(f"background-color:#2563eb;color:#ffffff;border:1.5px solid #1d4ed8;{base_btn}")
             if hasattr(self, "gmail_test_btn"):
                 self.gmail_test_btn.setStyleSheet(f"background-color:#16a34a;color:#ffffff;border:1.5px solid #15803d;{base_btn}")
             if hasattr(self, "gmail_save_btn"):
@@ -873,10 +825,6 @@ class SettingsTab(QWidget):
         try:
             lbl_pt = max(7, int(9 * s))
             body_pt = max(8, int(10 * s))
-            if hasattr(self, "_link_desc"):
-                self._link_desc.setStyleSheet(f"color: {secondary}; font-size: {lbl_pt}pt;")
-            if hasattr(self, "_linked_done_label"):
-                self._linked_done_label.setStyleSheet(f"color: {secondary}; font-size: {body_pt}pt;")
             if hasattr(self, "_link_to_admin_desc"):
                 self._link_to_admin_desc.setStyleSheet(f"color: {secondary}; font-size: {body_pt}pt;")
             if hasattr(self, "linked_to_admin_label"):
@@ -913,39 +861,6 @@ class SettingsTab(QWidget):
             self._load()
         except Exception:
             super().showEvent(event)
-
-    def _on_link_desktop_clicked(self):
-        """User entered code from app; link this desktop to that user only. Admin Panel will then show 'Link to admin' to enter admin's code."""
-        code = (self.link_code_edit.text() or "").strip()
-        if not code:
-            QMessageBox.information(
-                self,
-                "Link desktop",
-                "Please enter the code from the Curax app first (Settings → Use desktop app → Create desktop link code).",
-            )
-            return
-        ok, message = self.controller.link_desktop_user(code)
-        if ok:
-            self.link_code_edit.clear()
-            self._load()
-            if hasattr(self.controller, "linked_user_changed"):
-                try:
-                    self.controller.linked_user_changed.emit()
-                except Exception:
-                    pass
-            if hasattr(self.controller, "admin_status_changed"):
-                self.controller.admin_status_changed.emit()
-            QMessageBox.information(
-                self,
-                "Desktop linked to you",
-                "This desktop is now linked to your account.\n\nGo to Settings → Admin Panel and enter your admin's Connection Code to finish linking.",
-            )
-        else:
-            QMessageBox.warning(
-                self,
-                "Link failed",
-                message or "Could not link. Check the code and try again, or try again later.",
-            )
 
     def _save_system_settings(self):
         """Persist Gmail / DND settings to controller and DB."""
@@ -1139,6 +1054,109 @@ class SettingsTab(QWidget):
         cancel_btn.clicked.connect(dlg.reject)
 
         dlg.exec()
+
+    def _on_set_desktop_unlock_pin(self):
+        db = self.controller.get_db()
+        if not db or not getattr(db, "has_admin_credentials", lambda: False)():
+            QMessageBox.information(
+                self,
+                "Desktop PIN",
+                "Create or link an admin account first (Admin tab or link with Access Code), then set a desktop PIN here.",
+            )
+            return
+        if self.main_window and not self.main_window.verify_admin_for_action("Set desktop unlock PIN"):
+            return
+        has_pin = getattr(db, "has_desktop_app_unlock_pin", lambda: False)()
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Desktop unlock PIN")
+        dlg.setModal(True)
+        lo = QVBoxLayout(dlg)
+        info = QLabel(
+            "Enter 4–8 digits. This PIN is stored only on this computer — it is not your Curax mobile app PIN and is not uploaded to the server."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color: {TEXT_SECONDARY};")
+        lo.addWidget(info)
+
+        cur = QLineEdit()
+        newp = QLineEdit()
+        conf = QLineEdit()
+        for e in (cur, newp, conf):
+            try:
+                e.setEchoMode(QLineEdit.EchoMode.Password)
+            except Exception:
+                e.setEchoMode(QLineEdit.Password)
+        if has_pin:
+            lo.addWidget(QLabel("Current desktop PIN:"))
+            lo.addWidget(cur)
+        lo.addWidget(QLabel("New desktop PIN:"))
+        lo.addWidget(newp)
+        lo.addWidget(QLabel("Confirm new PIN:"))
+        lo.addWidget(conf)
+
+        status = QLabel("")
+        status.setStyleSheet("color: #ef4444;")
+        lo.addWidget(status)
+
+        row = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        cancel_btn = QPushButton("Cancel")
+        row.addWidget(save_btn)
+        row.addWidget(cancel_btn)
+        lo.addLayout(row)
+
+        def do_save():
+            n = newp.text().strip()
+            c = conf.text().strip()
+            if not n.isdigit() or not (4 <= len(n) <= 8):
+                status.setText("New PIN must be 4–8 digits (numbers only).")
+                return
+            if n != c:
+                status.setText("New PIN and confirmation do not match.")
+                return
+            if has_pin:
+                if not db.verify_desktop_app_unlock_pin(cur.text().strip()):
+                    status.setText("Current PIN is incorrect.")
+                    return
+            if db.set_desktop_app_unlock_pin(n):
+                dlg.accept()
+                QMessageBox.information(
+                    self,
+                    "Desktop PIN",
+                    "Saved. The next time you start CuraX on this computer, you will need this PIN before the main window opens.",
+                )
+                if self.main_window and hasattr(self.main_window, "_apply_locked_state"):
+                    self.main_window._apply_locked_state()
+            else:
+                status.setText("Could not save PIN.")
+
+        save_btn.clicked.connect(do_save)
+        cancel_btn.clicked.connect(dlg.reject)
+        dlg.exec()
+
+    def _on_clear_desktop_unlock_pin(self):
+        db = self.controller.get_db()
+        if not db or not getattr(db, "has_desktop_app_unlock_pin", lambda: False)():
+            QMessageBox.information(self, "Desktop PIN", "No desktop unlock PIN is set.")
+            return
+        if self.main_window and not self.main_window.verify_admin_for_action("Remove desktop unlock PIN"):
+            return
+        if QMessageBox.question(
+            self,
+            "Remove desktop PIN",
+            "Remove the desktop unlock PIN? Anyone with access to this Windows account could open CuraX without that PIN.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            db.clear_desktop_app_unlock_pin()
+        except Exception:
+            pass
+        QMessageBox.information(self, "Desktop PIN", "Desktop unlock PIN removed.")
+        if self.main_window and hasattr(self.main_window, "_apply_locked_state"):
+            self.main_window._apply_locked_state()
 
     def _setup_admin(self):
         """Create or update admin via backend API only, so access_code mapping stays consistent for /admin/data and /admin/sync."""
@@ -1334,6 +1352,11 @@ class SettingsTab(QWidget):
                 pass
             try:
                 db.delete("admin_connection_code")
+            except Exception:
+                pass
+            try:
+                if getattr(db, "clear_desktop_app_unlock_pin", None):
+                    db.clear_desktop_app_unlock_pin()
             except Exception:
                 pass
             try:

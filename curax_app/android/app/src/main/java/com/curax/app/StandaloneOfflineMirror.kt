@@ -63,12 +63,15 @@ object StandaloneOfflineMirror {
     fun appendSystemSettingsForSync(body: JSONObject, settingsRoot: Map<String, Any?>) {
         val alert = settingsRoot["alert_settings"]
         val gmail = settingsRoot["gmail_config"]
-        if (alert == null && gmail == null) return
+        val hasCarePin = settingsRoot.containsKey("care_app_unlock_pin")
+        val carePin = settingsRoot["care_app_unlock_pin"] as? String ?: ""
+        if (alert == null && gmail == null && !hasCarePin) return
         body.put(
             "system_settings",
             JSONObject().apply {
                 if (alert != null) put("alert_settings", valueToJson(alert))
                 if (gmail != null) put("gmail_config", valueToJson(gmail))
+                if (hasCarePin) put("care_app_unlock_pin", carePin)
             },
         )
     }
@@ -87,17 +90,28 @@ object StandaloneOfflineMirror {
     private fun medicinesToJsonArray(meds: List<AdminDemoData.Medicine>): JSONArray {
         val arr = JSONArray()
         for (m in meds) {
+            val times = m.effectiveScheduleTimes()
+            val timesJa = JSONArray()
+            for (t in times) timesJa.put(MedicineSchedule.normalizeToHhMm(t))
+            val totalDaily = m.totalDoseUnitsPerDay()
+            val per = m.dosePerAdministration()
+            val dosageStr =
+                if (m.usesMultipleTimesPerDay()) {
+                    "$per per time (${times.size} times/day, $totalDaily total daily)"
+                } else {
+                    "$per per day"
+                }
             arr.put(
                 JSONObject().apply {
                     put("name", m.name)
                     put("box_id", m.box)
                     put("quantity", m.stock)
                     put("low_stock", AdminDemoData.getLowStockThreshold())
-                    put("dosage", "${m.dosePerDay} per day")
-                    put("dose_per_day", m.dosePerDay)
-                    put("exact_time", m.exactTime)
-                    put("instructions", "${m.dosePerDay} per day")
-                    put("times", JSONArray().put(m.exactTime))
+                    put("dosage", dosageStr)
+                    put("dose_per_day", totalDaily)
+                    put("exact_time", times.firstOrNull()?.let { MedicineSchedule.normalizeToHhMm(it) } ?: "08:00")
+                    put("instructions", dosageStr)
+                    put("times", timesJa)
                     put("expiry", m.expiry)
                 },
             )

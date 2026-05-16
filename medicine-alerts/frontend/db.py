@@ -212,6 +212,47 @@ class AlertDB:
         except Exception:
             return False
 
+    def set_desktop_app_unlock_pin(self, pin: str):
+        """Local-only PIN to unlock this desktop app (not synced; separate from phone app PIN)."""
+        try:
+            p = (pin or "").strip()
+            if not p or not p.isdigit() or not (4 <= len(p) <= 8):
+                return False
+            data = self._read_data()
+            if "settings" not in data:
+                data["settings"] = {}
+            data["settings"]["desktop_app_unlock_pin_hash"] = self._hash_password(p)
+            self._write_data(data)
+            return True
+        except Exception as e:
+            print(f"Error setting desktop app unlock pin: {e}")
+            return False
+
+    def verify_desktop_app_unlock_pin(self, pin: str):
+        try:
+            data = self._read_data()
+            stored = (data.get("settings") or {}).get("desktop_app_unlock_pin_hash")
+            if not stored:
+                return False
+            return self._hash_password((pin or "").strip()) == stored
+        except Exception:
+            return False
+
+    def has_desktop_app_unlock_pin(self):
+        try:
+            data = self._read_data()
+            return bool((data.get("settings") or {}).get("desktop_app_unlock_pin_hash"))
+        except Exception:
+            return False
+
+    def clear_desktop_app_unlock_pin(self):
+        try:
+            self.delete("desktop_app_unlock_pin_hash")
+            return True
+        except Exception as e:
+            print(f"Error clearing desktop app unlock pin: {e}")
+            return False
+
     def get_setup_complete(self):
         """True only after User Setup or Admin Setup is fully done and app reached Main Panel."""
         try:

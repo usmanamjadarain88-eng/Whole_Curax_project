@@ -26,6 +26,13 @@ class CuraxApp : Application() {
         AppCompatDelegate.setDefaultNightMode(mode)
         prefs.applyStandaloneSoundLibraryInstallGuard(this)
 
+        // Fresh process: always open the main admin dashboard, not "managing a user" from last session.
+        if (AppRole.isAdmin(this)) {
+            prefs.actAsUserId = ""
+            prefs.actAsUserName = ""
+            prefs.actAsUserDisplayMode = ""
+        }
+
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {
                 startedActivities += 1

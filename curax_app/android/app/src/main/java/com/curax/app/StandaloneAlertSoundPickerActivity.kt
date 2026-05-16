@@ -388,19 +388,6 @@ class StandaloneAlertSoundPickerActivity : AppCompatActivity() {
             rows.add(SoundRow.Tone(libUri, shortTitle, deletable = true))
         }
 
-        val selRaw = prefs.standaloneLocalAlertSoundUri.trim()
-        if (selRaw.isNotEmpty() && !selRaw.equals("silent", ignoreCase = true)) {
-            val selKey = prefs.normalizeStandaloneSoundUriKey(selRaw)
-            if (!seen.contains(selKey) && !hidden.contains(selKey)) {
-                val shortTitle = selRaw.substringAfterLast('/').takeIf { it.isNotBlank() } ?: selRaw
-                rows.add(SoundRow.Tone(selRaw, shortTitle, deletable = true))
-                seen.add(selKey)
-                if (!prefs.isStandaloneAlertSoundInLibrary(selRaw)) {
-                    prefs.addStandaloneAlertSoundToLibrary(selRaw)
-                }
-            }
-        }
-
         rows.add(SoundRow.RecordOwn)
 
         recycler.adapter?.notifyDataSetChanged()
@@ -439,10 +426,6 @@ class StandaloneAlertSoundPickerActivity : AppCompatActivity() {
             SoundRow.Silent -> prefs.standaloneLocalAlertSoundUri = "silent"
             is SoundRow.Tone -> {
                 prefs.standaloneLocalAlertSoundUri = row.uriStr
-                // Keep selection in the library so catalog/MediaStore churn cannot drop the row after restart.
-                if (!prefs.isStandaloneAlertSoundInLibrary(row.uriStr)) {
-                    prefs.addStandaloneAlertSoundToLibrary(row.uriStr)
-                }
             }
         }
         selectedRowKey = null
@@ -637,7 +620,7 @@ class StandaloneAlertSoundPickerActivity : AppCompatActivity() {
     private fun applyRowHighlight(card: MaterialCardView, row: SoundRow) {
         val selected = selectedRowKey != null && rowRevealKey(row) == selectedRowKey
         val green = ContextCompat.getColor(this, R.color.button_primary_bg)
-        val muted = ContextCompat.getColor(this, R.color.summary_stroke)
+        val muted = ContextCompat.getColor(this, R.color.standalone_inventory_row_stroke)
         card.strokeColor = if (selected) green else muted
         card.strokeWidth = resources.getDimensionPixelSize(
             if (selected) {

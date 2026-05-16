@@ -18,7 +18,7 @@
         android:paddingEnd="8dp"
         app:navigationContentDescription="@string/pin_setup_back_content_description"
         app:navigationIcon="@android:drawable/ic_menu_revert"
-        app:navigationIconTint="@color/auth_heading" />
+        app:navigationIconTint="@color/text_primary" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -62,7 +62,7 @@
                 android:includeFontPadding="false"
                 android:letterSpacing="-0.03"
                 android:text="@string/pin_setup_heading_line1"
-                android:textColor="@color/auth_heading"
+                android:textColor="@color/text_primary"
                 android:textSize="30sp"
                 android:textStyle="bold"
                 tools:text="Set optional" />
@@ -75,7 +75,7 @@
                 android:includeFontPadding="false"
                 android:letterSpacing="-0.03"
                 android:text="@string/pin_setup_heading_line2"
-                android:textColor="@color/connection_panel_title"
+                android:textColor="@color/button_primary_bg"
                 android:textSize="30sp"
                 android:textStyle="bold"
                 tools:text="PIN" />
@@ -88,7 +88,7 @@
                 android:gravity="center_horizontal"
                 android:lineSpacingMultiplier="1.15"
                 android:text="@string/pin_setup_subtitle"
-                android:textColor="@color/auth_subtitle"
+                android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
             <com.google.android.material.card.MaterialCardView
@@ -98,7 +98,7 @@
                 app:cardBackgroundColor="@color/summary_card"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="6dp"
-                app:strokeColor="@color/summary_stroke"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -117,19 +117,20 @@
                         android:clipToOutline="false"
                         android:clipToPadding="false"
                         android:minHeight="@dimen/auth_outlined_edit_min_height"
-                        app:boxBackgroundColor="@android:color/white"
+                        app:boxBackgroundColor="@color/key_value_bg"
                         app:boxBackgroundMode="outline"
                         app:boxCornerRadiusBottomEnd="14dp"
                         app:boxCornerRadiusBottomStart="14dp"
                         app:boxCornerRadiusTopEnd="14dp"
                         app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeColor="@color/auth_outline_muted"
+                        app:boxStrokeColor="@color/summary_stroke"
+                        app:boxCollapsedPaddingTop="0dp"
                         app:boxStrokeWidth="1dp"
                         app:boxStrokeWidthFocused="2dp"
                         app:endIconMode="password_toggle"
-                        app:hintAnimationEnabled="true"
-                        app:hintEnabled="true"
-                        app:hintTextColor="@color/auth_subtitle">
+                        app:endIconTint="@color/text_secondary"
+                        app:hintAnimationEnabled="false"
+                        app:hintEnabled="false">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etPin"
@@ -137,6 +138,7 @@
                             android:layout_height="wrap_content"
                             android:gravity="center_vertical"
                             android:hint="@string/pin_hint_4_digit"
+                            android:includeFontPadding="true"
                             android:inputType="numberPassword"
                             android:letterSpacing="0.14"
                             android:maxLength="8"
@@ -145,8 +147,8 @@
                             android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                             android:paddingEnd="14dp"
                             android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
-                            android:textColor="@color/auth_field_text"
-                            android:textColorHint="@color/auth_subtitle"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_secondary"
                             android:textSize="17sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -158,19 +160,20 @@
                         android:clipToOutline="false"
                         android:clipToPadding="false"
                         android:minHeight="@dimen/auth_outlined_edit_min_height"
-                        app:boxBackgroundColor="@android:color/white"
+                        app:boxBackgroundColor="@color/key_value_bg"
                         app:boxBackgroundMode="outline"
                         app:boxCornerRadiusBottomEnd="14dp"
                         app:boxCornerRadiusBottomStart="14dp"
                         app:boxCornerRadiusTopEnd="14dp"
                         app:boxCornerRadiusTopStart="14dp"
-                        app:boxStrokeColor="@color/auth_outline_muted"
+                        app:boxStrokeColor="@color/summary_stroke"
+                        app:boxCollapsedPaddingTop="0dp"
                         app:boxStrokeWidth="1dp"
                         app:boxStrokeWidthFocused="2dp"
                         app:endIconMode="password_toggle"
-                        app:hintAnimationEnabled="true"
-                        app:hintEnabled="true"
-                        app:hintTextColor="@color/auth_subtitle">
+                        app:endIconTint="@color/text_secondary"
+                        app:hintAnimationEnabled="false"
+                        app:hintEnabled="false">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/etConfirmPin"
@@ -178,6 +181,7 @@
                             android:layout_height="wrap_content"
                             android:gravity="center_vertical"
                             android:hint="@string/pin_confirm_hint"
+                            android:includeFontPadding="true"
                             android:inputType="numberPassword"
                             android:letterSpacing="0.14"
                             android:maxLength="8"
@@ -186,8 +190,8 @@
                             android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                             android:paddingEnd="14dp"
                             android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
-                            android:textColor="@color/auth_field_text"
-                            android:textColorHint="@color/auth_subtitle"
+                            android:textColor="@color/text_primary"
+                            android:textColorHint="@color/text_secondary"
                             android:textSize="17sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
@@ -227,7 +231,7 @@
                         android:minHeight="48dp"
                         android:text="@string/pin_setup_skip_cta"
                         android:textAllCaps="false"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/button_primary_bg"
                         android:textSize="15sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

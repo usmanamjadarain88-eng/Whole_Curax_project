@@ -235,10 +235,10 @@
                     android:layout_width="@dimen/health_hub_insight_card_width"
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="8dp"
-                    app:cardBackgroundColor="@color/summary_card"
+                    app:cardBackgroundColor="@color/standalone_inventory_card"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="1dp"
-                    app:strokeColor="@color/summary_stroke"
+                    app:strokeColor="@color/standalone_inventory_row_stroke"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -276,10 +276,10 @@
                     android:layout_width="@dimen/health_hub_insight_card_width"
                     android:layout_height="wrap_content"
                     android:layout_marginEnd="8dp"
-                    app:cardBackgroundColor="@color/summary_card"
+                    app:cardBackgroundColor="@color/standalone_inventory_card"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="1dp"
-                    app:strokeColor="@color/summary_stroke"
+                    app:strokeColor="@color/standalone_inventory_row_stroke"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -316,10 +316,10 @@
                     android:id="@+id/card_insight_tip"
                     android:layout_width="@dimen/health_hub_insight_card_width"
                     android:layout_height="wrap_content"
-                    app:cardBackgroundColor="@color/summary_card"
+                    app:cardBackgroundColor="@color/standalone_inventory_card"
                     app:cardCornerRadius="16dp"
                     app:cardElevation="1dp"
-                    app:strokeColor="@color/summary_stroke"
+                    app:strokeColor="@color/standalone_inventory_row_stroke"
                     app:strokeWidth="1dp">
 
                     <LinearLayout
@@ -405,7 +405,7 @@
             app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="16dp"
             app:cardElevation="1dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -619,7 +619,7 @@
             app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="16dp"
             app:cardElevation="1dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -660,7 +660,7 @@
                         android:paddingHorizontal="10dp"
                         android:paddingVertical="4dp"
                         android:text="Live"
-                        android:textColor="@color/standalone_tab_indicator"
+                        android:textColor="@color/text_primary"
                         android:textSize="10sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -710,7 +710,7 @@
                             android:paddingEnd="6dp"
                             android:text="← Prev"
                             android:textAllCaps="false"
-                            android:textColor="@color/standalone_tab_indicator"
+                            android:textColor="@color/text_primary"
                             android:textSize="11sp" />
 
                         <TextView
@@ -737,7 +737,7 @@
                             android:paddingEnd="6dp"
                             android:text="Next →"
                             android:textAllCaps="false"
-                            android:textColor="@color/standalone_tab_indicator"
+                            android:textColor="@color/text_primary"
                             android:textSize="11sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -763,7 +763,7 @@
                 app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp"
-                app:strokeColor="@color/summary_stroke"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -799,7 +799,7 @@
                 app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp"
-                app:strokeColor="@color/summary_stroke"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -835,7 +835,7 @@
                 app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp"
-                app:strokeColor="@color/summary_stroke"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -871,7 +871,7 @@
                 app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="0dp"
-                app:strokeColor="@color/summary_stroke"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -906,7 +906,7 @@
             app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="16dp"
             app:cardElevation="1dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -969,7 +969,7 @@
                                 android:maxLines="1"
                                 android:padding="10dp"
                                 android:text="Name"
-                                android:textColor="@color/connection_panel_title"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -981,7 +981,7 @@
                                 android:maxLines="1"
                                 android:padding="10dp"
                                 android:text="Box"
-                                android:textColor="@color/connection_panel_title"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -993,7 +993,7 @@
                                 android:maxLines="1"
                                 android:padding="10dp"
                                 android:text="Stock"
-                                android:textColor="@color/connection_panel_title"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -1005,7 +1005,7 @@
                                 android:maxLines="1"
                                 android:padding="10dp"
                                 android:text="Dose"
-                                android:textColor="@color/connection_panel_title"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -1017,7 +1017,7 @@
                                 android:maxLines="1"
                                 android:padding="10dp"
                                 android:text="Time"
-                                android:textColor="@color/connection_panel_title"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -1029,7 +1029,7 @@
                                 android:maxLines="1"
                                 android:padding="10dp"
                                 android:text="Expiry"
-                                android:textColor="@color/connection_panel_title"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
 
@@ -1041,7 +1041,7 @@
                                 android:maxLines="1"
                                 android:padding="10dp"
                                 android:text="Status"
-                                android:textColor="@color/connection_panel_title"
+                                android:textColor="@color/text_primary"
                                 android:textSize="12sp"
                                 android:textStyle="bold" />
                         </LinearLayout>

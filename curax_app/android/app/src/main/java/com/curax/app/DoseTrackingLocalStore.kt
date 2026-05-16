@@ -8,14 +8,15 @@ import java.util.LinkedHashSet
 import java.util.Locale
 
 /**
- * Standalone dose history + per-day "taken" marks used to suppress further local medicine alarms
- * for that box on that calendar day ([LocalAlertsController]).
+ * Standalone dose history + per-slot "taken" marks to suppress local medicine alarms
+ * for that box + calendar day + schedule slot ([LocalAlertsController]).
  */
 object DoseTrackingLocalStore {
 
     private const val PREFS = "curax_dose_tracking_v1"
     private const val KEY_LOG = "dose_log_json"
     private const val KEY_SUPPRESS = "suppress_keys_json"
+    private const val SLOT_PREFIX = "SLOTv1|"
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -24,13 +25,34 @@ object DoseTrackingLocalStore {
         prefs(context.applicationContext).edit().clear().apply()
     }
 
-    fun suppressKey(box: String, dayKey: String): String =
+    /** Legacy whole-day suppress (box + yyyymmdd). */
+    fun legacySuppressKey(box: String, dayKey: String): String =
         "${box.trim().uppercase(Locale.US)}_${dayKey.trim()}"
 
+    /** Per-slot suppress: box, yyyymmdd, HH:mm. */
+    fun suppressSlotKey(box: String, dayKey: String, slotHhMm: String): String {
+        val slot = MedicineSchedule.normalizeToHhMm(slotHhMm)
+        return "$SLOT_PREFIX${box.trim().uppercase(Locale.US)}|${dayKey.trim()}|$slot"
+    }
+
+    fun isTakenForSlot(context: Context, box: String, dayKey: String, slotHhMm: String): Boolean {
+        val set = readSuppressArray(context.applicationContext)
+        if (set.contains(legacySuppressKey(box, dayKey))) return true
+        return set.contains(suppressSlotKey(box, dayKey, slotHhMm))
+    }
+
+    /** @deprecated Prefer [isTakenForSlot] for multi-time medicines. */
     fun isTakenForLocalDay(context: Context, box: String, dayKey: String): Boolean {
-        val key = suppressKey(box, dayKey)
-        val arr = readSuppressArray(context)
-        return arr.contains(key)
+        val set = readSuppressArray(context.applicationContext)
+        if (set.contains(legacySuppressKey(box, dayKey))) return true
+        val b = box.trim().uppercase(Locale.US)
+        val d = dayKey.trim()
+        for (s in set) {
+            if (!s.startsWith(SLOT_PREFIX)) continue
+            val parts = s.split("|")
+            if (parts.size >= 4 && parts[1].equals(b, ignoreCase = true) && parts[2] == d) return true
+        }
+        return false
     }
 
     private fun readSuppressArray(ctx: Context): MutableSet<String> {
@@ -52,15 +74,33 @@ object DoseTrackingLocalStore {
         prefs(ctx).edit().putString(KEY_SUPPRESS, arr.toString()).apply()
     }
 
-    /** After a successful mark for this calendar day, cancel remaining local alarms for that box/day. */
-    fun markTakenForDay(context: Context, box: String, dayKey: String) {
+    fun markTakenForSlot(context: Context, box: String, dayKey: String, slotHhMm: String) {
         val set = readSuppressArray(context.applicationContext)
-        set.add(suppressKey(box, dayKey))
+        set.add(suppressSlotKey(box, dayKey, slotHhMm))
         pruneOldSuppress(set)
         writeSuppress(context.applicationContext, set)
     }
 
-    /** Drop suppress keys older than ~45 days to keep prefs small. */
+    /** Whole-day suppress (legacy / single-slot flows). */
+    fun markTakenForDay(context: Context, box: String, dayKey: String) {
+        val set = readSuppressArray(context.applicationContext)
+        set.add(legacySuppressKey(box, dayKey))
+        pruneOldSuppress(set)
+        writeSuppress(context.applicationContext, set)
+    }
+
+    private fun dayKeyIntFromSuppressKey(key: String): Int? =
+        when {
+            key.startsWith(SLOT_PREFIX) -> {
+                val p = key.split("|")
+                if (p.size >= 4) p[2].toIntOrNull() else null
+            }
+            else -> {
+                val u = key.lastIndexOf('_')
+                if (u <= 0) null else key.substring(u + 1).toIntOrNull()
+            }
+        }
+
     private fun pruneOldSuppress(set: MutableSet<String>) {
         val cal = Calendar.getInstance()
         cal.add(Calendar.DAY_OF_YEAR, -45)
@@ -69,9 +109,7 @@ object DoseTrackingLocalStore {
         val d = cal.get(Calendar.DAY_OF_MONTH)
         val cutoffInt = y * 10_000 + mo * 100 + d
         set.removeAll { key ->
-            val idx = key.lastIndexOf('_')
-            if (idx <= 0) return@removeAll true
-            val dk = key.substring(idx + 1).toIntOrNull() ?: return@removeAll true
+            val dk = dayKeyIntFromSuppressKey(key) ?: return@removeAll true
             dk < cutoffInt
         }
     }
@@ -121,7 +159,6 @@ object DoseTrackingLocalStore {
         writeLog(app, trimmed)
     }
 
-    /** Legacy no-op: dose history stays empty until the user marks a dose (Personal Health). */
     @Suppress("UNUSED_PARAMETER")
     fun seedStandaloneDemoHistoryIfNeeded(context: Context) {
     }
@@ -143,7 +180,6 @@ object DoseTrackingLocalStore {
         return arr
     }
 
-    /** Merge server/snapshot rows into local log (dedupe by timestamp+box+kind). */
     fun mergeFromPayloadArray(context: Context, arr: JSONArray?) {
         if (arr == null || arr.length() == 0) return
         val app = context.applicationContext
@@ -167,7 +203,6 @@ object DoseTrackingLocalStore {
         writeLog(app, existing.take(500))
     }
 
-    /** Replace the on-device dose history list (used when a full server snapshot arrives for linked standalone). */
     fun replaceLogEntries(context: Context, entries: List<Map<String, Any?>>) {
         writeLog(context.applicationContext, entries.take(500))
     }
@@ -176,10 +211,10 @@ object DoseTrackingLocalStore {
         val ts = m["timestamp"]?.toString().orEmpty()
         val box = m["box"]?.toString().orEmpty()
         val kind = m["kind"]?.toString().orEmpty()
-        return "$ts|$box|$kind"
+        val slot = m["scheduled_slot"]?.toString().orEmpty()
+        return "$ts|$box|$kind|$slot"
     }
 
-    /** yyyyMMdd → yyyy-MM-dd prefix for log timestamps. */
     fun dayPrefixFromDayKey(dayKey: String): String {
         val dk = dayKey.trim()
         if (dk.length == 8 && dk.all { it.isDigit() }) {
@@ -188,7 +223,7 @@ object DoseTrackingLocalStore {
         return dk
     }
 
-    /** True if this box already has a dose outcome logged for that calendar day (taken, missed, or auto-missed). */
+    /** Any taken/missed outcome for this box on this calendar day (legacy / quick check). */
     fun hasSlotOutcomeForBoxDay(context: Context, box: String, dayKey: String): Boolean {
         val prefix = dayPrefixFromDayKey(dayKey)
         val b = box.trim()
@@ -199,6 +234,30 @@ object DoseTrackingLocalStore {
             if (!ts.startsWith(prefix)) continue
             val k = row["kind"]?.toString().orEmpty()
             if (k.startsWith("taken") || k == "missed_auto" || k == "missed") return true
+        }
+        return false
+    }
+
+    fun hasSlotOutcomeForBoxSlot(
+        context: Context,
+        box: String,
+        dayKey: String,
+        slotHhMm: String,
+        singleDailySlot: Boolean,
+    ): Boolean {
+        val prefix = dayPrefixFromDayKey(dayKey)
+        val b = box.trim()
+        val slotNorm = MedicineSchedule.normalizeToHhMm(slotHhMm)
+        if (b.isEmpty() || slotNorm.isEmpty()) return false
+        for (row in readLog(context.applicationContext)) {
+            if (!row["box"].toString().equals(b, ignoreCase = true)) continue
+            val ts = row["timestamp"]?.toString() ?: continue
+            if (!ts.startsWith(prefix)) continue
+            val k = row["kind"]?.toString().orEmpty()
+            if (!(k.startsWith("taken") || k == "missed_auto" || k == "missed")) continue
+            val rowSlot = row["scheduled_slot"]?.toString()?.let { MedicineSchedule.normalizeToHhMm(it) }.orEmpty()
+            if (singleDailySlot && rowSlot.isEmpty()) return true
+            if (rowSlot == slotNorm) return true
         }
         return false
     }

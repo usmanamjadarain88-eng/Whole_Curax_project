@@ -1,12 +1,11 @@
 package com.curax.app
 
 import java.util.Calendar
-import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Allowed "mark dose taken" window: from first enabled pre-alert before today's scheduled dose
- * until 30 minutes after that dose time (standalone product rule).
+ * Today's scheduled dose instant and the fixed mark window (30 min before → 30 min after),
+ * aligned with [DoseIntakeClassifier] (standalone product rule).
  */
 object DoseMarkWindow {
 
@@ -27,9 +26,9 @@ object DoseMarkWindow {
         }
     }
 
-    /** Today's scheduled dose instant for this medicine (single daily [AdminDemoData.Medicine.exactTime]). */
-    fun todayScheduledBaseMillis(m: AdminDemoData.Medicine): Long? {
-        val hms = normalizeTimeHms(m.exactTime) ?: return null
+    /** Today's millis for a schedule label (HH:mm) in local timezone. */
+    fun todayMillisForHms(hmsDisplay: String): Long? {
+        val hms = normalizeTimeHms(MedicineSchedule.toHhMmSs(MedicineSchedule.normalizeToHhMm(hmsDisplay))) ?: return null
         val parts = hms.split(":").mapNotNull { it.toIntOrNull() }
         if (parts.size < 2) return null
         val h = parts[0].coerceIn(0, 23)
@@ -44,39 +43,17 @@ object DoseMarkWindow {
         return cal.timeInMillis
     }
 
-    private fun sectionMap(settings: Map<String, Any?>, key: String): Map<String, Any?> {
-        val nested = settings["alert_settings"] as? Map<*, *>
-        val fromNested = nested?.get(key) as? Map<*, *>
-        if (fromNested != null) {
-            @Suppress("UNCHECKED_CAST")
-            return fromNested as Map<String, Any?>
-        }
-        @Suppress("UNCHECKED_CAST")
-        return (settings[key] as? Map<*, *>)?.let { it as Map<String, Any?> } ?: emptyMap()
+    /** First scheduled instant today (uses [AdminDemoData.Medicine.effectiveScheduleTimes] first entry). */
+    fun todayScheduledBaseMillis(m: AdminDemoData.Medicine): Long? {
+        val label = m.effectiveScheduleTimes().firstOrNull() ?: return null
+        return todayMillisForHms(label)
     }
 
-    private fun boolOrDefault(v: Any?, default: Boolean = true): Boolean =
-        if (v == null) default else when (v) {
-            is Boolean -> v
-            is Number -> v.toInt() != 0
-            else -> v.toString().trim().lowercase(Locale.US) in listOf("true", "1", "yes", "on")
-        }
-
-    /**
-     * Inclusive window [start, end] in millis. End is 30 minutes after scheduled dose.
-     */
+    /** Inclusive window [start, end] in millis: always 30 min before and 30 min after scheduled dose. */
     fun windowBoundsMillis(m: AdminDemoData.Medicine): Pair<Long, Long>? {
         val base = todayScheduledBaseMillis(m) ?: return null
-        val settings = AdminDemoData.getAlertSettings()
-        val ma = sectionMap(settings, "medicine_alerts")
-        val med30 = boolOrDefault(ma["30_min_before"], true)
-        val med15 = boolOrDefault(ma["15_min_before"], true)
-        val start = when {
-            med30 -> base - 30L * 60_000L
-            med15 -> base - 15L * 60_000L
-            else -> base
-        }
-        val end = base + 30L * 60_000L
+        val start = base - DoseIntakeClassifier.MARK_WINDOW_BEFORE_MS
+        val end = base + DoseIntakeClassifier.MARK_WINDOW_AFTER_MS
         return start to end
     }
 

@@ -1147,6 +1147,25 @@ class LockedScreen(QWidget):
         self._subtitle.setText(text or "")
         self._subtitle.setVisible(bool((text or "").strip()))
 
+    def apply_locked_card_layout(self, *, show_title: bool = True):
+        """Center card: title + HIPAA/AES/IoT badges. Header pill is the CTA (no extra text/button)."""
+        if hasattr(self, "_card_wrapper"):
+            self._card_wrapper.setVisible(True)
+        if hasattr(self, "_lock_card_spacer"):
+            self._lock_card_spacer.setVisible(True)
+        self.set_title_visible(show_title)
+        if hasattr(self, "_divider"):
+            self._divider.setVisible(show_title)
+        if hasattr(self, "_badges_row"):
+            self._badges_row.setVisible(True)
+        for w in (
+            getattr(self, "_instr_pill", None),
+            getattr(self, "_stats_frame", None),
+            getattr(self, "_subtitle", None),
+        ):
+            if w is not None:
+                w.setVisible(False)
+
     def set_title_visible(self, visible: bool):
         self.center_lock.setVisible(visible)
         self._eyebrow.setVisible(visible)
@@ -1743,24 +1762,6 @@ class MainWindow(QMainWindow):
                 f"QPushButton {{ padding: {max(6, int(8 * ts))}px {max(10, int(12 * ts))}px; "
                 f"font-size: {max(7, int(9 * ts))}pt; font-weight: 700; border: none; border-radius: 10px; }}"
             )
-        if hasattr(self, "user_setup_btn"):
-            self.user_setup_btn.setMinimumHeight(max(26, int(30 * ts)))
-            self.user_setup_btn.setStyleSheet(
-                f"QPushButton {{ background-color: #0D9488; color: #fff; border: none; border-radius: 8px; "
-                f"padding: {max(8, int(10 * ts))}px {max(10, int(14 * ts))}px; font-size: {max(8, int(10 * ts))}pt; "
-                f"font-weight: 600; min-width: {max(90, int(130 * ts))}px; }} "
-                "QPushButton:hover {{ background-color: #0F766E; }} "
-                "QPushButton:pressed {{ background-color: #115E59; }}"
-            )
-        if hasattr(self, "admin_setup_btn"):
-            self.admin_setup_btn.setMinimumHeight(max(26, int(30 * ts)))
-            self.admin_setup_btn.setStyleSheet(
-                f"QPushButton {{ background-color: #1E40AF; color: #fff; border: none; border-radius: 8px; "
-                f"padding: {max(8, int(10 * ts))}px {max(10, int(14 * ts))}px; font-size: {max(8, int(10 * ts))}pt; "
-                f"font-weight: 600; min-width: {max(90, int(130 * ts))}px; }} "
-                "QPushButton:hover {{ background-color: #1E3A8A; }} "
-                "QPushButton:pressed {{ background-color: #1E293B; }}"
-            )
         if hasattr(self, "sidebar_test_alert_btn"):
             self.sidebar_test_alert_btn.setMinimumHeight(max(18, int(22 * ts)))
         if hasattr(self, "admin_quick_btn"):
@@ -2298,38 +2299,6 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addWidget(self.com_frame)
 
-        # First time setup frame
-        self.first_time_setup_frame = QFrame(self.sidebar)
-        self.first_time_setup_frame.setObjectName("firstTimeSetupFrame")
-        first_time_layout = QVBoxLayout(self.first_time_setup_frame)
-        first_time_layout.setSpacing(8)
-        _ft_btn_style = (
-            "QPushButton { background-color: #0D9488; color: #fff; border: none; border-radius: 8px; "
-            "padding: 10px 14px; font-size: 10pt; font-weight: 600; min-width: 130px; } "
-            "QPushButton:hover { background-color: #0F766E; } "
-            "QPushButton:pressed { background-color: #115E59; }"
-        )
-        self.user_setup_btn = QPushButton("👤 User Setup")
-        self.user_setup_btn.setMinimumHeight(30)
-        self.user_setup_btn.setStyleSheet(_ft_btn_style)
-        self.user_setup_btn.clicked.connect(self._on_user_setup_clicked)
-        self.user_setup_btn.setVisible(False)
-        first_time_layout.addWidget(self.user_setup_btn)
-        self.admin_setup_btn = QPushButton("⚙️ Admin Setup")
-        self.admin_setup_btn.setMinimumHeight(30)
-        self.admin_setup_btn.setStyleSheet(
-            _ft_btn_style.replace("#0D9488", "#1E40AF").replace("#0F766E", "#1E3A8A").replace("#115E59", "#1E293B")
-        )
-        self.admin_setup_btn.clicked.connect(self._on_admin_setup_clicked)
-        first_time_layout.addWidget(self.admin_setup_btn)
-        self.first_time_setup_frame.setVisible(False)
-        self.first_time_setup_frame.setMinimumWidth(60)
-        self.first_time_setup_frame.setStyleSheet(
-            "QFrame#firstTimeSetupFrame { background-color: rgba(13,148,136,0.08); border-radius: 10px; "
-            "border: 1px solid #0D9488; padding: 8px; margin-top: 4px; }"
-        )
-        sidebar_layout.addWidget(self.first_time_setup_frame)
-
         # Admin unlock frame
         self.unlock_admin_frame = QFrame(self.sidebar)
         self.unlock_admin_frame.setObjectName("unlockAdminFrame")
@@ -2355,6 +2324,21 @@ class MainWindow(QMainWindow):
         )
         sidebar_layout.addWidget(self.unlock_admin_frame)
 
+        self.link_admin_access_btn = QPushButton("🔗 Link admin — Access Code from app")
+        self.link_admin_access_btn.setMinimumHeight(28)
+        self.link_admin_access_btn.setStyleSheet(
+            "QPushButton { background-color: #1E40AF; color: #fff; border: none; border-radius: 8px; "
+            "padding: 8px 12px; font-size: 9pt; font-weight: 700; } "
+            "QPushButton:hover { background-color: #1D4ED8; } "
+            "QPushButton:pressed { background-color: #1E3A8A; }"
+        )
+        self.link_admin_access_btn.clicked.connect(self._recover_admin_from_code)
+        self.link_admin_access_btn.setVisible(False)
+        self.link_admin_access_btn.setToolTip(
+            "Enter Admin Access Code or the one-time Desktop linking code from Curax mobile (Admin → Settings)."
+        )
+        sidebar_layout.addWidget(self.link_admin_access_btn)
+
         # Tools section
         self.tools_section_title = _section_title("Tools")
         self.tools_section_title.setVisible(False)
@@ -2364,7 +2348,6 @@ class MainWindow(QMainWindow):
         tool_layout = QVBoxLayout(self.tool_group)
         for label, handler in [
             ("Check Medicine Data", self._check_medicine_data),
-            ("Restore Data by Code", self._recover_admin_from_code),
             ("Alert System Status", self._check_alert_status),
         ]:
             btn = QPushButton(label)
@@ -2647,14 +2630,6 @@ class MainWindow(QMainWindow):
         except AttributeError:
             self._footer_left.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
 
-        self._footer_hipaa = QLabel("🛡 HIPAA Compliant")
-        self._footer_hipaa.setObjectName("footerLabel")
-        self._footer_hipaa.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self._footer_iot = QLabel("Smart IoT-Based Medicine Management")
-        self._footer_iot.setObjectName("footerLabel")
-        self._footer_iot.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self._footer_sync = QLabel("🕐 Last sync: just now")
         self._footer_sync.setObjectName("footerLabel")
         self._footer_sync.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -2665,10 +2640,6 @@ class MainWindow(QMainWindow):
 
         # Equal stretch(1) between every single item — perfectly even spacing, no separators
         footer_layout.addWidget(self._footer_left,    0, Qt.AlignmentFlag.AlignVCenter)
-        footer_layout.addStretch(1)
-        footer_layout.addWidget(self._footer_hipaa,   0, Qt.AlignmentFlag.AlignVCenter)
-        footer_layout.addStretch(1)
-        footer_layout.addWidget(self._footer_iot,     0, Qt.AlignmentFlag.AlignVCenter)
         footer_layout.addStretch(1)
         footer_layout.addWidget(self._footer_sync,    0, Qt.AlignmentFlag.AlignVCenter)
         footer_layout.addStretch(1)
@@ -2995,21 +2966,6 @@ class MainWindow(QMainWindow):
         except Exception:
             return (False, False)
 
-    def _is_first_time(self):
-        try:
-            db = self.controller.get_db()
-            if not db:
-                return True
-            if db.has_admin_credentials():
-                return False
-            if db.get_desktop_linked_admin() if hasattr(db, "get_desktop_linked_admin") else None:
-                return False
-            if getattr(db, "has_user_device_password", lambda: False)():
-                return False
-            return True
-        except Exception:
-            return True
-
     def _apply_locked_state(self):
         is_unlocked = bool(self.controller.authenticated)
         self.stacked.setCurrentIndex(1 if is_unlocked else 0)
@@ -3019,6 +2975,11 @@ class MainWindow(QMainWindow):
         self._sidebar_locked_mode = not is_unlocked
         has_admin, desktop_linked = self._get_desktop_role()
 
+        if hasattr(self, "link_admin_access_btn"):
+            self.link_admin_access_btn.setVisible(
+                self._sidebar_locked_mode and (not has_admin) and (not desktop_linked)
+            )
+
         if self._sidebar_locked_mode:
             self.sidebar_visible = False
             self.sidebar.setVisible(False)
@@ -3026,20 +2987,12 @@ class MainWindow(QMainWindow):
                 self._power_btn.setVisible(False)
             pass  # overlay sidebar — left_column already set
 
-            if hasattr(self, "locked_screen_widget") and hasattr(self.locked_screen_widget, "set_subtitle"):
-                if has_admin:
+            if hasattr(self, "locked_screen_widget"):
+                if hasattr(self.locked_screen_widget, "set_subtitle"):
                     self.locked_screen_widget.set_subtitle("")
-                elif desktop_linked:
-                    self.locked_screen_widget.set_subtitle(
-                        "1. Connect your medicine box (ESP32) via cable or Bluetooth\n"
-                        "2. Open menu (☰) → tap Authenticate"
-                    )
-                else:
-                    self.locked_screen_widget.set_subtitle(
-                        "New to this app? Open menu (☰), then:\n\n"
-                        "• Medicine box user → Connect ESP32 → Authenticate\n"
-                        "• Admin or setup/recover → Unlock without device"
-                    )
+                if hasattr(self.locked_screen_widget, "apply_locked_card_layout"):
+                    # Card stays visible (lock + title); header pill carries link/unlock CTA.
+                    self.locked_screen_widget.apply_locked_card_layout(show_title=True)
 
             if hasattr(self, "esp32_btn"):
                 self.esp32_btn.setVisible(False)
@@ -3050,36 +3003,28 @@ class MainWindow(QMainWindow):
             if hasattr(self, "port_combo"):
                 self.port_combo.setVisible(True)
 
-            first_time = self._is_first_time()
-            if first_time:
-                if hasattr(self, "first_time_setup_frame"):
-                    self.first_time_setup_frame.setVisible(True)
-                if hasattr(self, "unlock_admin_frame"):
-                    self.unlock_admin_frame.setVisible(False)
-                if hasattr(self, "unlock_without_device_btn"):
-                    self.unlock_without_device_btn.setVisible(False)
+            if has_admin:
                 if hasattr(self, "locked_screen_widget"):
-                    self.locked_screen_widget.set_subtitle(
-                        "👤 User Setup — set Arduino password, then link to admin\n"
-                        "⚙️ Admin Setup — create admin account and save credentials"
-                    )
-                    self.locked_screen_widget.set_title_visible(False)
                     self.locked_screen_widget.set_first_time_pulse(True)
-            elif has_admin:
-                if hasattr(self, "locked_screen_widget"):
-                    self.locked_screen_widget.set_title_visible(True)
-                    self.locked_screen_widget.set_first_time_pulse(True)
-                if hasattr(self, "first_time_setup_frame"):
-                    self.first_time_setup_frame.setVisible(False)
                 if hasattr(self, "unlock_admin_frame"):
                     self.unlock_admin_frame.setVisible(True)
                 if hasattr(self, "_unlock_admin_hint"):
                     self._unlock_admin_hint.setVisible(False)
                 if hasattr(self, "unlock_without_device_btn"):
                     self.unlock_without_device_btn.setVisible(False)
+                try:
+                    dbu = self.controller.get_db()
+                    if hasattr(self, "unlock_with_password_btn") and dbu and getattr(dbu, "has_desktop_app_unlock_pin", lambda: False)():
+                        self.unlock_with_password_btn.setText("Unlock with desktop PIN")
+                        self.unlock_with_password_btn.setToolTip(
+                            "PIN for this computer only. Not the same as your Curax mobile app PIN."
+                        )
+                    elif hasattr(self, "unlock_with_password_btn"):
+                        self.unlock_with_password_btn.setText("Unlock with password")
+                        self.unlock_with_password_btn.setToolTip("")
+                except Exception:
+                    pass
             elif desktop_linked:
-                if hasattr(self, "first_time_setup_frame"):
-                    self.first_time_setup_frame.setVisible(False)
                 if hasattr(self, "unlock_admin_frame"):
                     self.unlock_admin_frame.setVisible(True)
                 if hasattr(self, "_unlock_admin_hint"):
@@ -3098,18 +3043,16 @@ class MainWindow(QMainWindow):
                     self.auth_btn.setVisible(True)
                 if hasattr(self, "locked_screen_widget"):
                     self.locked_screen_widget.set_first_time_pulse(True)
-                    self.locked_screen_widget.set_title_visible(True)
                 self._try_auto_connect_user()
             else:
-                if hasattr(self, "first_time_setup_frame"):
-                    self.first_time_setup_frame.setVisible(False)
-                if hasattr(self, "unlock_admin_frame"):
-                    self.unlock_admin_frame.setVisible(True)
-                if hasattr(self, "_unlock_admin_hint"):
-                    self._unlock_admin_hint.setVisible(False)
                 if hasattr(self, "locked_screen_widget"):
                     self.locked_screen_widget.set_first_time_pulse(True)
-                    self.locked_screen_widget.set_title_visible(True)
+                if hasattr(self, "unlock_admin_frame"):
+                    self.unlock_admin_frame.setVisible(False)
+                if hasattr(self, "_unlock_admin_hint"):
+                    self._unlock_admin_hint.setVisible(False)
+                if hasattr(self, "unlock_without_device_btn"):
+                    self.unlock_without_device_btn.setVisible(False)
         else:
             # Always start closed when unlocking — user opens manually
             self.sidebar_visible = False
@@ -3120,8 +3063,8 @@ class MainWindow(QMainWindow):
                 self.menu_btn.setPixmap(self._menu_hamburger_pixmap)
             if hasattr(self, "locked_screen_widget"):
                 self.locked_screen_widget.set_first_time_pulse(False)
-            if hasattr(self, "first_time_setup_frame"):
-                self.first_time_setup_frame.setVisible(False)
+            if hasattr(self, "link_admin_access_btn"):
+                self.link_admin_access_btn.setVisible(False)
             if hasattr(self, "esp32_btn"):
                 self.esp32_btn.setVisible(False)
             if hasattr(self, "unlock_admin_frame"):
@@ -3141,9 +3084,6 @@ class MainWindow(QMainWindow):
             time_str = now.strftime("%H:%M:%S")
             if hasattr(self, "_footer_sync"):
                 self._footer_sync.setText(f"🕒 {time_str}")
-            if hasattr(self, "_footer_hipaa"):
-                # Pulse the HIPAA dot color gently — green=ok
-                pass
         except Exception:
             pass
 
@@ -3154,15 +3094,14 @@ class MainWindow(QMainWindow):
         accent = ACCENT_LIGHT if theme == "light" else NEON_GREEN
         secondary = "#475569" if theme == "light" else "#94A3B8"
         has_admin, desktop_linked = self._get_desktop_role()
-        first_time = self._is_first_time()
         if self.controller.authenticated:
             msg = "System Ready"
             color = accent
         else:
             if has_admin:
                 msg = "Open menu (☰) → Unlock"
-            elif first_time:
-                msg = "Open menu (☰) → User Setup or Admin Setup"
+            elif not desktop_linked:
+                msg = "Open menu (☰) → Link with code from app"
             else:
                 msg = "Open menu (☰) → Unlock"
             color = secondary
@@ -3371,22 +3310,6 @@ class MainWindow(QMainWindow):
         self._bt_thread.finished.connect(on_finished)
         self._bt_thread.start()
 
-    def _on_admin_setup_clicked(self):
-        reply = QMessageBox.question(
-            self, "Admin Setup",
-            "You are signing up as admin. You will be taken to Settings to create your admin account.\n\nContinue?",
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Ok,
-        )
-        if reply != QMessageBox.StandardButton.Ok:
-            return
-        self.controller.authenticated = True
-        self.controller.authenticated_changed.emit(True)
-        self.tabs.setCurrentIndex(5)
-        settings_widget = self.tabs.widget(5)
-        if hasattr(settings_widget, "show_admin_panel_with_hint"):
-            settings_widget.show_admin_panel_with_hint()
-
     def switch_to_main_panel(self):
         try:
             db = self.controller.get_db()
@@ -3396,162 +3319,6 @@ class MainWindow(QMainWindow):
             pass
         if hasattr(self, "tabs"):
             self.tabs.setCurrentIndex(0)
-
-    def _on_user_setup_clicked(self):
-        self._show_user_setup_dialog()
-
-    def _show_user_setup_dialog(self):
-        try:
-            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QHBoxLayout
-        except ImportError:
-            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox, QHBoxLayout
-        db = self.controller.get_db()
-        dlg = QDialog(self)
-        dlg.setWindowTitle("User Setup")
-        dlg.setMinimumWidth(420)
-        layout = QVBoxLayout(dlg)
-        layout.setSpacing(14)
-        title = QLabel("👤 User Setup")
-        title.setStyleSheet("font-size: 16pt; font-weight: bold; color: #0D9488;")
-        layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        step1_widget = QWidget()
-        step1_layout = QVBoxLayout(step1_widget)
-        step1_layout.setSpacing(12)
-        step1_layout.addWidget(QLabel("Read these steps first, then Connect:"))
-        instr = QLabel(
-            "1. Power on your medicine box (Arduino/ESP32).\n\n"
-            "2. On this PC: Open Bluetooth settings → Add device → pair \"Curax-ESP32\".\n\n"
-            "3. After pairing, click \"Connect (Bluetooth)\" below."
-        )
-        instr.setWordWrap(True)
-        instr.setStyleSheet("color: #334155; font-size: 10pt;")
-        step1_layout.addWidget(instr)
-        bt_btn = QPushButton("Connect (Bluetooth)")
-        step1_layout.addWidget(bt_btn)
-        conn_status = QLabel("Not connected")
-        conn_status.setStyleSheet("color: #B45309; font-size: 9pt;")
-        step1_layout.addWidget(conn_status)
-        layout.addWidget(step1_widget)
-
-        step2_widget = QWidget()
-        step2_layout = QVBoxLayout(step2_widget)
-        step2_layout.addWidget(QLabel("Set a 4-digit PIN for the Arduino (medicine box) only:"))
-        pwd_edit = QLineEdit()
-        pwd_edit.setPlaceholderText("4-digit PIN")
-        pwd_edit.setMaxLength(4)
-        try:
-            pwd_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        except Exception:
-            pwd_edit.setEchoMode(QLineEdit.Password)
-        step2_layout.addWidget(pwd_edit)
-        confirm_edit = QLineEdit()
-        confirm_edit.setPlaceholderText("Confirm 4-digit PIN")
-        confirm_edit.setMaxLength(4)
-        try:
-            confirm_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        except Exception:
-            confirm_edit.setEchoMode(QLineEdit.Password)
-        step2_layout.addWidget(confirm_edit)
-        set_code_status = QLabel("")
-        step2_layout.addWidget(set_code_status)
-        step2_widget.setVisible(False)
-        layout.addWidget(step2_widget)
-
-        step3_widget = QWidget()
-        step3_layout = QVBoxLayout(step3_widget)
-        step3_layout.addWidget(QLabel("PIN saved. Next: open Settings → Link to admin / Admin Panel."))
-        step3_widget.setVisible(False)
-        layout.addWidget(step3_widget)
-
-        btn_row = QHBoxLayout()
-        next_btn = QPushButton("Next")
-        next_btn.setDefault(True)
-        next_btn.setEnabled(False)
-        open_settings_btn = QPushButton("Open Settings")
-        open_settings_btn.setVisible(False)
-        cancel_btn = QPushButton("Cancel")
-        btn_row.addWidget(next_btn)
-        btn_row.addWidget(open_settings_btn)
-        btn_row.addStretch()
-        btn_row.addWidget(cancel_btn)
-        layout.addLayout(btn_row)
-
-        def update_conn_status():
-            if self.controller.connected:
-                port = self.controller.get_connected_port() or "Bluetooth"
-                conn_status.setText(f"Connected to {port}")
-                conn_status.setStyleSheet("color: #0D9488; font-size: 9pt;")
-                next_btn.setEnabled(True)
-            else:
-                conn_status.setText("Not connected")
-                conn_status.setStyleSheet("color: #B45309; font-size: 9pt;")
-                next_btn.setEnabled(False)
-
-        def on_connect_bt():
-            bt_btn.setEnabled(False)
-            bt_btn.setText("Connecting...")
-            def work():
-                self.controller.connect_bluetooth()
-                try:
-                    from PyQt6.QtCore import QTimer as QT
-                except ImportError:
-                    from PyQt5.QtCore import QTimer as QT
-                QT.singleShot(0, lambda: (bt_btn.setEnabled(True), bt_btn.setText("Connect (Bluetooth)"), update_conn_status()))
-            import threading
-            threading.Thread(target=work, daemon=True).start()
-
-        bt_btn.clicked.connect(on_connect_bt)
-        try:
-            self.controller.connected_changed.connect(update_conn_status)
-        except Exception:
-            pass
-        update_conn_status()
-
-        def on_next():
-            if step2_widget.isVisible():
-                pwd = pwd_edit.text().strip()
-                conf = confirm_edit.text().strip()
-                if len(pwd) != 4 or not pwd.isdigit():
-                    QMessageBox.warning(dlg, "User Setup", "Enter a 4-digit PIN (numbers only).")
-                    return
-                if pwd != conf:
-                    QMessageBox.warning(dlg, "User Setup", "PINs do not match.")
-                    return
-                set_code_status.setText("Saving and sending to Arduino...")
-                dlg.repaint()
-                try:
-                    from PyQt6.QtWidgets import QApplication
-                except ImportError:
-                    from PyQt5.QtWidgets import QApplication
-                QApplication.processEvents()
-                if getattr(db, "set_user_device_password", None):
-                    db.set_user_device_password(pwd)
-                ok, msg = getattr(self.controller, "set_initial_device_pin", lambda p: (False, "Not supported"))(pwd)
-                if ok:
-                    set_code_status.setText("PIN saved.")
-                    step2_widget.setVisible(False)
-                    step3_widget.setVisible(True)
-                    next_btn.setVisible(False)
-                    open_settings_btn.setVisible(True)
-                else:
-                    set_code_status.setText(msg or "Could not apply to Arduino.")
-                    set_code_status.setStyleSheet("color: #EF4444; font-size: 9pt;")
-            else:
-                step1_widget.setVisible(False)
-                step2_widget.setVisible(True)
-                next_btn.setEnabled(True)
-
-        def on_open_settings():
-            self.controller.authenticated = True
-            self.controller.authenticated_changed.emit(True)
-            self.tabs.setCurrentIndex(5)
-            dlg.accept()
-
-        next_btn.clicked.connect(on_next)
-        open_settings_btn.clicked.connect(on_open_settings)
-        cancel_btn.clicked.connect(dlg.reject)
-        dlg.exec()
 
     def _position_unlock_dialog_near_sidebar(self, dlg):
         dw = dlg.frameGeometry().width()
@@ -3637,7 +3404,7 @@ class MainWindow(QMainWindow):
 
         dialog_scale = max(0.52, min(1.0, float(getattr(self, "_content_scale", getattr(self, "_topbar_scale", 1.0)))))
 
-        def _big_unlock_dlg(role_label, subtitle, verifier):
+        def _big_unlock_dlg(role_label, subtitle, verifier, pwd_placeholder="Enter your password…"):
             s = dialog_scale
             dlg = QDialog(self)
             dlg.setWindowTitle("CuraX — Unlock")
@@ -3696,7 +3463,7 @@ class MainWindow(QMainWindow):
 
             # Password input (no separate label — placeholder is enough)
             pwd_edit = QLineEdit()
-            pwd_edit.setPlaceholderText("Enter your password…")
+            pwd_edit.setPlaceholderText(pwd_placeholder)
             pwd_edit.setFixedHeight(max(28, int(36 * s)))
             try:
                 pwd_edit.setEchoMode(QLineEdit.EchoMode.Password)
@@ -3776,7 +3543,7 @@ class MainWindow(QMainWindow):
             def do_unlock():
                 pwd = pwd_edit.text().strip()
                 if not pwd:
-                    err_lbl.setText("⚠  Please enter your password.")
+                    err_lbl.setText("⚠  Please enter your PIN or password.")
                     err_lbl.setVisible(True)
                     pwd_edit.setFocus()
                     return
@@ -3785,7 +3552,7 @@ class MainWindow(QMainWindow):
                     self.controller.authenticated_changed.emit(True)
                     dlg.accept()
                 else:
-                    err_lbl.setText("✗  Wrong password. Please try again.")
+                    err_lbl.setText("✗  Wrong PIN or password. Please try again.")
                     err_lbl.setVisible(True)
                     pwd_edit.clear()
                     pwd_edit.setFocus()
@@ -3815,8 +3582,22 @@ class MainWindow(QMainWindow):
             dlg.exec()
 
         if has_admin:
-            _big_unlock_dlg("Admin", "Enter admin password",
-                lambda pwd: getattr(db, "verify_admin_password", lambda p: False)(pwd))
+            use_desktop_pin = bool(
+                db and getattr(db, "has_desktop_app_unlock_pin", lambda: False)()
+            )
+            if use_desktop_pin:
+                _big_unlock_dlg(
+                    "Admin · this computer",
+                    "Enter your desktop unlock PIN (digits only). Stored only on this PC — not your phone app PIN.",
+                    lambda pwd: getattr(db, "verify_desktop_app_unlock_pin", lambda p: False)(pwd),
+                    pwd_placeholder="Enter desktop PIN…",
+                )
+            else:
+                _big_unlock_dlg(
+                    "Admin",
+                    "Enter your admin account password.",
+                    lambda pwd: getattr(db, "verify_admin_password", lambda p: False)(pwd),
+                )
         elif has_user_pwd or desktop_linked:
             _big_unlock_dlg("User", "Enter device password",
                 lambda pwd: getattr(db, "verify_user_device_password", lambda p: False)(pwd))
@@ -4111,7 +3892,6 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _recover_admin_from_code(self):
-        if not self._require_unlocked(): return
         try:
             from PyQt6.QtWidgets import (
                 QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel,
@@ -4148,7 +3928,7 @@ class MainWindow(QMainWindow):
         s = max(0.52, min(1.0, float(getattr(self, "_content_scale", getattr(self, "_topbar_scale", 1.0)))))
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("CuraX — Restore by Code")
+        dlg.setWindowTitle("CuraX — Link or restore by code")
         dlg.setModal(True)
         dlg.setMinimumWidth(max(280, int(420 * s)))
         dlg.setMaximumWidth(max(320, int(500 * s)))
@@ -4183,7 +3963,7 @@ class MainWindow(QMainWindow):
         icon_lbl.setStyleSheet(f"font-size: {max(20, int(32 * s))}pt; background: transparent;")
         h_lo.addWidget(icon_lbl)
 
-        title_lbl = QLabel("Restore by Code")
+        title_lbl = QLabel("Link or restore")
         title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_lbl.setStyleSheet(
             f"font-size: {max(11, int(16 * s))}pt; font-weight: 800; color: {title_c}; "
@@ -4191,7 +3971,10 @@ class MainWindow(QMainWindow):
         )
         h_lo.addWidget(title_lbl)
 
-        sub_lbl = QLabel("Enter your access code to recover your admin account")
+        sub_lbl = QLabel(
+            "Admin: Access Code (permanent) or Desktop linking code (one-time, Settings → Desktop linking code). "
+            "User: desktop link code from your app Settings."
+        )
         sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub_lbl.setWordWrap(True)
         sub_lbl.setStyleSheet(f"font-size: {max(7, int(9 * s))}pt; color: {sub_c}; background: transparent;")
@@ -4210,12 +3993,12 @@ class MainWindow(QMainWindow):
 
         r_pt = max(7, int(9 * s))
         # Radio buttons
-        radio_admin = QRadioButton("Access code  (Admin recovery)")
+        radio_admin = QRadioButton("Admin — Access Code or Desktop linking code")
         radio_admin.setChecked(True)
         radio_admin.setStyleSheet(
             f"color: {radio_c}; font-size: {r_pt}pt; font-weight: 600; background: transparent;"
         )
-        radio_user = QRadioButton("Link code  (Desktop link)")
+        radio_user = QRadioButton("User — Desktop link code from app")
         radio_user.setStyleSheet(
             f"color: {radio_c}; font-size: {r_pt}pt; background: transparent;"
         )
@@ -4310,9 +4093,18 @@ class MainWindow(QMainWindow):
                 pass
 
             if radio_admin.isChecked():
-                ok, msg = self.controller.recover_admin_by_access_code(code.upper()) if hasattr(self.controller, "recover_admin_by_access_code") else (False, "Not supported")
+                ok, msg = False, "Not supported"
+                if hasattr(self.controller, "link_admin_desktop_by_link_code"):
+                    ok, msg = self.controller.link_admin_desktop_by_link_code(code)
+                    if not ok and msg is None and hasattr(self.controller, "recover_admin_by_access_code"):
+                        ok, msg = self.controller.recover_admin_by_access_code(code.upper())
+                elif hasattr(self.controller, "recover_admin_by_access_code"):
+                    ok, msg = self.controller.recover_admin_by_access_code(code.upper())
             else:
-                ok, msg = self.controller.link_desktop_to_admin(code) if hasattr(self.controller, "link_desktop_to_admin") else (False, "Not supported")
+                fn = getattr(self.controller, "link_desktop_by_app_code", None) or getattr(
+                    self.controller, "link_desktop_to_admin", None
+                )
+                ok, msg = fn(code) if fn else (False, "Not supported")
 
             if ok:
                 try:
@@ -4344,8 +4136,15 @@ class MainWindow(QMainWindow):
                 needs_pwd = (msg == "__SET_PASSWORD__")
                 def _after_success():
                     dlg.accept()
+                    self._apply_locked_state()
+                    self._update_status_text()
                     if needs_pwd:
                         self._show_set_password_after_recovery()
+                    elif hasattr(self, "switch_to_main_panel"):
+                        try:
+                            self.switch_to_main_panel()
+                        except Exception:
+                            pass
                 QTimer.singleShot(1000, _after_success)
             else:
                 recover_btn.setEnabled(True)

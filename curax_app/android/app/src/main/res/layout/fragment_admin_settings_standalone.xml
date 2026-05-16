@@ -30,7 +30,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:lineSpacingMultiplier="1.12"
-            android:text="Medicine, stock, expiry, missed doses &amp; Health Hub — then email alerts."
+            android:text="Medicine, stock, expiry and missed-dose alerts — then save."
             android:textColor="@color/text_secondary"
             android:textSize="13sp" />
 
@@ -39,17 +39,17 @@
             android:layout_height="1dp"
             android:layout_marginTop="14dp"
             android:layout_marginBottom="4dp"
-            android:background="@color/summary_stroke" />
+            android:background="@color/standalone_inventory_row_stroke" />
 
         <!-- App / version -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="@color/summary_card"
+            app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="14dp"
             app:cardElevation="2dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -67,14 +67,14 @@
                     <View
                         android:layout_width="4dp"
                         android:layout_height="18dp"
-                        android:background="@color/toolbar_end" />
+                        android:background="@color/button_primary_bg" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="10dp"
                         android:text="App"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -94,10 +94,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            app:cardBackgroundColor="@color/summary_card"
+            app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="14dp"
             app:cardElevation="3dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -115,14 +115,14 @@
                     <View
                         android:layout_width="4dp"
                         android:layout_height="18dp"
-                        android:background="@color/toolbar_end" />
+                        android:background="@color/button_primary_bg" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="10dp"
                         android:text="Alerts &amp; schedules"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -135,16 +135,21 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@color/standalone_inventory_row_stroke" />
+
                 <!-- Medicine time -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    app:cardBackgroundColor="@color/key_value_bg"
-                    app:cardCornerRadius="12dp"
+                    android:layout_marginTop="10dp"
+                    app:cardBackgroundColor="@android:color/transparent"
+                    app:cardCornerRadius="0dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/summary_stroke"
-                    app:strokeWidth="1dp">
+                    app:strokeWidth="0dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -156,7 +161,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Medicine time"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -207,16 +212,21 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@color/standalone_inventory_row_stroke" />
+
                 <!-- Expiry -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    app:cardBackgroundColor="@color/key_value_bg"
-                    app:cardCornerRadius="12dp"
+                    android:layout_marginTop="8dp"
+                    app:cardBackgroundColor="@android:color/transparent"
+                    app:cardCornerRadius="0dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/summary_stroke"
-                    app:strokeWidth="1dp">
+                    app:strokeWidth="0dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -228,7 +238,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Medicine expiry"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -271,16 +281,21 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@color/standalone_inventory_row_stroke" />
+
                 <!-- Stock -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    app:cardBackgroundColor="@color/key_value_bg"
-                    app:cardCornerRadius="12dp"
+                    android:layout_marginTop="8dp"
+                    app:cardBackgroundColor="@android:color/transparent"
+                    app:cardCornerRadius="0dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/summary_stroke"
-                    app:strokeWidth="1dp">
+                    app:strokeWidth="0dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -292,7 +307,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Stock"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -343,16 +358,21 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@color/standalone_inventory_row_stroke" />
+
                 <!-- Missed dose -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    app:cardBackgroundColor="@color/key_value_bg"
-                    app:cardCornerRadius="12dp"
+                    android:layout_marginTop="8dp"
+                    app:cardBackgroundColor="@android:color/transparent"
+                    app:cardCornerRadius="0dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/summary_stroke"
-                    app:strokeWidth="1dp">
+                    app:strokeWidth="0dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -364,7 +384,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Missed dose"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -424,16 +444,23 @@
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Health Hub plans -->
+                <View
+                    android:id="@+id/divider_health_hub"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@color/standalone_inventory_row_stroke" />
+
+                <!-- Health Hub plans (user-managed; hidden for admin in Care on standalone users) -->
                 <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/card_health_hub_plans"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    app:cardBackgroundColor="@color/key_value_bg"
-                    app:cardCornerRadius="12dp"
+                    android:layout_marginTop="8dp"
+                    app:cardBackgroundColor="@android:color/transparent"
+                    app:cardCornerRadius="0dp"
                     app:cardElevation="0dp"
-                    app:strokeColor="@color/summary_stroke"
-                    app:strokeWidth="1dp">
+                    app:strokeWidth="0dp">
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -445,7 +472,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:text="Health Hub plans"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
@@ -490,16 +517,28 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_save_alert_settings"
+            style="@style/Widget.MaterialComponents.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/admin_care_save_settings"
+            android:visibility="gone"
+            app:backgroundTint="@color/button_primary_bg"
+            app:cornerRadius="12dp" />
+
         <!-- Email alerts -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_gmail_section"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:layout_marginBottom="24dp"
-            app:cardBackgroundColor="@color/summary_card"
+            app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="14dp"
             app:cardElevation="3dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -517,14 +556,14 @@
                     <View
                         android:layout_width="4dp"
                         android:layout_height="18dp"
-                        android:background="@color/toolbar_end" />
+                        android:background="@color/button_primary_bg" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="10dp"
                         android:text="@string/system_gmail_section_title"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -538,6 +577,53 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
 
+                <LinearLayout
+                    android:id="@+id/group_gmail_admin_readonly"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/admin_care_gmail_status_label"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tv_gmail_user_status"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/admin_care_gmail_email_label"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tv_gmail_user_email"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/group_gmail_user_editable"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/switch_gmail_alerts"
                     android:layout_width="match_parent"
@@ -547,7 +633,7 @@
                     android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     app:thumbTint="@color/checkbox_tint"
-                    app:trackTint="@color/summary_stroke" />
+                    app:trackTint="@color/standalone_inventory_row_stroke" />
 
                 <com.google.android.material.textfield.TextInputLayout
                     style="@style/Widget.Curax.TextInputLayout.OutlinedStandalone"
@@ -570,6 +656,58 @@
                         android:textColor="@color/text_primary"
                         android:textColorHint="@color/text_secondary" />
                 </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_care_app_unlock_pin_readonly"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/standalone_inventory_card"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="3dp"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/tv_care_unlock_pin_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/care_unlock_pin_section_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_care_unlock_pin_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingMultiplier="1.15"
+                    android:text="@string/care_unlock_pin_admin_hint"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tv_care_unlock_pin_value"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.08"
+                    android:textIsSelectable="true"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

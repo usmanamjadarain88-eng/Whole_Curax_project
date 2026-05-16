@@ -307,7 +307,7 @@ object AdminDataBusClient {
             m["times"] = if (times != null) (0 until times.length()).map { times.optString(it) } else emptyList<String>()
             list.add(m)
         }
-        AdminDemoData.replaceMedicines(AdminDemoData.fromApiMedicines(list))
+        AdminDemoData.replaceMedicines(context, AdminDemoData.fromApiMedicines(list))
         AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))

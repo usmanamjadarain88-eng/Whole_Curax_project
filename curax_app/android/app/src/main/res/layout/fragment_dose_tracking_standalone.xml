@@ -40,7 +40,7 @@
             android:layout_height="1dp"
             android:layout_marginTop="14dp"
             android:layout_marginBottom="4dp"
-            android:background="@color/summary_stroke" />
+            android:background="@color/standalone_inventory_row_stroke" />
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardDoseBleBridge"
@@ -48,10 +48,10 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:visibility="gone"
-            app:cardBackgroundColor="@color/summary_card"
+            app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="14dp"
             app:cardElevation="2dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -64,7 +64,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/dose_ble_card_title"
-                    android:textColor="@color/connection_panel_title"
+                    android:textColor="@color/text_primary"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -110,10 +110,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="@color/summary_card"
+            app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="14dp"
             app:cardElevation="3dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -131,14 +131,14 @@
                     <View
                         android:layout_width="4dp"
                         android:layout_height="18dp"
-                        android:background="@color/toolbar_end" />
+                        android:background="@color/button_primary_bg" />
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="10dp"
                         android:text="@string/dose_tracking_mark_taken"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="15sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -162,6 +162,27 @@
                         android:orientation="horizontal"
                         android:paddingBottom="2dp" />
                 </HorizontalScrollView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    app:cardBackgroundColor="@color/standalone_inventory_card"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/standalone_inventory_row_stroke"
+                    app:strokeWidth="1dp">
+
+                    <TextView
+                        android:id="@+id/tvDoseScheduleSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:lineSpacingMultiplier="1.15"
+                        android:padding="12dp"
+                        android:text="@string/dose_tracking_schedule_summary_empty"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="@color/text_secondary" />
+                </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnMarkDoseTaken"
@@ -225,7 +246,7 @@
                             android:paddingStart="8dp"
                             android:paddingEnd="8dp"
                             android:text="@string/dose_hist_header_time"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -236,7 +257,7 @@
                             android:gravity="center"
                             android:maxLines="1"
                             android:text="@string/dose_hist_header_box"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -250,7 +271,7 @@
                             android:paddingStart="8dp"
                             android:paddingEnd="8dp"
                             android:text="@string/dose_hist_header_medicine"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -261,7 +282,7 @@
                             android:gravity="center"
                             android:maxLines="1"
                             android:text="@string/dose_hist_header_dose"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
@@ -272,7 +293,7 @@
                             android:gravity="center"
                             android:maxLines="1"
                             android:text="@string/dose_hist_header_remaining"
-                            android:textColor="@color/connection_panel_title"
+                            android:textColor="@color/text_primary"
                             android:textSize="12sp"
                             android:textStyle="bold" />
                     </LinearLayout>

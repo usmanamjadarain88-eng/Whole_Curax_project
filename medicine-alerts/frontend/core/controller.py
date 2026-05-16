@@ -1173,11 +1173,58 @@ class AppController(QObject):
         except Exception as e:
             return False, str(e) or "Link failed."
 
+    def link_admin_desktop_by_link_code(self, code: str):
+        """
+        Redeem the admin's one-time Desktop linking code from the Android app
+        (Admin → Settings → Desktop linking code). Loads the full admin hub on this PC.
+        """
+        code = (code or "").strip().upper()
+        if not code:
+            return False, "Please enter the Desktop linking code from the app."
+        base = (self.get_central_api_base_url() or "").strip().rstrip("/")
+        if not base:
+            return False, "Backend URL not configured."
+        try:
+            import urllib.request
+            import urllib.error
+
+            req = urllib.request.Request(
+                base + "/desktop/link-to-admin",
+                data=json.dumps({"code": code}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            access_code = (data.get("admin_access_code") or "").strip().upper()
+            if not access_code:
+                return False, "Server did not return admin credentials. Try creating a new code in the app."
+            return self.recover_admin_by_access_code(access_code)
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False, None  # caller may try user desktop code
+            body = e.read().decode("utf-8") if e.fp else ""
+            try:
+                msg = json.loads(body).get("message", body) if body else str(e)
+            except Exception:
+                msg = body or str(e)
+            return False, msg or "Code invalid or expired."
+        except Exception as e:
+            return False, str(e) or "Could not link desktop."
+
+    def link_desktop_by_app_code(self, code: str):
+        """Try admin Desktop linking code first, then user desktop link code."""
+        ok, msg = self.link_admin_desktop_by_link_code(code)
+        if ok:
+            return True, msg or ""
+        if msg is not None:
+            return False, msg
+        return self.link_desktop_to_admin(code)
+
     def link_desktop_to_admin(self, code):
         """
-        Use existing admin: desktop enters the code from the USER's Android app (user signed up with admin's connection code,
-        then in app Settings → Use desktop app → Create desktop link code). Calls POST /user/desktop-by-code so backend knows
-        which user owns this desktop. Saves linked user (bot_id, api_key) and desktop_linked_admin (admin_id, admin_name).
+        User desktop link: code from the USER's Android app (Settings → Create desktop link code).
+        Calls POST /user/desktop-by-code. Saves linked user and desktop_linked_admin, then fetches user data.
         Returns (True, None) on success, (False, error_message) on failure.
         """
         code = (code or "").strip()

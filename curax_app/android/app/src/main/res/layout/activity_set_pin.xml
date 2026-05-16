@@ -17,7 +17,7 @@
         android:paddingEnd="8dp"
         app:navigationContentDescription="@string/pin_setup_back_content_description"
         app:navigationIcon="@android:drawable/ic_menu_revert"
-        app:navigationIconTint="@color/auth_heading" />
+        app:navigationIconTint="@color/text_primary" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -43,7 +43,7 @@
                 android:includeFontPadding="false"
                 android:letterSpacing="-0.031"
                 android:text="@string/pin_toolbar_title"
-                android:textColor="@color/auth_heading"
+                android:textColor="@color/text_primary"
                 android:textSize="32sp"
                 android:textStyle="bold" />
 
@@ -54,7 +54,7 @@
                 android:gravity="center_horizontal"
                 android:lineSpacingMultiplier="1.12"
                 android:text="@string/set_pin_screen_subtitle"
-                android:textColor="@color/auth_subtitle"
+                android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
 
             <com.google.android.material.textfield.TextInputLayout
@@ -65,26 +65,28 @@
                 android:clipToOutline="false"
                 android:clipToPadding="false"
                 android:minHeight="@dimen/auth_outlined_edit_min_height"
-                app:boxBackgroundColor="@android:color/white"
+                app:boxBackgroundColor="@color/key_value_bg"
                 app:boxBackgroundMode="outline"
                 app:boxCornerRadiusBottomEnd="10dp"
                 app:boxCornerRadiusBottomStart="10dp"
                 app:boxCornerRadiusTopEnd="10dp"
                 app:boxCornerRadiusTopStart="10dp"
-                app:boxStrokeColor="@color/auth_outline_muted"
+                app:boxStrokeColor="@color/summary_stroke"
+                app:boxCollapsedPaddingTop="0dp"
                 app:boxStrokeWidth="1dp"
-                app:boxStrokeWidthFocused="1dp"
+                app:boxStrokeWidthFocused="2dp"
                 app:endIconMode="password_toggle"
+                app:endIconTint="@color/text_secondary"
                 app:hintAnimationEnabled="false"
-                app:hintEnabled="true"
-                app:hintTextColor="@color/auth_subtitle">
+                app:hintEnabled="false">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etPin"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:hint="@string/pin_hint"
+                    android:hint="@string/pin_hint_4_digit"
+                    android:includeFontPadding="true"
                     android:inputType="numberPassword"
                     android:maxLength="8"
                     android:minHeight="@dimen/auth_outlined_edit_min_height"
@@ -92,8 +94,7 @@
                     android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                     android:paddingEnd="12dp"
                     android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
-                    android:textColor="@color/auth_field_text"
-                    android:textColorHint="@color/auth_subtitle"
+                    android:textColor="@color/text_primary"
                     android:textSize="16sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -105,19 +106,20 @@
                 android:clipToOutline="false"
                 android:clipToPadding="false"
                 android:minHeight="@dimen/auth_outlined_edit_min_height"
-                app:boxBackgroundColor="@android:color/white"
+                app:boxBackgroundColor="@color/key_value_bg"
                 app:boxBackgroundMode="outline"
                 app:boxCornerRadiusBottomEnd="10dp"
                 app:boxCornerRadiusBottomStart="10dp"
                 app:boxCornerRadiusTopEnd="10dp"
                 app:boxCornerRadiusTopStart="10dp"
-                app:boxStrokeColor="@color/auth_outline_muted"
+                app:boxStrokeColor="@color/summary_stroke"
+                app:boxCollapsedPaddingTop="0dp"
                 app:boxStrokeWidth="1dp"
-                app:boxStrokeWidthFocused="1dp"
+                app:boxStrokeWidthFocused="2dp"
                 app:endIconMode="password_toggle"
+                app:endIconTint="@color/text_secondary"
                 app:hintAnimationEnabled="false"
-                app:hintEnabled="true"
-                app:hintTextColor="@color/auth_subtitle">
+                app:hintEnabled="false">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etPinConfirm"
@@ -125,6 +127,7 @@
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
                     android:hint="@string/pin_confirm_hint"
+                    android:includeFontPadding="true"
                     android:inputType="numberPassword"
                     android:maxLength="8"
                     android:minHeight="@dimen/auth_outlined_edit_min_height"
@@ -132,8 +135,7 @@
                     android:paddingTop="@dimen/auth_outlined_edit_padding_top"
                     android:paddingEnd="12dp"
                     android:paddingBottom="@dimen/auth_outlined_edit_padding_bottom"
-                    android:textColor="@color/auth_field_text"
-                    android:textColorHint="@color/auth_subtitle"
+                    android:textColor="@color/text_primary"
                     android:textSize="16sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -158,7 +160,7 @@
                 android:layout_marginTop="10dp"
                 android:text="@string/remove_pin"
                 android:textAllCaps="false"
-                android:textColor="@color/auth_field_text"
+                android:textColor="@color/text_primary"
                 app:cornerRadius="10dp"
                 app:strokeColor="@color/auth_field_border"
                 app:strokeWidth="1dp" />

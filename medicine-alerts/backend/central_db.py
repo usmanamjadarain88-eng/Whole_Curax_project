@@ -544,17 +544,29 @@ class CentralDB:
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
             cur.execute(
-                "SELECT d.admin_id, a.name FROM desktop_link_codes d JOIN admins a ON a.id = d.admin_id WHERE d.code = %s AND d.expires_at > NOW() LIMIT 1",
+                "SELECT d.admin_id, a.name, a.admin_access_code, a.connection_code "
+                "FROM desktop_link_codes d JOIN admins a ON a.id = d.admin_id "
+                "WHERE d.code = %s AND d.expires_at > NOW() LIMIT 1",
                 (code,),
             )
             row = cur.fetchone()
             if not row:
                 return None
-            admin_id = row["admin_id"] if hasattr(row, "keys") else row[0]
-            admin_name = (row["name"] if hasattr(row, "keys") else row[1]) or "Admin"
+            if hasattr(row, "keys"):
+                admin_id = row["admin_id"]
+                admin_name = row["name"] or "Admin"
+                access_code = (row.get("admin_access_code") or "").strip()
+                connection_code = (row.get("connection_code") or "").strip()
+            else:
+                admin_id, admin_name, access_code, connection_code = row[0], row[1] or "Admin", (row[2] or "").strip(), (row[3] or "").strip()
             cur.execute("DELETE FROM desktop_link_codes WHERE code = %s", (code,))
             conn.commit()
-            return {"admin_id": str(admin_id), "admin_name": admin_name}
+            return {
+                "admin_id": str(admin_id),
+                "admin_name": admin_name,
+                "admin_access_code": access_code,
+                "connection_code": connection_code,
+            }
         except Exception as e:
             conn.rollback()
             print(f"CentralDB get_admin_by_desktop_link_code: {e}")
@@ -1678,6 +1690,23 @@ class CentralDB:
                     current["gmail_config"] = merged_g
                 else:
                     current["gmail_config"] = dict(incoming_gmail)
+            # App unlock PIN (user device): echoed for linked-user Care mode only; set/cleared via standalone-sync.
+            if "care_app_unlock_pin" in incoming:
+                pin = incoming.get("care_app_unlock_pin")
+                if isinstance(pin, str):
+                    p = pin.strip()
+                    if p:
+                        current["care_app_unlock_pin"] = p
+                    else:
+                        current.pop("care_app_unlock_pin", None)
+            if "care_device_password" in incoming:
+                dp = incoming.get("care_device_password")
+                if isinstance(dp, str):
+                    p = dp.strip()
+                    if p:
+                        current["care_device_password"] = p
+                    else:
+                        current.pop("care_device_password", None)
             return bool(self.upsert_alert_settings(user_id, current))
         except Exception as e:
             print(f"CentralDB merge_user_system_settings_overlay: {e}")

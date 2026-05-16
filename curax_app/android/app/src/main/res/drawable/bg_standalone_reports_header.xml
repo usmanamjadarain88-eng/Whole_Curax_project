@@ -3,11 +3,11 @@
     android:shape="rectangle">
     <gradient
         android:angle="120"
-        android:endColor="#E0E7FF"
-        android:startColor="#CCFBF1"
+        android:endColor="#D4EDE4"
+        android:startColor="#E8F4ED"
         android:type="linear" />
     <corners android:radius="22dp" />
     <stroke
         android:width="1dp"
-        android:color="#A5B4FC" />
+        android:color="@color/standalone_inventory_row_stroke" />
 </shape>

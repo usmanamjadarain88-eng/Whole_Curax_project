@@ -3,6 +3,7 @@ package com.curax.app
 import android.content.Context
 import android.content.res.ColorStateList
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import java.util.Locale
 import android.widget.FrameLayout
@@ -36,6 +37,7 @@ fun MaterialCardView.bindStandaloneMedicineChip(
     val tvName = findViewById<TextView>(R.id.tv_chip_name)
     val tvBox = findViewById<TextView>(R.id.tv_chip_box)
     val tvStock = findViewById<TextView>(R.id.tv_chip_stock)
+    val tvSchedule = findViewById<TextView>(R.id.tv_chip_schedule)
     val ivCornerDot = findViewById<ImageView>(R.id.iv_chip_corner_dot)
     contentRoot.background = null
     if (StandaloneMedicineChipAdapter.isPlaceholderItem(item)) {
@@ -46,6 +48,7 @@ fun MaterialCardView.bindStandaloneMedicineChip(
             ctx.getString(R.string.em_dash)
         }
         tvStock.text = ctx.getString(R.string.em_dash)
+        tvSchedule.visibility = View.GONE
         alpha = 0.88f
         setCardBackgroundColor(ContextCompat.getColor(ctx, R.color.standalone_medicine_chip_normal))
         val slotSelected = selectedBoxUpper != null &&
@@ -75,6 +78,13 @@ fun MaterialCardView.bindStandaloneMedicineChip(
     tvName.text = item.name
     tvBox.text = item.box
     tvStock.text = item.stock.toString()
+    val sched = item.displayTimesLabel().trim()
+    if (sched.isNotEmpty()) {
+        tvSchedule.text = sched
+        tvSchedule.visibility = View.VISIBLE
+    } else {
+        tvSchedule.visibility = View.GONE
+    }
     val bgStroke = when (status) {
         "Expiring" -> R.color.standalone_medicine_chip_exp to R.color.standalone_medicine_chip_stroke_exp
         "Low" -> R.color.standalone_medicine_chip_low to R.color.standalone_medicine_chip_stroke_low

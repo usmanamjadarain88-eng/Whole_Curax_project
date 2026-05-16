@@ -58,10 +58,10 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="6dp"
-                app:cardBackgroundColor="@color/summary_card"
+                app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="14dp"
-                app:cardElevation="5dp"
-                app:strokeColor="@color/summary_stroke"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -75,7 +75,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="📅 Appointments"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
@@ -93,10 +93,10 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="6dp"
-                app:cardBackgroundColor="@color/summary_card"
+                app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="14dp"
-                app:cardElevation="5dp"
-                app:strokeColor="@color/summary_stroke"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -110,7 +110,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="💊 Prescriptions"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
@@ -137,10 +137,10 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="6dp"
-                app:cardBackgroundColor="@color/summary_card"
+                app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="14dp"
-                app:cardElevation="5dp"
-                app:strokeColor="@color/summary_stroke"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -154,7 +154,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="🔬 Lab Tests"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
@@ -172,10 +172,10 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="6dp"
-                app:cardBackgroundColor="@color/summary_card"
+                app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="14dp"
-                app:cardElevation="5dp"
-                app:strokeColor="@color/summary_stroke"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -189,7 +189,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="📌 Custom"
-                        android:textColor="@color/connection_panel_title"
+                        android:textColor="@color/text_primary"
                         android:textSize="16sp"
                         android:textStyle="bold" />
 

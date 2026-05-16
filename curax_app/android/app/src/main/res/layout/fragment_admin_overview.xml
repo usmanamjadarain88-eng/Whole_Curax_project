@@ -25,7 +25,7 @@
             app:cardBackgroundColor="@color/summary_card"
             app:cardCornerRadius="16dp"
             app:strokeColor="@color/summary_stroke"
-            app:strokeWidth="1dp">
+            app:strokeWidth="@dimen/panel_stroke_width">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -161,7 +161,7 @@
             app:cardBackgroundColor="@color/summary_card"
             app:cardCornerRadius="16dp"
             app:strokeColor="@color/summary_stroke"
-            app:strokeWidth="1dp">
+            app:strokeWidth="@dimen/panel_stroke_width">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -193,8 +193,9 @@
                             android:id="@+id/viewDonutCircle"
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
-                            android:elevation="10dp"
-                            android:background="@drawable/bg_admin_donut" />
+                            android:layout_margin="5dp"
+                            android:background="@drawable/bg_admin_donut"
+                            android:elevation="10dp" />
                         <LinearLayout
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
@@ -236,7 +237,7 @@
             app:cardBackgroundColor="@color/summary_card"
             app:cardCornerRadius="16dp"
             app:strokeColor="@color/summary_stroke"
-            app:strokeWidth="1dp">
+            app:strokeWidth="@dimen/panel_stroke_width">
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -309,7 +310,7 @@
                 app:cardBackgroundColor="@color/summary_card"
                 app:cardCornerRadius="10dp"
                 app:strokeColor="@color/summary_stroke"
-                app:strokeWidth="1dp">
+                app:strokeWidth="@dimen/panel_stroke_width">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Total" android:textColor="@color/text_secondary" android:textSize="11sp" />
                     <TextView android:id="@+id/tvKpiTotal" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textColor="@color/text_primary" android:textStyle="bold" />
@@ -324,7 +325,7 @@
                 app:cardBackgroundColor="@color/summary_card"
                 app:cardCornerRadius="10dp"
                 app:strokeColor="@color/summary_stroke"
-                app:strokeWidth="1dp">
+                app:strokeWidth="@dimen/panel_stroke_width">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Low" android:textColor="@color/text_secondary" android:textSize="11sp" />
                     <TextView android:id="@+id/tvKpiLow" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textColor="#D97706" android:textStyle="bold" />
@@ -339,7 +340,7 @@
                 app:cardBackgroundColor="@color/summary_card"
                 app:cardCornerRadius="10dp"
                 app:strokeColor="@color/summary_stroke"
-                app:strokeWidth="1dp">
+                app:strokeWidth="@dimen/panel_stroke_width">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Expiring" android:textColor="@color/text_secondary" android:textSize="11sp" />
                     <TextView android:id="@+id/tvKpiExpiring" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textColor="#DC2626" android:textStyle="bold" />
@@ -354,7 +355,7 @@
                 app:cardBackgroundColor="@color/summary_card"
                 app:cardCornerRadius="10dp"
                 app:strokeColor="@color/summary_stroke"
-                app:strokeWidth="1dp">
+                app:strokeWidth="@dimen/panel_stroke_width">
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Refill" android:textColor="@color/text_secondary" android:textSize="11sp" />
                     <TextView android:id="@+id/tvKpiRefill" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textColor="#D97706" android:textStyle="bold" />
@@ -370,7 +371,7 @@
             app:cardBackgroundColor="@color/summary_card"
             app:cardCornerRadius="16dp"
             app:strokeColor="@color/summary_stroke"
-            app:strokeWidth="1dp">
+            app:strokeWidth="@dimen/panel_stroke_width">
 
             <LinearLayout
                 android:layout_width="match_parent"

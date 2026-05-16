@@ -421,7 +421,7 @@ class AdminReportsFragment : Fragment() {
         val (mPct, aPct, nPct) = computeTimeDistribution(alerts)
 
         val medLines = medicines.joinToString("\n") {
-            "- ${it.name} | stock ${it.stock} | dose/day ${it.dosePerDay} | time ${it.exactTime} | ${it.status} | ${it.box}"
+            "- ${it.name} | stock ${it.stock} | daily ${it.totalDoseUnitsPerDay()} | each ${it.dosePerAdministration()} | times ${it.displayScheduleLabel()} | ${it.status} | ${it.box}"
         }
         val logLines = alerts.take(100).joinToString("\n") { alert ->
             val time = dateFormat.format(Date(alert.receivedAt))

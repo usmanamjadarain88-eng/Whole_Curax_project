@@ -7,6 +7,9 @@
         <item name="colorPrimary">@color/toolbar_start</item>
         <item name="colorPrimaryVariant">@color/toolbar_end</item>
         <item name="colorSecondary">@color/badge_end</item>
+        <item name="colorSurface">@color/summary_card</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="android:colorBackground">@color/surface_bg</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 
@@ -68,6 +71,13 @@
     <style name="TextAppearance.Curax.PlanFormHint" parent="TextAppearance.MaterialComponents.Caption">
         <item name="android:textSize">11sp</item>
         <item name="android:textColor">@color/text_secondary</item>
+    </style>
+
+    <!-- Set PIN placeholders: smaller than typed digits, still readable in light/dark -->
+    <style name="TextAppearance.Curax.PinFieldPlaceholder" parent="TextAppearance.MaterialComponents.Body2">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:letterSpacing">0</item>
     </style>
 
     <style name="Widget.Curax.TextInputLayout.PlanDense" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense">

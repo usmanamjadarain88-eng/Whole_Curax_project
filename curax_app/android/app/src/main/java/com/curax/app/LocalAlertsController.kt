@@ -21,6 +21,9 @@ import java.util.TimeZone
  * Health Hub plans use optional 30 / 15 min before + exact ([plan_alerts] in Settings → System).
  * Primary on-device scheduler for medicine times, plans, medical reminders, and stock/expiry scans
  * for standalone users. Does not use FCM or the data bus — routine reminders are not duplicated via cloud push.
+ *
+ * When each alarm fires, [LocalAlertReceiver] posts the notification + in-app alert — that is the intended
+ * time-based “popup” experience for dose reminders and missed-dose escalation phases.
  */
 object LocalAlertsController {
 
@@ -170,10 +173,12 @@ object LocalAlertsController {
             name: String,
             hms: String,
             base: Long,
+            slotTag: String,
         ) {
+            val tag = slotTag.replace(Regex("[^A-Za-z0-9]"), "").ifEmpty { "t" }
             if (med30) {
                 scheduleIfOk(
-                    "med_${box}_${dayKey}_pre30",
+                    "med_${box}_${dayKey}_${tag}_pre30",
                     base - 30L * 60_000L,
                     JSONObject().apply {
                         put("type", "medicine_pre_30")
@@ -184,7 +189,7 @@ object LocalAlertsController {
             }
             if (med15) {
                 scheduleIfOk(
-                    "med_${box}_${dayKey}_pre15",
+                    "med_${box}_${dayKey}_${tag}_pre15",
                     base - 15L * 60_000L,
                     JSONObject().apply {
                         put("type", "medicine_pre_15")
@@ -195,7 +200,7 @@ object LocalAlertsController {
             }
             if (medExact) {
                 scheduleIfOk(
-                    "med_${box}_${dayKey}_exact",
+                    "med_${box}_${dayKey}_${tag}_exact",
                     base,
                     JSONObject().apply {
                         put("type", "medicine_time")
@@ -206,7 +211,7 @@ object LocalAlertsController {
             }
             if (missed5) {
                 scheduleIfOk(
-                    "med_${box}_${dayKey}_post5",
+                    "med_${box}_${dayKey}_${tag}_post5",
                     base + 5L * 60_000L,
                     JSONObject().apply {
                         put("type", "missed_dose_5")
@@ -217,7 +222,7 @@ object LocalAlertsController {
             }
             if (missed15) {
                 scheduleIfOk(
-                    "med_${box}_${dayKey}_post15",
+                    "med_${box}_${dayKey}_${tag}_post15",
                     base + 15L * 60_000L,
                     JSONObject().apply {
                         put("type", "missed_dose_15")
@@ -228,7 +233,7 @@ object LocalAlertsController {
             }
             if (missed30) {
                 scheduleIfOk(
-                    "med_${box}_${dayKey}_post30",
+                    "med_${box}_${dayKey}_${tag}_post30",
                     base + 30L * 60_000L,
                     JSONObject().apply {
                         put("type", "missed_dose_30")
@@ -238,27 +243,35 @@ object LocalAlertsController {
                 )
             }
             if (missed1h) {
-                scheduleIfOk(
-                    "med_${box}_${dayKey}_post60",
-                    base + 60L * 60_000L,
-                    JSONObject().apply {
-                        put("type", "missed_dose_60")
-                        put("title", app.getString(R.string.local_alert_missed_title))
-                        put("message", medLabel(app.getString(R.string.local_alert_phase_missed_logged), name, box, hms))
-                    },
-                )
+                val loggedTrigger = base + DoseIntakeClassifier.MISSED_AFTER_SCHEDULE_MS
+                val dupPost30 = missed30 && loggedTrigger == base + 30L * 60_000L
+                if (!dupPost30) {
+                    scheduleIfOk(
+                        "med_${box}_${dayKey}_${tag}_postMiss",
+                        loggedTrigger,
+                        JSONObject().apply {
+                            put("type", "missed_dose_60")
+                            put("title", app.getString(R.string.local_alert_missed_title))
+                            put("message", medLabel(app.getString(R.string.local_alert_phase_missed_logged), name, box, hms))
+                        },
+                    )
+                }
             }
         }
 
         // Medicines: per day window, only when stock > 0 and a valid schedule time exists (no default time).
         for (m in AdminDemoData.medicines) {
             if (m.stock <= 0) continue
-            val hms = normalizeTimeHms(m.exactTime) ?: continue
-            for (dayOff in 0 until DAY_WINDOW) {
-                val dayKey = dayKeyFromOffset(dayOff)
-                if (DoseTrackingLocalStore.isTakenForLocalDay(app, m.box, dayKey)) continue
-                val base = millisForLocalTimeOnDayOffset(hms, dayOff) ?: continue
-                scheduleMedicinePhases(m.box, dayKey, m.name, hms, base)
+            for (slot in m.effectiveScheduleTimes()) {
+                val nh = normalizeTimeHms(MedicineSchedule.toHhMmSs(MedicineSchedule.normalizeToHhMm(slot))) ?: continue
+                val slotDisp = MedicineSchedule.normalizeToHhMm(slot)
+                val tag = nh.replace(":", "")
+                for (dayOff in 0 until DAY_WINDOW) {
+                    val dayKey = dayKeyFromOffset(dayOff)
+                    if (DoseTrackingLocalStore.isTakenForSlot(app, m.box, dayKey, slotDisp)) continue
+                    val base = millisForLocalTimeOnDayOffset(nh, dayOff) ?: continue
+                    scheduleMedicinePhases(m.box, dayKey, m.name, slotDisp, base, tag)
+                }
             }
         }
 

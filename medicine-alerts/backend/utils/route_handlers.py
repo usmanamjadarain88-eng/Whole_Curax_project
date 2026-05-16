@@ -1678,8 +1678,8 @@ def create_desktop_link_code(body, query, headers):
         return (404, {"message": "Invalid access code or could not create code"})
     return (200, {"code": code, "expires_in": 300, "admin_name": admin_name})
 def desktop_link_to_admin(body, query, headers):
-    """POST { "code": "..." } ΓåÆ desktop enters the code from admin; links to that admin (user view only).
-    Returns { "admin_id": "...", "admin_name": "..." }. Code is consumed (one-time use)."""
+    """POST { "code": "..." } → desktop redeems admin's one-time Desktop linking code (from Android Settings).
+    Returns admin_id, admin_name, admin_access_code, connection_code so the PC can load the same hub as the phone."""
     data = body
     code = (data.get("code") or "").strip()
     db = get_db()
@@ -1690,7 +1690,12 @@ def desktop_link_to_admin(body, query, headers):
     info = db.get_admin_by_desktop_link_code(code)
     if not info:
         return (404, {"message": "Invalid or expired code"})
-    return (200, {"admin_id": info["admin_id"], "admin_name": info["admin_name"]})
+    return (200, {
+        "admin_id": info["admin_id"],
+        "admin_name": info["admin_name"],
+        "admin_access_code": info.get("admin_access_code", ""),
+        "connection_code": info.get("connection_code", ""),
+    })
 def user_create_desktop_link_code(body, query, headers):
     """POST { "bot_id": "...", "api_key": "..." } ΓåÆ user (app) creates a one-time code for desktop to link to this user.
     Returns { "code": "...", "expires_in": 300, "user_name": "..." }. Code valid 5 min; one-time use."""

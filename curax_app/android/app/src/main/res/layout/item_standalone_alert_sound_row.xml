@@ -6,10 +6,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
-    app:cardBackgroundColor="@color/summary_card"
+    app:cardBackgroundColor="@color/standalone_inventory_card"
     app:cardCornerRadius="12dp"
     app:cardElevation="1dp"
-    app:strokeColor="@color/summary_stroke"
+    app:strokeColor="@color/standalone_inventory_row_stroke"
     app:strokeWidth="@dimen/standalone_sound_card_stroke">
 
     <LinearLayout

@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -42,6 +43,25 @@ class DoseTrackingFragment : Fragment() {
         }.maxOrNull() ?: 0
         val hi = maxOf(maxN, 6)
         return (1..hi).map { "B$it" }
+    }
+
+    private fun medicineAtSelectedBox(): AdminDemoData.Medicine? {
+        val key = doseSelectedBoxUpper ?: return null
+        return AdminDemoData.medicines.find { it.box.trim().equals(key, ignoreCase = true) }
+    }
+
+    private fun updateScheduleSummary(v: View) {
+        val tv = v.findViewById<TextView>(R.id.tvDoseScheduleSummary) ?: return
+        val med = medicineAtSelectedBox()
+        if (med != null) {
+            val timesLine = getString(R.string.medicine_detail_times, med.displayScheduleLabel().ifBlank { "—" })
+            val hint = getString(R.string.dose_tracking_schedule_window_hint)
+            tv.text = "$timesLine\n$hint"
+        } else if (doseSelectedBoxUpper != null) {
+            tv.text = getString(R.string.dose_tracking_schedule_summary_slot_empty, doseSelectedBoxUpper!!)
+        } else {
+            tv.text = getString(R.string.dose_tracking_schedule_summary_empty)
+        }
     }
 
     private fun doseSlotSet(): Set<String> =
@@ -175,14 +195,15 @@ class DoseTrackingFragment : Fragment() {
 
     private fun rebuildDoseBoxGrid(v: View) {
         val ctx = requireContext()
-        val ledRing = ContextCompat.getColor(ctx, R.color.dose_box_led_ring)
-        val normalStroke = ContextCompat.getColor(ctx, R.color.med_box_stroke)
-        val fillNormal = ContextCompat.getColor(ctx, R.color.med_box_bg)
-        val fillSelected = ContextCompat.getColor(ctx, R.color.dose_box_bg_selected)
+        val primaryBorder = ContextCompat.getColor(ctx, R.color.button_primary_bg)
+        val fillClear = Color.TRANSPARENT
+        // Mild “hover” on selected: same outline colour as Mark Dose button + soft tint inside
+        val fillSelected = ColorUtils.setAlphaComponent(primaryBorder, 32)
+        val primaryText = ContextCompat.getColor(ctx, R.color.text_primary)
+        val secondaryText = ContextCompat.getColor(ctx, R.color.text_secondary)
         val d = resources.displayMetrics.density
-        val strokeSel = (5f * d).toInt().coerceIn(4, 10)
         val strokeNorm = (2f * d).toInt().coerceAtLeast(2)
-        val elevSel = (8f * d).coerceIn(6f, 22f)
+        val strokeSel = (3.5f * d).toInt().coerceIn(4, 12)
         for (box in doseSlotsForMode()) {
             val triple = doseBoxBinding(box) ?: continue
             val card = v.findViewById<MaterialCardView>(triple.first) ?: continue
@@ -190,26 +211,29 @@ class DoseTrackingFragment : Fragment() {
             val qtyTv = v.findViewById<TextView>(triple.third) ?: continue
             val m = AdminDemoData.medicines.find { it.box.equals(box, ignoreCase = true) }
             if (m != null && m.name.isNotBlank()) {
-                nameTv.text = m.name
+                nameTv.text = m.name.trim()
+                nameTv.maxLines = 1
+                nameTv.ellipsize = TextUtils.TruncateAt.END
                 qtyTv.text = getString(R.string.dose_box_qty_left, m.stock)
+                nameTv.setTextColor(primaryText)
+                qtyTv.setTextColor(secondaryText)
             } else {
                 nameTv.text = getString(R.string.dose_box_empty_label)
+                nameTv.maxLines = 1
+                nameTv.ellipsize = TextUtils.TruncateAt.END
                 qtyTv.text = ""
+                nameTv.setTextColor(secondaryText)
+                qtyTv.setTextColor(secondaryText)
             }
             val sel = doseSelectedBoxUpper == box.uppercase(Locale.US)
             card.strokeWidth = if (sel) strokeSel else strokeNorm
-            card.strokeColor = if (sel) ledRing else normalStroke
-            card.setCardBackgroundColor(if (sel) fillSelected else fillNormal)
-            card.cardElevation = if (sel) elevSel else 0f
+            card.strokeColor = primaryBorder
+            card.setCardBackgroundColor(if (sel) fillSelected else fillClear)
+            card.cardElevation = 0f
             card.clipToOutline = true
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                if (sel) {
-                    card.outlineSpotShadowColor = ColorUtils.setAlphaComponent(ledRing, 0xDD)
-                    card.outlineAmbientShadowColor = ColorUtils.setAlphaComponent(ledRing, 0x55)
-                } else {
-                    card.outlineSpotShadowColor = Color.TRANSPARENT
-                    card.outlineAmbientShadowColor = Color.TRANSPARENT
-                }
+                card.outlineSpotShadowColor = Color.TRANSPARENT
+                card.outlineAmbientShadowColor = Color.TRANSPARENT
             }
         }
     }
@@ -220,6 +244,7 @@ class DoseTrackingFragment : Fragment() {
         } else {
             rebuildDoseBoxGrid(v)
         }
+        updateScheduleSummary(v)
     }
 
     private fun rebuildDoseChips(v: View) {
@@ -299,7 +324,9 @@ class DoseTrackingFragment : Fragment() {
         selectedMedicine = still
         doseSelectedBoxUpper = selectedMedicine?.box?.trim()?.ifEmpty { null }?.uppercase(Locale.US)
         rebuildDoseUi(v)
-        historyAdapter?.submit(DoseTrackingLocalStore.readLog(requireContext()))
+        val logRows = DoseTrackingLocalStore.readLog(requireContext())
+            .filter { DoseIntakeClassifier.isManualMarkDoseLogKind(it["kind"]?.toString()) }
+        historyAdapter?.submit(logRows)
         v.findViewById<RecyclerView>(R.id.rvDoseHistory)?.requestLayout()
         updateMarkButtonState(v)
         if (bleBridgeEnabled()) {
@@ -320,18 +347,23 @@ class DoseTrackingFragment : Fragment() {
             addedAt = 0L,
         )
 
-    private fun medicineToInventory(m: AdminDemoData.Medicine, salt: Int): AdminOverviewFragment.InventoryItem =
-        AdminOverviewFragment.InventoryItem(
+    private fun medicineToInventory(m: AdminDemoData.Medicine, salt: Int): AdminOverviewFragment.InventoryItem {
+        val eff = m.effectiveScheduleTimes()
+        val multi = m.usesMultipleTimesPerDay()
+        return AdminOverviewFragment.InventoryItem(
             id = (m.box.hashCode().toLong() + salt),
             name = m.name,
             stock = m.stock,
             dosePerDay = m.dosePerDay,
-            exactTime = m.exactTime,
+            exactTime = eff.firstOrNull() ?: m.exactTime,
             expiry = m.expiry,
             status = m.status,
             box = m.box,
             addedAt = System.currentTimeMillis(),
+            useMultipleTimesPerDay = multi,
+            scheduleTimesList = eff.toMutableList(),
         )
+    }
 
     private fun buildSlotsForUi(): List<AdminOverviewFragment.InventoryItem> {
         val list = mutableListOf<AdminOverviewFragment.InventoryItem>()
@@ -381,25 +413,45 @@ class DoseTrackingFragment : Fragment() {
             CuraxFeedback.warn(this, getString(R.string.dose_tracking_select_box))
             return
         }
-        val phase = DoseIntakeClassifier.slotPhase(m)
+        val ctxMark = DoseIntakeClassifier.markContext(m)
         val tsFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
         val ts = tsFmt.format(Date())
         val dayKey = LocalAlertsController.localDayKeyToday()
-        val doseAmt = m.dosePerDay.coerceAtLeast(1)
+        val doseAmt = m.dosePerAdministration()
+        val slotForLog = ctxMark.activeSlotHhMm
 
-        when (phase) {
+        when (ctxMark.phase) {
             DoseIntakeClassifier.SlotPhase.NO_SCHEDULE -> {
                 CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_no_time))
             }
             DoseIntakeClassifier.SlotPhase.TOO_EARLY -> {
-                CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_too_early))
+                val next = ctxMark.nextSlotHhMm
+                if (next != null) {
+                    CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_too_early_next, next))
+                } else {
+                    CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_too_early))
+                }
+            }
+            DoseIntakeClassifier.SlotPhase.BETWEEN_SLOTS -> {
+                val next = ctxMark.nextSlotHhMm
+                if (next != null) {
+                    CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_between_slots, next))
+                } else {
+                    CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_too_late))
+                }
+            }
+            DoseIntakeClassifier.SlotPhase.TOO_LATE -> {
+                CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_too_late))
             }
             DoseIntakeClassifier.SlotPhase.ON_TIME, DoseIntakeClassifier.SlotPhase.LATE -> {
-                if (m.stock < doseAmt) {
+                val slot = slotForLog
+                if (slot == null) {
+                    CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_no_time))
+                } else if (m.stock < doseAmt) {
                     CuraxFeedback.warn(this, getString(R.string.dose_tracking_err_low_stock))
                     refreshAll()
                     return
-                }
+                } else {
                 val newStock = m.stock - doseAmt
                 val threshold = AdminDemoData.getLowStockThreshold()
                 val newStatus = when {
@@ -408,8 +460,8 @@ class DoseTrackingFragment : Fragment() {
                     else -> "Normal"
                 }
                 val updated = m.copy(stock = newStock, status = newStatus)
-                val kind = DoseIntakeClassifier.kindForSuccessfulMark(phase)
-                AdminDemoData.mergeMedicines(listOf(updated))
+                val kind = DoseIntakeClassifier.kindForSuccessfulMark(ctxMark.phase)
+                AdminDemoData.mergeMedicines(requireContext(), listOf(updated))
                 DoseTrackingLocalStore.appendLogEntry(
                     requireContext(),
                     mapOf(
@@ -419,9 +471,10 @@ class DoseTrackingFragment : Fragment() {
                         "dose_taken" to doseAmt,
                         "remaining" to newStock,
                         "kind" to kind,
+                        "scheduled_slot" to slot,
                     ),
                 )
-                DoseTrackingLocalStore.markTakenForDay(requireContext(), m.box, dayKey)
+                DoseTrackingLocalStore.markTakenForSlot(requireContext(), m.box, dayKey, slot)
                 selectedMedicine = AdminDemoData.medicines.find { it.box.equals(m.box, ignoreCase = true) }
                 StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
                 requireContext().sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
@@ -437,12 +490,13 @@ class DoseTrackingFragment : Fragment() {
                     CuraxEsp32BleLink.sendLedOff(bx)
                     lastEsp32LedBox = null
                 }
-                val msg = if (phase == DoseIntakeClassifier.SlotPhase.ON_TIME) {
+                val msg = if (ctxMark.phase == DoseIntakeClassifier.SlotPhase.ON_TIME) {
                     getString(R.string.dose_tracking_saved_on_time)
                 } else {
                     getString(R.string.dose_tracking_saved_late)
                 }
                 CuraxFeedback.success(this, msg)
+                }
             }
         }
         refreshAll()
@@ -478,7 +532,8 @@ class DoseTrackingFragment : Fragment() {
             fun bind(m: Map<String, Any?>) {
                 ts.text = m["timestamp"]?.toString().orEmpty()
                 box.text = m["box"]?.toString().orEmpty()
-                med.text = m["medicine"]?.toString().orEmpty()
+                val slot = m["scheduled_slot"]?.toString()?.trim().orEmpty()
+                med.text = if (slot.isNotEmpty()) "${m["medicine"]} ($slot)" else m["medicine"]?.toString().orEmpty()
                 val dt = m["dose_taken"]
                 dose.text = when (dt) {
                     is Number -> dt.toInt().toString()

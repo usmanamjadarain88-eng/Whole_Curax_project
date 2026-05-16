@@ -25,16 +25,27 @@
 
     <color name="surface_bg">#E6F2EC</color>
     <color name="surface_bg_bottom">#F3FAF6</color>
-    <color name="summary_card">#FFFFFF</color>
-    <color name="summary_stroke">#CCDFD6</color>
+    <!-- Raised panels (drawer, logs, T-adjust, dose summary): sage-tinted — not stark #FFF (matches surface flow) -->
+    <color name="summary_card">#EAF4EF</color>
+    <color name="summary_stroke">#B5CFC4</color>
 
-    <color name="alert_card_bg">#FFFFFF</color>
-    <color name="alert_card_stroke">#CEE0D8</color>
+    <color name="alert_card_bg">#ECF6F0</color>
+    <color name="alert_card_stroke">#C8DDD3</color>
 
     <color name="key_value_bg">#F1F8F4</color>
     <!-- Sign-in fields: avoid bright yellow paste/selection over filled boxes -->
     <color name="sign_in_text_highlight">#662E7A5A</color>
     <color name="key_value_stroke">#C8DDD3</color>
+
+    <!-- Table / grid header cells: slightly deeper than summary_card for separation -->
+    <color name="table_header_bg">#E0EBE5</color>
+
+    <!-- Stock donut + reports ring: visible contrast on sage summary panels -->
+    <color name="donut_ring_fill">#B0C8BA</color>
+    <color name="donut_ring_stroke">#4A7F69</color>
+    <!-- Match panel so ring is not a “floating white disc” clipped by the card -->
+    <color name="donut_center_fill">@color/summary_card</color>
+    <color name="reports_ring_track">#6F9684</color>
 
     <!-- Admin auth fields: visible caret on pale green boxes -->
     <color name="auth_cursor_green">#0E7A57</color>
@@ -102,9 +113,12 @@
     <!-- Default-mode dose grid: selected box LED ring + slightly brighter fill -->
     <color name="dose_box_led_ring">#8FFFD4</color>
     <color name="dose_box_bg_selected">#148A62</color>
+    <!-- Dose Tracking (default / linked): outline-only box grid on surface — not dashboard solid tiles -->
+    <color name="dose_tracking_box_stroke">#B0C9BF</color>
+    <color name="dose_tracking_box_stroke_selected">#0E7A57</color>
     <!-- User standalone dashboard medicine boxes only (applied in code). -->
-    <color name="med_box_standalone_bg">#1E293B</color>
-    <color name="med_box_standalone_stroke">#334155</color>
+    <color name="med_box_standalone_bg">#0F2A22</color>
+    <color name="med_box_standalone_stroke">#3A6356</color>
     <color name="med_box_standalone_text">#F8FAFC</color>
     <!-- Live ambient screen: classic fixed-digit style panel -->
     <color name="ambient_lcd_panel">#072019</color>
@@ -144,26 +158,26 @@
     <color name="standalone_log_info">#06B6D4</color>
     <color name="standalone_section_account">#9333EA</color>
     <color name="standalone_section_system">#EA580C</color>
-    <color name="standalone_section_app">#2563EB</color>
+    <color name="standalone_section_app">@color/button_primary_bg</color>
     <color name="standalone_card_glow_stroke">#99CBD9</color>
 
-    <!-- Standalone shell / chrome (light) -->
-    <color name="standalone_shell_grad_start">#E8EEFF</color>
+    <!-- Standalone shell / chrome (light) — primary green, not blue (Health Hub hero keeps its own gradient). -->
+    <color name="standalone_shell_grad_start">#E8F4ED</color>
     <color name="standalone_shell_grad_end">#F0FDF4</color>
-    <color name="standalone_tab_canvas">#F8FAFC</color>
+    <color name="standalone_tab_canvas">#F4FAF7</color>
     <color name="standalone_tab_strip_bg">#FFFFFF</color>
-    <color name="standalone_tab_indicator">#2563EB</color>
+    <color name="standalone_tab_indicator">@color/button_primary_bg</color>
     <color name="standalone_tab_text_selected">#0F172A</color>
     <color name="standalone_tab_text_normal">#64748B</color>
-    <color name="standalone_tab_ripple">#182563EB</color>
+    <color name="standalone_tab_ripple">#180E7A57</color>
     <color name="standalone_on_hero">#FFFFFF</color>
-    <color name="standalone_on_hero_muted">#E0E7FF</color>
+    <color name="standalone_on_hero_muted">#D4EDE4</color>
     <!-- Health hub mini ECG: soft contrast on hero gradient, not neon -->
-    <color name="standalone_health_hub_ecg_line">#B4C2EB</color>
+    <color name="standalone_health_hub_ecg_line">#B8E6D0</color>
     <!-- ECG line on mint login-gradient hero (readable on #90FF9C–#CEFFD3) -->
     <color name="standalone_health_hub_ecg_line_on_mint">#1E6B4A</color>
     <color name="standalone_inventory_card">#FFFFFF</color>
-    <color name="standalone_inventory_row_stroke">#C7D2FE</color>
+    <color name="standalone_inventory_row_stroke">#B0C9BF</color>
     <color name="standalone_inventory_strip_normal">#22C55E</color>
     <color name="standalone_inventory_strip_low">#F59E0B</color>
     <color name="standalone_inventory_strip_exp">#EF4444</color>
@@ -175,7 +189,7 @@
     <color name="standalone_medicine_chip_stroke_normal">#22C55E</color>
     <color name="standalone_medicine_chip_stroke_low">#D97706</color>
     <color name="standalone_medicine_chip_stroke_exp">#F9A8A8</color>
-    <color name="standalone_medicine_chip_ripple">#402563EB</color>
+    <color name="standalone_medicine_chip_ripple">#400E7A57</color>
     <color name="standalone_medicine_chip_dot_tint_normal">#16A34A</color>
     <color name="standalone_medicine_chip_dot_tint_low">#D97706</color>
     <color name="standalone_medicine_chip_dot_tint_exp">#FB7185</color>

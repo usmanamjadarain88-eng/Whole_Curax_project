@@ -220,7 +220,12 @@ class AdminMedicalRemindersFragment : Fragment() {
         container.removeAllViews()
         for ((index, r) in items.withIndex()) {
             val lines = lineBuilder(r)
-            val card = layoutInflater.inflate(R.layout.item_medical_reminder_card, container, false) as MaterialCardView
+            val itemLayout = if (CareUi.effectiveStandaloneShell(requireContext())) {
+                R.layout.item_medical_reminder_card_standalone
+            } else {
+                R.layout.item_medical_reminder_card
+            }
+            val card = layoutInflater.inflate(itemLayout, container, false) as MaterialCardView
             val tv = card.findViewById<TextView>(R.id.tvReminderCardText)
             tv.text = lines.filter { it.isNotBlank() }.joinToString(" - ")
             if (tv.text.isBlank()) tv.text = "-"

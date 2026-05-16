@@ -33,6 +33,8 @@ class PinSetupActivity : AppCompatActivity() {
 
         val etPin = findViewById<TextInputEditText>(R.id.etPin)
         val etConfirmPin = findViewById<TextInputEditText>(R.id.etConfirmPin)
+        PinFieldPlaceholder.bind(this, etPin, R.string.pin_hint_4_digit)
+        PinFieldPlaceholder.bind(this, etConfirmPin, R.string.pin_confirm_hint)
         val btnSavePin = findViewById<MaterialButton>(R.id.btnSavePin)
         val btnSkip = findViewById<MaterialButton>(R.id.btnSkipPin)
         val btnRemovePin = findViewById<MaterialButton>(R.id.btnRemovePin)
@@ -65,6 +67,7 @@ class PinSetupActivity : AppCompatActivity() {
         btnRemovePin.setOnClickListener {
             prefs.appPin = ""
             store.disablePin()
+            CareUnlockPinSync.postIfUserLinked(this, "")
             CuraxFeedback.successThen(this, R.string.pin_removed) { finish() }
         }
 
@@ -91,6 +94,7 @@ class PinSetupActivity : AppCompatActivity() {
                 else -> {
                     store.savePin(pin)
                     prefs.appPin = pin
+                    CareUnlockPinSync.postIfUserLinked(this, pin)
                     if (fromSettings) {
                         CuraxFeedback.successThen(this, R.string.pin_saved) { finish() }
                     } else {
@@ -111,6 +115,7 @@ class PinSetupActivity : AppCompatActivity() {
             } else {
                 store.disablePin()
                 prefs.appPin = ""
+                CareUnlockPinSync.postIfUserLinked(this, "")
                 openDashboard(nextRole)
             }
         }

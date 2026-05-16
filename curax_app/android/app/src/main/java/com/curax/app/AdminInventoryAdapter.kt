@@ -53,8 +53,8 @@ class AdminInventoryAdapter(
             tvMedicine.text = item.name.ifBlank { "—" }
             tvBox.text = item.box.ifBlank { "—" }
             tvStock.text = item.stock.toString()
-            tvDose.text = item.dosePerDay.toString()
-            tvTime.text = item.exactTime.ifBlank { "—" }
+            tvDose.text = item.displayDoseCell()
+            tvTime.text = item.displayTimesLabel().ifBlank { "—" }
             tvExpiry.text = item.expiry.ifBlank { "—" }
             tvStatus.text = status
 

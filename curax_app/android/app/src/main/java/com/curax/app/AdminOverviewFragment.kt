@@ -51,6 +51,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.datepicker.MaterialDatePicker
+import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import okhttp3.MediaType.Companion.toMediaType
@@ -78,8 +79,46 @@ class AdminOverviewFragment : Fragment() {
         var expiry: String,
         var status: String,
         var box: String,
-        var addedAt: Long
-    )
+        var addedAt: Long,
+        /** When true, [scheduleTimesList] holds all daily times (max 4); otherwise single [exactTime]. */
+        var useMultipleTimesPerDay: Boolean = false,
+        var scheduleTimesList: MutableList<String> = mutableListOf(),
+    ) {
+        fun displayTimesLabel(): String {
+            val times = effectiveTimesForApi()
+            return times.joinToString(" · ")
+        }
+
+        fun effectiveTimesForApi(): List<String> {
+            val cleaned = MedicineSchedule.dedupeSorted(scheduleTimesList)
+            if (useMultipleTimesPerDay && cleaned.size > 1) {
+                return cleaned.take(MedicineSchedule.MAX_SCHEDULE_SLOTS)
+            }
+            val one = MedicineSchedule.normalizeToHhMm(exactTime)
+            return listOf(if (one.isNotEmpty()) one else "08:00")
+        }
+
+        fun dosePerAdministrationAmount(): Int = dosePerDay.coerceAtLeast(1)
+
+        fun totalDoseUnitsPerDay(): Int {
+            val slots = effectiveTimesForApi().size.coerceAtLeast(1)
+            return if (useMultipleTimesPerDay && slots > 1) {
+                dosePerAdministrationAmount() * slots
+            } else {
+                dosePerAdministrationAmount()
+            }
+        }
+
+        /** Compact dose column: multi → "1×3", single → "2". */
+        fun displayDoseCell(): String {
+            val slots = effectiveTimesForApi().size.coerceAtLeast(1)
+            return if (useMultipleTimesPerDay && slots > 1) {
+                "${dosePerDay}×$slots"
+            } else {
+                dosePerDay.toString()
+            }
+        }
+    }
 
     private val allItems = mutableListOf<InventoryItem>()
     private var selectedItemId: Long? = null
@@ -182,6 +221,12 @@ class AdminOverviewFragment : Fragment() {
 
     private fun setupOverviewPullToRefresh(root: View) {
         val swipe = root.findViewById<SwipeRefreshLayout>(R.id.swipeAdminOverview) ?: return
+        // User home shell already wraps the pager in pull-to-refresh; a nested swipe here fires on tab swipes.
+        if (activity is UserStandaloneActivity) {
+            swipe.isEnabled = false
+            swipe.isRefreshing = false
+            return
+        }
         val accent = ContextCompat.getColor(requireContext(), R.color.button_primary_bg)
         swipe.setColorSchemeColors(accent)
         swipe.setProgressBackgroundColorSchemeColor(
@@ -257,8 +302,8 @@ class AdminOverviewFragment : Fragment() {
         super.onResume()
         val v = view ?: return
         if (isUserApp()) {
-            // Standalone should not refetch on every tab switch; live changes arrive via DataBus sync.
-            refreshStandaloneFromMemory()
+            // No network fetch on tab switch; repaint from memory off the immediate resume path.
+            v.post { refreshStandaloneFromMemory() }
             return
         }
         fetchAdminDataWhenDashboardShown(v)
@@ -409,7 +454,7 @@ class AdminOverviewFragment : Fragment() {
                                 val uuname = data.optString("user_username", "").trim()
                                 if (uuname.isNotEmpty()) Prefs(requireContext()).userHubUsername = uuname
                             }
-                            AdminDemoData.replaceMedicines(medicinesList)
+                            AdminDemoData.replaceMedicines(requireContext(), medicinesList)
                             AdminDemoData.replaceApiAlerts(apiAlerts)
                             val n = AdminDemoData.medicines.size
                             allItems.clear()
@@ -418,7 +463,9 @@ class AdminOverviewFragment : Fragment() {
                             refreshDashboard(v)
                             adherenceChart?.data = computeAdherenceData()
                             if (n > 0) {
-                                CuraxFeedback.success(requireActivity(), "Imported $n medicines from desktop.")
+                                if (!CareUi.effectiveStandaloneShell(requireContext())) {
+                                    CuraxFeedback.success(requireActivity(), "Imported $n medicines from desktop.")
+                                }
                             } else {
                                 CuraxFeedback.warn(requireActivity(), "No medicines imported from desktop.", long = true)
                             }
@@ -481,12 +528,14 @@ class AdminOverviewFragment : Fragment() {
                     name = m.name,
                     stock = m.stock,
                     dosePerDay = m.dosePerDay,
-                    exactTime = m.exactTime,
+                    exactTime = m.effectiveScheduleTimes().firstOrNull() ?: m.exactTime,
                     expiry = m.expiry,
                     status = m.status,
                     box = m.box,
-                    addedAt = System.currentTimeMillis() - (10000L - order * 10)
-                )
+                    addedAt = System.currentTimeMillis() - (10000L - order * 10),
+                    useMultipleTimesPerDay = m.usesMultipleTimesPerDay(),
+                    scheduleTimesList = m.effectiveScheduleTimes().toMutableList(),
+                ),
             )
             order++
         }
@@ -576,7 +625,9 @@ class AdminOverviewFragment : Fragment() {
                 maybeStandaloneUserPushMedicine(getString(R.string.pending_sync_detail_medicine_removed))
                 refreshDashboard(view)
                 refreshInventoryList(view)
-                CuraxFeedback.success(this, "Box cleared")
+                if (!CareUi.effectiveStandaloneShell(requireContext())) {
+                    CuraxFeedback.success(this, "Box cleared")
+                }
             }
         }
 
@@ -687,12 +738,24 @@ class AdminOverviewFragment : Fragment() {
         val ctx = requireContext()
         val status = computedStatus(item)
         val boxLabel = item.box.ifBlank { "—" }
+        val timesLabel = item.displayTimesLabel().ifBlank { "—" }
         val detail = buildString {
             appendLine(ctx.getString(R.string.medicine_detail_name, item.name))
             appendLine(ctx.getString(R.string.medicine_detail_box, boxLabel))
             appendLine(ctx.getString(R.string.medicine_detail_stock, item.stock))
-            appendLine(ctx.getString(R.string.medicine_detail_dose, item.dosePerDay))
-            appendLine(ctx.getString(R.string.medicine_detail_time, item.exactTime.ifBlank { "—" }))
+            val slots = item.effectiveTimesForApi().size
+            val doseLine = if (item.useMultipleTimesPerDay && slots > 1) {
+                ctx.getString(
+                    R.string.medicine_detail_dose_per_time_multi,
+                    item.dosePerAdministrationAmount(),
+                    item.totalDoseUnitsPerDay(),
+                    slots,
+                )
+            } else {
+                ctx.getString(R.string.medicine_detail_dose_per_day_single, item.dosePerDay)
+            }
+            appendLine(doseLine)
+            appendLine(ctx.getString(R.string.medicine_detail_times, timesLabel))
             appendLine(ctx.getString(R.string.medicine_detail_status, status))
             append(ctx.getString(R.string.medicine_detail_expiry, item.expiry.ifBlank { "—" }))
         }
@@ -704,284 +767,289 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun showAddDialog(view: View) {
+        if (!isAdded) return
         val available = availableBoxes()
         if (available.isEmpty()) {
-            CuraxFeedback.warn(this, "All 6 boxes are filled")
+            CuraxFeedback.warn(this, getString(R.string.medicine_form_all_boxes_full))
             return
         }
-
-        val container = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(36, 20, 36, 0)
-        }
-
-        val etName = EditText(requireContext()).apply { hint = "Medicine name" }
-        val etStock = EditText(requireContext()).apply {
-            hint = "Stock"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        }
-        val etDose = EditText(requireContext()).apply {
-            hint = "Dose/day (1-4)"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        }
-        val expiryFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        var selectedExpiry = expiryFormat.format(Calendar.getInstance(Locale.US).time)
-        val tvExpiry = TextView(requireContext()).apply {
-            text = "Expiry: $selectedExpiry"
-            setPadding(0, 32, 0, 8)
-        }
-        val btnExpiry = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "Calendar"
-            setOnClickListener {
-                val picker = MaterialDatePicker.Builder.datePicker()
-                    .setSelection(Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                        val parsed = try { expiryFormat.parse(selectedExpiry) } catch (_: Exception) { null }
-                        time = parsed ?: java.util.Date()
-                    }.timeInMillis)
-                    .build()
-                picker.addOnPositiveButtonClickListener { millis ->
-                    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = millis }
-                    selectedExpiry = "${cal.get(Calendar.YEAR)}-${(cal.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}-${cal.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')}"
-                    tvExpiry.text = "Expiry: $selectedExpiry"
-                }
-                picker.show(parentFragmentManager, "expiry_picker")
-            }
-        }
-        var selectedTime = "08:00"
-        val tvTime = TextView(requireContext()).apply {
-            setPadding(0, 24, 0, 8)
-            text = "Time: $selectedTime"
-        }
-        val btnTime = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "Set time"
-            setOnClickListener {
-                val parts = selectedTime.split(":")
-                val hour = parts.getOrNull(0)?.toIntOrNull() ?: 8
-                val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                val picker = MaterialTimePicker.Builder()
-                    .setTimeFormat(TimeFormat.CLOCK_24H)
-                    .setHour(hour)
-                    .setMinute(minute)
-                    .build()
-                picker.addOnPositiveButtonClickListener {
-                    selectedTime = "${picker.hour.toString().padStart(2, '0')}:${picker.minute.toString().padStart(2, '0')}"
-                    tvTime.text = "Time: $selectedTime"
-                }
-                picker.show(parentFragmentManager, "time_picker_add")
-            }
-        }
-        val timeRow = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(tvTime, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(btnTime)
-        }
-        val expiryRow = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(tvExpiry, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(btnExpiry)
-        }
-        val actvBox = android.widget.AutoCompleteTextView(requireContext()).apply {
-            hint = "Select empty box"
-            setAdapter(ArrayAdapter(requireContext(), android.R.layout.simple_list_item_1, available))
-            setText(available.first(), false)
-        }
-
-        container.addView(etName)
-        container.addView(etStock)
-        container.addView(etDose)
-        container.addView(timeRow)
-        container.addView(expiryRow)
-        container.addView(actvBox)
-
-        val addDialog = AlertDialog.Builder(requireContext())
-            .setTitle("Add Medicine")
-            .setView(container)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Add") { _, _ ->
-                val name = etName.text.toString().trim()
-                val stock = etStock.text.toString().trim().toIntOrNull() ?: -1
-                val dosePerDay = etDose.text.toString().trim().toIntOrNull() ?: -1
-                val expiry = selectedExpiry
-                val box = actvBox.text.toString().trim().uppercase()
-
-                if (name.isBlank() || stock < 0 || dosePerDay !in 1..4 || expiry.isBlank() || box !in availableBoxes()) {
-                    CuraxFeedback.warn(this, "Use valid values. Dose/day must be 1..4 and box must be empty")
-                    return@setPositiveButton
-                }
-
-                val newItem = InventoryItem(
-                    id = System.nanoTime(),
-                    name = name,
-                    stock = stock,
-                    dosePerDay = dosePerDay,
-                    exactTime = selectedTime,
-                    expiry = expiry,
-                    status = "Normal",
-                    box = box,
-                    addedAt = System.currentTimeMillis()
-                )
-                newItem.status = computedStatus(newItem)
-                allItems.add(newItem)
-                selectedItemId = newItem.id
-                adapter.setSelectedId(selectedItemId)
-                syncIntoSharedDemoData()
-                saveMedicinesToApi()
-                maybeStandaloneUserPushMedicine(getString(R.string.pending_sync_detail_medicine_added, name))
-                refreshDashboard(view)
-                refreshInventoryList(view)
-                CuraxFeedback.success(this, "Medicine added to $box")
-            }
-            .create()
-
-        addDialog.setOnShowListener {
-            addDialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(ContextCompat.getColor(requireContext(), R.color.connection_panel_title))
-            addDialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-        }
-        addDialog.show()
+        openMedicineEditor(view, null, available)
     }
 
     private fun showEditDialog(view: View, existing: InventoryItem) {
-        val container = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(36, 20, 36, 0)
+        openMedicineEditor(view, existing, null)
+    }
+
+    private fun openMedicineEditor(rootView: View, existing: InventoryItem?, addBoxes: List<String>?) {
+        if (!isAdded) return
+        val ctx = requireContext()
+        val form = layoutInflater.inflate(R.layout.dialog_medicine_form, null, false)
+        val etName = form.findViewById<TextInputEditText>(R.id.etMedName)
+        val etStock = form.findViewById<TextInputEditText>(R.id.etMedStock)
+        val tilDose = form.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.tilMedDose)
+        val etDose = form.findViewById<TextInputEditText>(R.id.etMedDose)
+        val tilBox = form.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.tilMedBox)
+        val etBox = form.findViewById<TextInputEditText>(R.id.etMedBox)
+        val actvBox = form.findViewById<android.widget.AutoCompleteTextView>(R.id.actvMedBox)
+        val swMulti = form.findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.swMultiTime)
+        val rowSingle = form.findViewById<LinearLayout>(R.id.rowSingleTime)
+        val tvSingle = form.findViewById<TextView>(R.id.tvSingleTime)
+        val btnPickSingle = form.findViewById<MaterialButton>(R.id.btnPickSingleTime)
+        val llMulti = form.findViewById<LinearLayout>(R.id.llMultiTimes)
+        val btnAddRow = form.findViewById<MaterialButton>(R.id.btnAddTimeRow)
+        val tvExpiry = form.findViewById<TextView>(R.id.tvExpiry)
+        val btnExpiry = form.findViewById<MaterialButton>(R.id.btnPickExpiry)
+
+        val expiryFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        var selectedExpiry = existing?.expiry?.takeIf { it.isNotBlank() }
+            ?: expiryFormat.format(Calendar.getInstance(Locale.US).time)
+        fun refreshExpiryLabel() {
+            tvExpiry.text = getString(R.string.medicine_form_expiry_value, selectedExpiry)
+        }
+        refreshExpiryLabel()
+
+        var singleTime = MedicineSchedule.normalizeToHhMm(existing?.exactTime ?: "08:00").ifEmpty { "08:00" }
+        fun refreshSingleTimeLabel() {
+            tvSingle.text = getString(R.string.medicine_form_time_value, singleTime)
+        }
+        refreshSingleTimeLabel()
+
+        fun readTimesFromRows(): List<String> {
+            val out = mutableListOf<String>()
+            for (i in 0 until llMulti.childCount) {
+                val t = (llMulti.getChildAt(i).tag as? String).orEmpty()
+                if (t.isNotEmpty()) out.add(MedicineSchedule.normalizeToHhMm(t))
+            }
+            return MedicineSchedule.dedupeSorted(out)
         }
 
-        val etName = EditText(requireContext()).apply {
-            hint = "Medicine name"
-            setText(existing.name)
-        }
-        val etStock = EditText(requireContext()).apply {
-            hint = "Stock"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(existing.stock.toString())
-        }
-        val etDose = EditText(requireContext()).apply {
-            hint = "Dose/day (1-4)"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setText(existing.dosePerDay.toString())
-        }
-        var selectedTime = existing.exactTime.ifBlank { "08:00" }
-        val tvTime = TextView(requireContext()).apply {
-            setPadding(0, 24, 0, 8)
-            text = "Time: $selectedTime"
-        }
-        val btnTime = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "Set time"
-            setOnClickListener {
-                val parts = selectedTime.split(":")
-                val hour = parts.getOrNull(0)?.toIntOrNull() ?: 8
-                val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        fun addTimeRow(initial: String, pickerTag: String) {
+            val row = layoutInflater.inflate(R.layout.item_medicine_time_row, llMulti, false)
+            val t0 = MedicineSchedule.normalizeToHhMm(initial).ifEmpty { "08:00" }
+            row.tag = t0
+            row.findViewById<TextView>(R.id.tvTimeLabel).text =
+                getString(R.string.medicine_form_time_row_label, t0)
+            row.findViewById<MaterialButton>(R.id.btnEditTime).setOnClickListener {
+                val cur = (row.tag as? String) ?: t0
+                val parts = cur.split(":")
                 val picker = MaterialTimePicker.Builder()
                     .setTimeFormat(TimeFormat.CLOCK_24H)
-                    .setHour(hour)
-                    .setMinute(minute)
+                    .setHour(parts.getOrNull(0)?.toIntOrNull() ?: 8)
+                    .setMinute(parts.getOrNull(1)?.toIntOrNull() ?: 0)
                     .build()
                 picker.addOnPositiveButtonClickListener {
-                    selectedTime = "${picker.hour.toString().padStart(2, '0')}:${picker.minute.toString().padStart(2, '0')}"
-                    tvTime.text = "Time: $selectedTime"
+                    val nt = "${picker.hour.toString().padStart(2, '0')}:${picker.minute.toString().padStart(2, '0')}"
+                    row.tag = nt
+                    row.findViewById<TextView>(R.id.tvTimeLabel).text =
+                        getString(R.string.medicine_form_time_row_label, nt)
                 }
-                picker.show(parentFragmentManager, "time_picker_edit")
+                picker.show(parentFragmentManager, "med_editor_row_$pickerTag")
             }
-        }
-        val timeRow = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(tvTime, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(btnTime)
-        }
-        val expiryFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        var selectedExpiry = existing.expiry.ifBlank { expiryFormat.format(Calendar.getInstance(Locale.US).time) }
-        val tvExpiry = TextView(requireContext()).apply {
-            setPadding(0, 32, 0, 8)
-            text = "Expiry: $selectedExpiry"
-        }
-        val btnExpiry = MaterialButton(requireContext(), null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-            text = "Calendar"
-            setOnClickListener {
-                val cal = try {
-                    Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                        time = expiryFormat.parse(selectedExpiry) ?: java.util.Date()
-                    }
-                } catch (_: Exception) { Calendar.getInstance(TimeZone.getTimeZone("UTC")) }
-                val picker = MaterialDatePicker.Builder.datePicker()
-                    .setSelection(cal.timeInMillis)
-                    .build()
-                picker.addOnPositiveButtonClickListener { millis ->
-                    val c = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = millis }
-                    selectedExpiry = "${c.get(Calendar.YEAR)}-${(c.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}-${c.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')}"
-                    tvExpiry.text = "Expiry: $selectedExpiry"
+            row.findViewById<MaterialButton>(R.id.btnRemoveTime).setOnClickListener {
+                if (llMulti.childCount <= 2) {
+                    CuraxFeedback.warn(this@AdminOverviewFragment, getString(R.string.medicine_form_need_two_times))
+                    return@setOnClickListener
                 }
-                picker.show(parentFragmentManager, "expiry_picker_edit")
+                llMulti.removeView(row)
             }
-        }
-        val expiryRow = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.HORIZONTAL
-            addView(tvExpiry, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-            addView(btnExpiry)
-        }
-        val etBox = EditText(requireContext()).apply {
-            hint = if (CareUi.effectiveStandaloneShell(requireContext())) "Box (B1, B2, … any number)" else "Box (B1-B6)"
-            setText(existing.box)
+            llMulti.addView(row)
         }
 
-        container.addView(etName)
-        container.addView(etStock)
-        container.addView(etDose)
-        container.addView(timeRow)
-        container.addView(expiryRow)
-        container.addView(etBox)
+        fun seedMultiRowsFromList(seed: List<String>) {
+            llMulti.removeAllViews()
+            val list = MedicineSchedule.dedupeSorted(seed).toMutableList()
+            if (list.size < 2) {
+                list.add("12:00")
+                if (MedicineSchedule.dedupeSorted(list).size < 2) list.add("18:00")
+            }
+            val dedup = MedicineSchedule.dedupeSorted(list)
+            dedup.forEachIndexed { idx, t -> addTimeRow(t, "${idx}_${System.nanoTime()}") }
+        }
 
-        val editDialog = AlertDialog.Builder(requireContext())
-            .setTitle("Edit Medicine")
-            .setView(container)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Save") { _, _ ->
-                val name = etName.text.toString().trim()
-                val stock = etStock.text.toString().trim().toIntOrNull() ?: -1
-                val dosePerDay = etDose.text.toString().trim().toIntOrNull() ?: -1
+        fun applyMultiUi() {
+            val on = swMulti.isChecked
+            rowSingle.visibility = if (on) View.GONE else View.VISIBLE
+            llMulti.visibility = if (on) View.VISIBLE else View.GONE
+            btnAddRow.visibility = if (on) View.VISIBLE else View.GONE
+            if (on && llMulti.childCount == 0) {
+                seedMultiRowsFromList(listOf(singleTime, "12:00"))
+            }
+            tilDose.hint = getString(
+                if (on) R.string.medicine_form_dose_per_time else R.string.medicine_form_dose_per_day,
+            )
+        }
+
+        etName.setText(existing?.name.orEmpty())
+        etStock.setText(existing?.stock?.toString().orEmpty())
+        etDose.setText((existing?.dosePerDay ?: 1).toString())
+        swMulti.isChecked = existing?.useMultipleTimesPerDay == true
+        if (swMulti.isChecked) {
+            val seed = MedicineSchedule.dedupeSorted(existing?.scheduleTimesList ?: emptyList())
+                .ifEmpty { listOf(singleTime, "12:00") }
+            seedMultiRowsFromList(seed)
+        }
+        applyMultiUi()
+
+        swMulti.setOnCheckedChangeListener { _, _ ->
+            if (swMulti.isChecked && llMulti.childCount < 2) {
+                seedMultiRowsFromList(listOf(singleTime, "12:00"))
+            }
+            applyMultiUi()
+        }
+        btnAddRow.setOnClickListener {
+            if (llMulti.childCount >= MedicineSchedule.MAX_SCHEDULE_SLOTS) {
+                CuraxFeedback.warn(this, getString(R.string.medicine_form_max_times))
+                return@setOnClickListener
+            }
+            addTimeRow("12:00", "add_${System.nanoTime()}")
+        }
+
+        btnPickSingle.setOnClickListener {
+            val parts = singleTime.split(":")
+            val picker = MaterialTimePicker.Builder()
+                .setTimeFormat(TimeFormat.CLOCK_24H)
+                .setHour(parts.getOrNull(0)?.toIntOrNull() ?: 8)
+                .setMinute(parts.getOrNull(1)?.toIntOrNull() ?: 0)
+                .build()
+            picker.addOnPositiveButtonClickListener {
+                singleTime = "${picker.hour.toString().padStart(2, '0')}:${picker.minute.toString().padStart(2, '0')}"
+                refreshSingleTimeLabel()
+            }
+            picker.show(parentFragmentManager, "med_editor_single")
+        }
+
+        btnExpiry.setOnClickListener {
+            val cal = try {
+                Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                    time = expiryFormat.parse(selectedExpiry) ?: Date()
+                }
+            } catch (_: Exception) {
+                Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            }
+            val picker = MaterialDatePicker.Builder.datePicker().setSelection(cal.timeInMillis).build()
+            picker.addOnPositiveButtonClickListener { millis ->
+                val c = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = millis }
+                selectedExpiry = "${c.get(Calendar.YEAR)}-${(c.get(Calendar.MONTH) + 1).toString().padStart(2, '0')}-${c.get(Calendar.DAY_OF_MONTH).toString().padStart(2, '0')}"
+                refreshExpiryLabel()
+            }
+            picker.show(parentFragmentManager, "med_editor_expiry")
+        }
+
+        if (existing == null && addBoxes != null) {
+            tilBox.visibility = View.GONE
+            etBox.visibility = View.GONE
+            actvBox.visibility = View.VISIBLE
+            actvBox.hint = getString(R.string.medicine_form_select_box)
+            actvBox.setAdapter(ArrayAdapter(ctx, android.R.layout.simple_list_item_1, addBoxes))
+            actvBox.setText(addBoxes.first(), false)
+        } else {
+            tilBox.visibility = View.VISIBLE
+            etBox.visibility = View.VISIBLE
+            actvBox.visibility = View.GONE
+            etBox.setText(existing?.box.orEmpty())
+        }
+
+        val title = if (existing == null) getString(R.string.medicine_form_add_title) else getString(R.string.medicine_form_edit_title)
+        val posLabel = if (existing == null) getString(R.string.medicine_form_save_add) else getString(R.string.medicine_form_save_edit)
+        val dlg = MaterialAlertDialogBuilder(ctx)
+            .setTitle(title)
+            .setView(form)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(posLabel) { _, _ ->
+                val name = etName.text?.toString()?.trim().orEmpty()
+                val stock = etStock.text?.toString()?.trim()?.toIntOrNull() ?: -1
+                val dosePerDay = etDose.text?.toString()?.trim()?.toIntOrNull() ?: -1
                 val expiry = selectedExpiry
-                val box = etBox.text.toString().trim().uppercase()
+                val multi = swMulti.isChecked
+                val effTimes = if (multi) readTimesFromRows() else listOf(MedicineSchedule.normalizeToHhMm(singleTime))
+                val normTimes = MedicineSchedule.dedupeSorted(effTimes)
+                val box = if (existing == null) {
+                    actvBox.text.toString().trim().uppercase(Locale.US)
+                } else {
+                    etBox.text.toString().trim().uppercase(Locale.US)
+                }
 
-                val validBox = isValidMedicineBoxInput(box)
-                val occupiedByOther = allItems.any { it.id != existing.id && it.box.equals(box, true) }
-
-                if (name.isBlank() || stock < 0 || dosePerDay !in 1..4 || expiry.isBlank() || !validBox || occupiedByOther) {
-                    CuraxFeedback.warn(
-                        this,
-                        if (CareUi.effectiveStandaloneShell(requireContext())) {
-                            "Use valid data. Dose/day 1..4 and a unique box id (B1, B2, …)."
-                        } else {
-                            "Use valid data. Dose/day 1..4 and unique box B1-B6"
-                        },
-                    )
+                if (name.isBlank() || stock < 0 || dosePerDay !in 1..12 || expiry.isBlank()) {
+                    CuraxFeedback.warn(this, getString(R.string.medicine_form_invalid_basic))
+                    return@setPositiveButton
+                }
+                if (multi && normTimes.size < 2) {
+                    CuraxFeedback.warn(this, getString(R.string.medicine_form_need_two_times))
+                    return@setPositiveButton
+                }
+                if (multi && normTimes.size > MedicineSchedule.MAX_SCHEDULE_SLOTS) {
+                    CuraxFeedback.warn(this, getString(R.string.medicine_form_max_times))
                     return@setPositiveButton
                 }
 
-                existing.name = name
-                existing.stock = stock
-                existing.dosePerDay = dosePerDay
-                existing.exactTime = selectedTime
-                existing.expiry = expiry
-                existing.box = box
-                existing.status = computedStatus(existing)
-                selectedItemId = existing.id
-
-                adapter.setSelectedId(selectedItemId)
-                syncIntoSharedDemoData()
-                saveMedicinesToApi()
-                maybeStandaloneUserPushMedicine(getString(R.string.pending_sync_detail_medicine_updated, name))
-                refreshDashboard(view)
-                refreshInventoryList(view)
-                CuraxFeedback.success(this, "Medicine updated")
+                if (existing == null) {
+                    val avail = addBoxes ?: emptyList()
+                    if (box !in avail.map { it.uppercase(Locale.US) }) {
+                        CuraxFeedback.warn(this, getString(R.string.medicine_form_invalid_box))
+                        return@setPositiveButton
+                    }
+                    val newItem = InventoryItem(
+                        id = System.nanoTime(),
+                        name = name,
+                        stock = stock,
+                        dosePerDay = dosePerDay,
+                        exactTime = normTimes.first(),
+                        expiry = expiry,
+                        status = "Normal",
+                        box = box,
+                        addedAt = System.currentTimeMillis(),
+                        useMultipleTimesPerDay = multi,
+                        scheduleTimesList = normTimes.toMutableList(),
+                    )
+                    newItem.status = computedStatus(newItem)
+                    allItems.add(newItem)
+                    selectedItemId = newItem.id
+                    adapter.setSelectedId(selectedItemId)
+                    syncIntoSharedDemoData()
+                    saveMedicinesToApi()
+                    maybeStandaloneUserPushMedicine(getString(R.string.pending_sync_detail_medicine_added, name))
+                    refreshDashboard(rootView)
+                    refreshInventoryList(rootView)
+                    if (!CareUi.effectiveStandaloneShell(requireContext())) {
+                        CuraxFeedback.success(this, getString(R.string.medicine_form_added_ok, box))
+                    }
+                } else {
+                    val validBox = isValidMedicineBoxInput(box)
+                    val occupiedByOther = allItems.any { it.id != existing.id && it.box.equals(box, true) }
+                    if (!validBox || occupiedByOther) {
+                        CuraxFeedback.warn(this, getString(R.string.medicine_form_invalid_box_edit))
+                        return@setPositiveButton
+                    }
+                    existing.name = name
+                    existing.stock = stock
+                    existing.dosePerDay = dosePerDay
+                    existing.exactTime = normTimes.first()
+                    existing.expiry = expiry
+                    existing.box = box
+                    existing.useMultipleTimesPerDay = multi
+                    existing.scheduleTimesList.clear()
+                    existing.scheduleTimesList.addAll(normTimes)
+                    existing.status = computedStatus(existing)
+                    selectedItemId = existing.id
+                    adapter.setSelectedId(selectedItemId)
+                    syncIntoSharedDemoData()
+                    saveMedicinesToApi()
+                    maybeStandaloneUserPushMedicine(getString(R.string.pending_sync_detail_medicine_updated, name))
+                    refreshDashboard(rootView)
+                    refreshInventoryList(rootView)
+                    if (!CareUi.effectiveStandaloneShell(requireContext())) {
+                        CuraxFeedback.success(this, getString(R.string.medicine_form_updated_ok))
+                    }
+                }
+                LocalAlertsController.reschedule(ctx.applicationContext)
             }
             .create()
-
-        editDialog.setOnShowListener {
-            editDialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(ContextCompat.getColor(requireContext(), R.color.connection_panel_title))
-            editDialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        dlg.setOnShowListener {
+            dlg.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(ContextCompat.getColor(ctx, R.color.connection_panel_title))
+            dlg.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
         }
-        editDialog.show()
+        dlg.show()
     }
-
 
     private fun refreshInventoryList(view: View) {
         ensureInventorySeeded()
@@ -1570,7 +1638,7 @@ class AdminOverviewFragment : Fragment() {
             return makeDummyPoints()
         }
 
-        val expectedPerDay = allItems.sumOf { it.dosePerDay }.coerceAtLeast(0)
+        val expectedPerDay = allItems.sumOf { it.totalDoseUnitsPerDay() }.coerceAtLeast(0)
         if (expectedPerDay == 0) {
             return makeDummyPoints()
         }
@@ -1669,7 +1737,7 @@ class AdminOverviewFragment : Fragment() {
     }
 
     private fun formatMedicineLine(item: InventoryItem): String {
-        return "${item.name} | Box: ${item.box} | Stock: ${item.stock} | Dose/day: ${item.dosePerDay} | Time: ${item.exactTime} | Expiry: ${item.expiry}"
+        return "${item.name} | Box: ${item.box} | Stock: ${item.stock} | Dose: ${item.displayDoseCell()} (daily total ${item.totalDoseUnitsPerDay()}) | Times: ${item.displayTimesLabel()} | Expiry: ${item.expiry}"
     }
 
     private fun showKpiDetailsDialog(
@@ -1802,16 +1870,27 @@ class AdminOverviewFragment : Fragment() {
     private fun medicinesToJsonArray(): JSONArray {
         val arr = JSONArray()
         allItems.sortedBy { it.box }.forEach { item ->
+            val eff = item.effectiveTimesForApi()
+            val timesJa = JSONArray()
+            for (t in eff) timesJa.put(MedicineSchedule.normalizeToHhMm(t))
+            val totalDaily = item.totalDoseUnitsPerDay()
+            val perTime = item.dosePerAdministrationAmount()
+            val dosageStr =
+                if (item.useMultipleTimesPerDay && eff.size > 1) {
+                    "$perTime per time (${eff.size} times/day, $totalDaily total daily)"
+                } else {
+                    "$perTime per day"
+                }
             val o = JSONObject().apply {
                 put("name", item.name)
                 put("box_id", item.box)
                 put("quantity", item.stock)
                 put("low_stock", 5)
-                put("dosage", "${item.dosePerDay} per day")
-                put("dose_per_day", item.dosePerDay)
-                put("exact_time", item.exactTime)
-                put("instructions", "${item.dosePerDay} per day")
-                put("times", JSONArray().put(item.exactTime))
+                put("dosage", dosageStr)
+                put("dose_per_day", totalDaily)
+                put("exact_time", eff.first())
+                put("instructions", dosageStr)
+                put("times", timesJa)
                 put("expiry", item.expiry)
             }
             arr.put(o)
@@ -1839,14 +1918,26 @@ class AdminOverviewFragment : Fragment() {
     private fun medicinesToBoxesJsonObject(): JSONObject {
         val boxes = JSONObject()
         allItems.sortedBy { it.box }.forEach { item ->
+            val eff = item.effectiveTimesForApi()
+            val timesJa = JSONArray()
+            for (t in eff) timesJa.put(MedicineSchedule.normalizeToHhMm(t))
+            val totalDaily = item.totalDoseUnitsPerDay()
+            val perTime = item.dosePerAdministrationAmount()
+            val dosageStr =
+                if (item.useMultipleTimesPerDay && eff.size > 1) {
+                    "$perTime per time (${eff.size} times/day, $totalDaily total daily)"
+                } else {
+                    "$perTime per day"
+                }
             val med = JSONObject().apply {
                 put("name", item.name)
                 put("quantity", item.stock)
                 put("low_stock", 5)
-                put("dose_per_day", item.dosePerDay)
-                put("exact_time", item.exactTime)
-                put("instructions", "${item.dosePerDay} per day")
+                put("dose_per_day", totalDaily)
+                put("exact_time", eff.first())
+                put("instructions", dosageStr)
                 put("expiry", item.expiry)
+                put("times", timesJa)
             }
             boxes.put(item.box, med)
         }
@@ -1855,7 +1946,10 @@ class AdminOverviewFragment : Fragment() {
 
     private fun syncIntoSharedDemoData() {
         AdminDemoData.replaceMedicines(
+            requireContext(),
             allItems.map {
+                val eff = it.effectiveTimesForApi()
+                val multi = it.useMultipleTimesPerDay && eff.size > 1
                 AdminDemoData.Medicine(
                     name = it.name,
                     stock = it.stock,
@@ -1863,9 +1957,10 @@ class AdminOverviewFragment : Fragment() {
                     expiry = it.expiry,
                     status = it.status,
                     box = it.box,
-                    exactTime = it.exactTime
+                    exactTime = eff.first(),
+                    scheduleTimes = if (multi) eff else emptyList(),
                 )
-            }
+            },
         )
     }
 
@@ -2006,7 +2101,7 @@ class AdminOverviewFragment : Fragment() {
         sb.appendLine("SUMMARY")
         sb.appendLine("• Tracked medicines: ${meds.size}")
         sb.appendLine("• Care-team alerts (synced): ${apiAlerts.size}")
-        sb.appendLine("• Local inbox messages: ${local.size}")
+        sb.appendLine("• On-device inbox: ${local.size}")
         sb.appendLine()
         sb.appendLine("MEDICINES")
         if (meds.isEmpty()) {
@@ -2027,7 +2122,7 @@ class AdminOverviewFragment : Fragment() {
             }
         }
         sb.appendLine()
-        sb.appendLine("LOCAL INBOX")
+        sb.appendLine("ON-DEVICE INBOX")
         if (local.isEmpty()) {
             sb.appendLine("(none)")
         } else {

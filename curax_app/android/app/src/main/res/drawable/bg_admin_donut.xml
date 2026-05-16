@@ -1,14 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Inset keeps ring stroke inside parent bounds (avoids “cut off” at card corners). -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
+    <item
+        android:left="2dp"
+        android:top="2dp"
+        android:right="2dp"
+        android:bottom="2dp">
         <shape android:shape="oval">
-            <solid android:color="@color/key_value_bg" />
-            <stroke android:width="2dp" android:color="@color/summary_stroke" />
+            <solid android:color="@color/donut_ring_fill" />
+            <stroke
+                android:width="1.5dp"
+                android:color="@color/donut_ring_stroke" />
         </shape>
     </item>
-    <item android:left="24dp" android:top="24dp" android:right="24dp" android:bottom="24dp">
+    <item
+        android:left="22dp"
+        android:top="22dp"
+        android:right="22dp"
+        android:bottom="22dp">
         <shape android:shape="oval">
-            <solid android:color="@color/summary_card" />
+            <solid android:color="@color/donut_center_fill" />
         </shape>
     </item>
 </layer-list>

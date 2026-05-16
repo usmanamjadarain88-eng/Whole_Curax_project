@@ -19,8 +19,11 @@ object StandaloneUserMutationSink {
         val app = context.applicationContext
         if (!AppRole.isUser(app) || !StandaloneUi.isUserStandalone(app)) return
         PendingSyncQueueStore.enqueue(app, type, title, subtitle)
-        mainHandler.post {
-            swipeCardPresenter?.invoke(title, subtitle)
+        val showSwipe = type != PendingSyncQueueStore.TYPE_MEDICINE && type != PendingSyncQueueStore.TYPE_DOSE
+        if (showSwipe) {
+            mainHandler.post {
+                swipeCardPresenter?.invoke(title, subtitle)
+            }
         }
         PendingSyncCoordinator.requestFlush(app)
     }

@@ -61,7 +61,7 @@
                 android:layout_height="wrap_content"
                 android:text="← Prev"
                 android:textColor="@color/text_primary"
-                app:strokeColor="@color/standalone_tab_indicator" />
+                app:strokeColor="@color/standalone_inventory_row_stroke" />
 
             <TextView
                 android:id="@+id/tvReportForUser"
@@ -72,7 +72,7 @@
                 android:layout_weight="1"
                 android:gravity="center"
                 android:text="Report for: —"
-                android:textColor="@color/connection_panel_title"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
@@ -83,7 +83,7 @@
                 android:layout_height="wrap_content"
                 android:text="Next →"
                 android:textColor="@color/text_primary"
-                app:strokeColor="@color/standalone_tab_indicator" />
+                app:strokeColor="@color/standalone_inventory_row_stroke" />
         </LinearLayout>
 
         <!-- Adherence Hero Card -->
@@ -94,7 +94,7 @@
             app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="18dp"
             app:cardElevation="6dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -259,7 +259,7 @@
                 app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="2dp"
-                app:strokeColor="@color/summary_stroke"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -298,7 +298,7 @@
                 app:cardBackgroundColor="@color/standalone_inventory_card"
                 app:cardCornerRadius="14dp"
                 app:cardElevation="2dp"
-                app:strokeColor="@color/summary_stroke"
+                app:strokeColor="@color/standalone_inventory_row_stroke"
                 app:strokeWidth="1dp">
 
                 <LinearLayout
@@ -336,7 +336,7 @@
             app:cardBackgroundColor="@color/standalone_inventory_card"
             app:cardCornerRadius="14dp"
             app:cardElevation="2dp"
-            app:strokeColor="@color/summary_stroke"
+            app:strokeColor="@color/standalone_inventory_row_stroke"
             app:strokeWidth="1dp">
 
             <LinearLayout

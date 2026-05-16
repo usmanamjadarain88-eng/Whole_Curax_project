@@ -6,14 +6,74 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 object AdminDemoData {
+    /**
+     * When a box's schedule was last applied locally (millis). Used so [DoseAutoMissedMarker] does not
+     * retroactively mark "missed" for slots that ended before the user defined that schedule.
+     */
+    private val medicineScheduleTouchEpochMs = ConcurrentHashMap<String, Long>()
+
+    fun medicineScheduleTouchMs(box: String): Long =
+        medicineScheduleTouchEpochMs[box.trim().uppercase(Locale.US)] ?: 0L
+
+    private fun scheduleFieldsFingerprint(m: Medicine): String =
+        m.effectiveScheduleTimes().joinToString("\u0001") { MedicineSchedule.normalizeToHhMm(it) }
+
+    private const val PREFS_SCHEDULE_TOUCH = "curax_med_schedule_touch_v1"
+    private const val KEY_SCHEDULE_META = "box_schedule_meta_json"
+
+    private data class BoxScheduleMeta(val fp: String, val touchMs: Long)
+
+    private fun readScheduleMeta(app: Context): MutableMap<String, BoxScheduleMeta> {
+        val raw = app.getSharedPreferences(PREFS_SCHEDULE_TOUCH, Context.MODE_PRIVATE)
+            .getString(KEY_SCHEDULE_META, null) ?: return mutableMapOf()
+        return try {
+            val root = JSONObject(raw)
+            val out = mutableMapOf<String, BoxScheduleMeta>()
+            for (k in root.keys()) {
+                val inner = root.optJSONObject(k) ?: continue
+                out[k] = BoxScheduleMeta(
+                    inner.optString("fp", ""),
+                    inner.optLong("touch", 0L),
+                )
+            }
+            out
+        } catch (_: Exception) {
+            mutableMapOf()
+        }
+    }
+
+    private fun writeScheduleMeta(app: Context, meta: Map<String, BoxScheduleMeta>) {
+        val root = JSONObject()
+        for ((k, v) in meta) {
+            root.put(k, JSONObject().apply {
+                put("fp", v.fp)
+                put("touch", v.touchMs)
+            })
+        }
+        app.getSharedPreferences(PREFS_SCHEDULE_TOUCH, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_SCHEDULE_META, root.toString())
+            .apply()
+    }
+
+    /** Loads persisted schedule-touch epochs (safe to call before [replaceMedicines]). */
+    fun warmScheduleTouchCache(context: Context) {
+        val app = context.applicationContext
+        val meta = readScheduleMeta(app)
+        for ((k, v) in meta) {
+            medicineScheduleTouchEpochMs[k] = v.touchMs
+        }
+    }
     /** Call when admin dashboard opens so only current API data is shown (no stale/demo data). */
     fun clearAll() {
         apiAlertsStore.clear()
         medicalRemindersStore.clear()
         alertSettingsStore.clear()
         medicineStore.clear()
+        medicineScheduleTouchEpochMs.clear()
     }
 
     /** Alerts from GET /admin/data (desktop/backend). Shown in Alerts tab when admin signed up with access code. */
@@ -36,7 +96,7 @@ object AdminDemoData {
                 type = type,
                 message = message,
                 receivedAt = receivedAt,
-                userName = "Local",
+                userName = "",
             ),
         )
         while (apiAlertsStore.size > MAX_STANDALONE_LOCAL_ALERT_ROWS) {
@@ -180,8 +240,30 @@ object AdminDemoData {
         val status: String,
         val box: String,
         val dosePerDay: Int,
-        val exactTime: String = "08:00"
-    )
+        val exactTime: String = "08:00",
+        /** When non-empty with more than one entry, medicine has multiple daily times from the server. */
+        val scheduleTimes: List<String> = emptyList(),
+    ) {
+        fun effectiveScheduleTimes(): List<String> {
+            val cleaned = MedicineSchedule.dedupeSorted(scheduleTimes)
+            if (cleaned.size > 1) return cleaned.take(MedicineSchedule.MAX_SCHEDULE_SLOTS)
+            if (cleaned.size == 1) return cleaned
+            val one = MedicineSchedule.normalizeToHhMm(exactTime)
+            return listOf(if (one.isNotEmpty()) one else "08:00")
+        }
+
+        fun usesMultipleTimesPerDay(): Boolean = effectiveScheduleTimes().size > 1
+
+        fun displayScheduleLabel(): String = effectiveScheduleTimes().joinToString(" · ")
+
+        /** Units (tablets) taken on one successful mark for the active scheduled time. */
+        fun dosePerAdministration(): Int = dosePerDay.coerceAtLeast(1)
+
+        /** Total units for one calendar day (per-time × slot count when multi-schedule; else same as [dosePerAdministration]). */
+        fun totalDoseUnitsPerDay(): Int =
+            if (usesMultipleTimesPerDay()) dosePerAdministration() * effectiveScheduleTimes().size
+            else dosePerAdministration()
+    }
 
     private val medicineStore = mutableListOf(
         Medicine("Panadol", 56, "2026-10-10", "Normal", "B1", 2, "08:00"),
@@ -195,17 +277,47 @@ object AdminDemoData {
     val medicines: List<Medicine>
         get() = medicineStore.toList()
 
-    fun replaceMedicines(items: List<Medicine>) {
+    fun replaceMedicines(context: Context, items: List<Medicine>) {
+        val app = context.applicationContext
+        val disk = readScheduleMeta(app)
+        val nowMs = System.currentTimeMillis()
+        val next = LinkedHashMap<String, BoxScheduleMeta>()
+        for (m in items) {
+            val boxU = m.box.trim().uppercase(Locale.US)
+            val fp = scheduleFieldsFingerprint(m)
+            val prev = disk[boxU]
+            val touch = if (prev?.fp == fp) prev.touchMs else nowMs
+            next[boxU] = BoxScheduleMeta(fp, touch)
+            medicineScheduleTouchEpochMs[boxU] = touch
+        }
+        writeScheduleMeta(app, next)
+        medicineScheduleTouchEpochMs.keys.retainAll(next.keys)
         medicineStore.clear()
         medicineStore.addAll(items)
     }
 
     /** Merge updated medicines from incremental API response (by box_id: update or add). */
-    fun mergeMedicines(updates: List<Medicine>) {
+    fun mergeMedicines(context: Context, updates: List<Medicine>) {
+        val app = context.applicationContext
+        val disk = readScheduleMeta(app)
+        val nowMs = System.currentTimeMillis()
         for (m in updates) {
+            val boxU = m.box.trim().uppercase(Locale.US)
+            val old = medicineStore.find { it.box.equals(m.box, ignoreCase = true) }
             medicineStore.removeAll { it.box.equals(m.box, ignoreCase = true) }
             medicineStore.add(m)
+            val fpAfter = scheduleFieldsFingerprint(m)
+            val prev = disk[boxU]
+            val newTouch =
+                if (old != null && scheduleFieldsFingerprint(old) == fpAfter) {
+                    if (prev?.fp == fpAfter) prev.touchMs else 0L
+                } else {
+                    nowMs
+                }
+            disk[boxU] = BoxScheduleMeta(fpAfter, newTouch)
+            medicineScheduleTouchEpochMs[boxU] = newTouch
         }
+        writeScheduleMeta(app, disk)
     }
 
     /** When incremental sync sends current box_ids from backend, remove local medicines not in that set (so deletes on desktop appear in app). */
@@ -261,18 +373,35 @@ object AdminDemoData {
             val stock = (m["quantity"] as? Number)?.toInt() ?: (m["stock"] as? Number)?.toInt() ?: 0
             @Suppress("UNCHECKED_CAST")
             val times = m["times"] as? List<Any?> ?: emptyList()
-            val exactTime = ((m["exact_time"] as? String)?.trim().orEmpty().ifBlank {
-                (times.firstOrNull() as? String) ?: "08:00"
-            })
+            val timesStrings = times.mapNotNull { (it as? String)?.trim()?.takeIf { s -> s.isNotEmpty() } }
+            val sortedApiTimes = MedicineSchedule.dedupeSorted(timesStrings)
+            val scheduleTimesStored =
+                if (sortedApiTimes.size > 1) sortedApiTimes.take(MedicineSchedule.MAX_SCHEDULE_SLOTS) else emptyList()
+            val exactRaw = (m["exact_time"] as? String)?.trim().orEmpty().ifBlank {
+                sortedApiTimes.firstOrNull() ?: "08:00"
+            }
+            val exactTime = MedicineSchedule.normalizeToHhMm(exactRaw).ifEmpty {
+                sortedApiTimes.firstOrNull()?.let { MedicineSchedule.normalizeToHhMm(it) } ?: "08:00"
+            }
             val rawDose = (m["dose_per_day"] as? Number)?.toInt() ?: 0
-            val dosePerDay = rawDose.takeIf { it > 0 } ?: times.size.coerceAtLeast(1)
+            val nSlots = when {
+                scheduleTimesStored.size > 1 -> scheduleTimesStored.size
+                sortedApiTimes.size > 1 -> sortedApiTimes.size
+                else -> 1
+            }
+            val dosePerDay = when {
+                nSlots > 1 && rawDose > 0 && rawDose % nSlots == 0 -> (rawDose / nSlots).coerceAtLeast(1)
+                nSlots > 1 && rawDose > 0 -> rawDose.coerceAtLeast(1)
+                rawDose > 0 -> rawDose
+                else -> nSlots.coerceAtLeast(1)
+            }
             val expiry = (m["expiry"] as? String).orEmpty()
             val status = when {
                 stock == 0 -> "Refill"
                 stock in 1..lowStockThreshold -> "Low"
                 else -> "Normal"
             }
-            Medicine(name, stock, expiry, status, boxId, dosePerDay, exactTime)
+            Medicine(name, stock, expiry, status, boxId, dosePerDay, exactTime, scheduleTimesStored)
         }
     }
 
@@ -303,15 +432,14 @@ object AdminDemoData {
 
     fun averageDailyConsumption(): Int {
         if (medicineStore.isEmpty()) return 0
-        val totalDose = medicineStore.sumOf { it.dosePerDay }
-        return totalDose
+        return medicineStore.sumOf { it.totalDoseUnitsPerDay() }
     }
 
     fun weeklyAdherence(): Int = 89
     /** Dummy adherence % per day (7 days) for chart before first connect. */
     fun adherencePercentByDay(): List<Float> = listOf(85f, 90f, 88f, 92f, 85f, 90f, 89f)
     /** Expected doses per day for dummy adherence. */
-    fun expectedDosesPerDayDemo(): Int = medicineStore.sumOf { it.dosePerDay }
+    fun expectedDosesPerDayDemo(): Int = medicineStore.sumOf { it.totalDoseUnitsPerDay() }
 
     fun mostUsedMedicine(): String = medicineStore.maxByOrNull { it.stock }?.name ?: "N/A"
 
@@ -348,16 +476,16 @@ object AdminDemoData {
     fun boxesCovered(): Int = medicineStore.map { it.box }.distinct().count()
 
     fun reportsCsv(): String {
-        val header = "Medicine,Stock,DosePerDay,Time,Expiry,Status,Box"
+        val header = "Medicine,Stock,DailyTotalUnits,Times,Expiry,Status,Box"
         val rows = medicineStore.joinToString("\n") { m ->
-            "${m.name},${m.stock},${m.dosePerDay},${m.exactTime},${m.expiry},${m.status},${m.box}"
+            "${m.name},${m.stock},${m.totalDoseUnitsPerDay()},${m.displayScheduleLabel()},${m.expiry},${m.status},${m.box}"
         }
         return "$header\n$rows"
     }
 
     fun reportText(): String {
         val medicinesText = medicineStore.joinToString("\n") {
-            "- ${it.name} | stock ${it.stock} | dose/day ${it.dosePerDay} | time ${it.exactTime} | ${it.status} | ${it.box}"
+            "- ${it.name} | stock ${it.stock} | daily total ${it.totalDoseUnitsPerDay()} units | each time ${it.dosePerAdministration()} | times ${it.displayScheduleLabel()} | ${it.status} | ${it.box}"
         }
         return """
             Curax Admin Report

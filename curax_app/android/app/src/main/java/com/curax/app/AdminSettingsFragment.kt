@@ -37,6 +37,12 @@ class AdminSettingsFragment : Fragment() {
 
     private fun isUserApp(): Boolean = AppRole.isUser(requireContext())
 
+    private fun isAdminCare(): Boolean =
+        !isUserApp() && CareUi.isAdminCareMode(requireContext())
+
+    private fun isAdminCareStandalone(): Boolean =
+        isAdminCare() && CareUi.useStandaloneLayoutsInCare(requireContext())
+
     private fun readAppVersionName(): String = try {
         val pm = requireContext().packageManager
         val pn = requireContext().packageName
@@ -74,6 +80,7 @@ class AdminSettingsFragment : Fragment() {
             "Version ${readAppVersionName()}"
         refresh()
         fetchSettingsFromServer()
+        applyAdminCarePresentation(view)
 
         val standaloneShell = isUserApp() && StandaloneUi.isUserStandalone(requireContext())
         val userEditableIds = userEditableSystemSettingIds()
@@ -106,21 +113,87 @@ class AdminSettingsFragment : Fragment() {
                 disableInputs(view, userEditableIds)
                 bindEsp32DevicePasswordSection(view)
             }
+        } else if (isAdminCare()) {
+            val saveMedicine: (View) -> Unit = {
+                saveSettingsToApi(showSuccess = getString(R.string.admin_care_save_settings_done))
+            }
+            view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.setOnClickListener(saveMedicine)
+            view.findViewById<MaterialButton>(R.id.btn_save_system_settings)?.setOnClickListener(saveMedicine)
         } else {
-            val careStandaloneLayout = CareUi.useStandaloneLayoutsInCare(requireContext())
-            if (careStandaloneLayout) {
-                view.findViewById<MaterialButton>(R.id.btn_save_system_settings)?.setOnClickListener {
-                    saveSettingsToApi(showSuccess = "Alert settings saved")
-                }
-            } else {
-                view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.setOnClickListener {
-                    saveSettingsToApi(showSuccess = "Alert settings saved")
-                }
-                view.findViewById<MaterialButton>(R.id.btn_save_gmail)?.setOnClickListener {
-                    saveSettingsToApi(showSuccess = getString(R.string.system_gmail_saved))
-                }
+            view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.setOnClickListener {
+                saveSettingsToApi(showSuccess = "Alert settings saved")
+            }
+            view.findViewById<MaterialButton>(R.id.btn_save_gmail)?.setOnClickListener {
+                saveSettingsToApi(showSuccess = getString(R.string.system_gmail_saved))
             }
         }
+    }
+
+    /** Admin Care: medicine settings editable; Gmail + device PIN read-only; no Health Hub on standalone users. */
+    private fun applyAdminCarePresentation(root: View) {
+        if (!isAdminCare()) {
+            root.findViewById<View>(R.id.group_gmail_admin_readonly)?.visibility = View.GONE
+            root.findViewById<View>(R.id.group_gmail_user_editable)?.visibility = View.VISIBLE
+            return
+        }
+
+        val standaloneUser = isAdminCareStandalone()
+        root.findViewById<View>(R.id.card_health_hub_plans)?.visibility =
+            if (standaloneUser) View.GONE else View.VISIBLE
+        root.findViewById<View>(R.id.divider_health_hub)?.visibility =
+            if (standaloneUser) View.GONE else View.VISIBLE
+        root.findViewById<View>(R.id.card_care_app_unlock_pin_readonly)?.visibility = View.GONE
+        root.findViewById<View>(R.id.card_care_device_pin_readonly)?.visibility =
+            if (standaloneUser) View.GONE else View.VISIBLE
+        root.findViewById<View>(R.id.cardEsp32DevicePassword)?.visibility = View.GONE
+
+        root.findViewById<View>(R.id.group_gmail_user_editable)?.visibility = View.GONE
+        root.findViewById<View>(R.id.group_gmail_admin_readonly)?.visibility = View.VISIBLE
+        root.findViewById<MaterialButton>(R.id.btn_save_gmail)?.visibility = View.GONE
+
+        if (standaloneUser) {
+            root.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.visibility = View.VISIBLE
+            root.findViewById<MaterialButton>(R.id.btn_save_system_settings)?.visibility = View.GONE
+        } else {
+            root.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.visibility = View.VISIBLE
+            root.findViewById<MaterialButton>(R.id.btn_save_system_settings)?.visibility = View.GONE
+        }
+        root.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.text =
+            getString(R.string.admin_care_save_settings)
+    }
+
+    private fun bindGmailReadOnlyForAdminCare(settings: Map<String, Any?>) {
+        val gmail = settings["gmail_config"] as? Map<*, *>
+        val rec = gmail?.get("recipients")?.toString()?.trim().orEmpty()
+        val enabled = when {
+            gmail?.get("gmail_alerts_enabled") != null -> bool(gmail["gmail_alerts_enabled"])
+            else -> rec.isNotEmpty()
+        }
+        view?.findViewById<TextView>(R.id.tv_gmail_user_status)?.text =
+            if (enabled) getString(R.string.admin_care_gmail_on) else getString(R.string.admin_care_gmail_off)
+        view?.findViewById<TextView>(R.id.tv_gmail_user_email)?.text =
+            if (rec.isNotEmpty()) rec else getString(R.string.admin_care_gmail_no_email)
+    }
+
+    private fun resolveCareDevicePin(settings: Map<String, Any?>): String {
+        val keys = listOf(
+            "care_device_password",
+            "esp32_device_pin",
+            "device_password",
+            "esp32_cached_device_pin",
+        )
+        for (key in keys) {
+            val v = settings[key]?.toString()?.trim().orEmpty()
+            if (v.isNotEmpty()) return v
+        }
+        val nested = settings["alert_settings"] as? Map<*, *>
+        if (nested != null) {
+            for (key in keys) {
+                val v = nested[key]?.toString()?.trim().orEmpty()
+                if (v.isNotEmpty()) return v
+            }
+        }
+        return ""
     }
 
     override fun onStart() {
@@ -266,6 +339,7 @@ class AdminSettingsFragment : Fragment() {
                 Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
                 if (ok) {
                     Prefs(requireContext()).esp32CachedDevicePin = neu
+                    CareDevicePinSync.postIfUserLinked(requireContext(), neu)
                     curEt?.text?.clear()
                     newEt?.text?.clear()
                     cfmEt?.text?.clear()
@@ -446,13 +520,25 @@ class AdminSettingsFragment : Fragment() {
         view?.findViewById<CheckBox>(R.id.cb_plan_15_before)?.isChecked = boolOrDefault(pa?.get("15_min_before"))
         view?.findViewById<CheckBox>(R.id.cb_plan_exact)?.isChecked = boolOrDefault(pa?.get("exact_time"))
 
-        val rec = gmail?.get("recipients")?.toString()?.trim().orEmpty()
-        view?.findViewById<EditText>(R.id.et_gmail_recipients)?.setText(rec)
-        val explicit = gmail?.get("gmail_alerts_enabled")
-        view?.findViewById<CompoundButton>(R.id.switch_gmail_alerts)?.isChecked = when {
-            explicit != null -> bool(explicit)
-            else -> rec.isNotEmpty()
+        if (isAdminCare()) {
+            bindGmailReadOnlyForAdminCare(settings)
+            if (!isAdminCareStandalone()) {
+                val devicePin = resolveCareDevicePin(settings)
+                view?.findViewById<TextView>(R.id.tv_care_device_pin_value)?.text =
+                    if (devicePin.isNotEmpty()) devicePin else getString(R.string.care_device_pin_none)
+            }
+        } else {
+            val rec = gmail?.get("recipients")?.toString()?.trim().orEmpty()
+            view?.findViewById<EditText>(R.id.et_gmail_recipients)?.setText(rec)
+            val explicit = gmail?.get("gmail_alerts_enabled")
+            view?.findViewById<CompoundButton>(R.id.switch_gmail_alerts)?.isChecked = when {
+                explicit != null -> bool(explicit)
+                else -> rec.isNotEmpty()
+            }
         }
+
+        view?.findViewById<View>(R.id.card_care_app_unlock_pin_readonly)?.visibility = View.GONE
+        view?.let { applyAdminCarePresentation(it) }
     }
 
     private fun saveSettingsToApi(showSuccess: String) {
@@ -543,11 +629,21 @@ class AdminSettingsFragment : Fragment() {
             "1_day_before" to (view?.findViewById<CheckBox>(R.id.cb_expiry_1)?.isChecked == true)
         )
 
-        val planAlerts = mapOf(
-            "30_min_before" to (view?.findViewById<CheckBox>(R.id.cb_plan_30_before)?.isChecked != false),
-            "15_min_before" to (view?.findViewById<CheckBox>(R.id.cb_plan_15_before)?.isChecked != false),
-            "exact_time" to (view?.findViewById<CheckBox>(R.id.cb_plan_exact)?.isChecked != false),
-        )
+        val planAlerts = if (isAdminCareStandalone()) {
+            val pa = (AdminDemoData.getAlertSettings()["plan_alerts"] as? Map<*, *>)
+                ?: (AdminDemoData.getAlertSettings()["alert_settings"] as? Map<*, *>)?.get("plan_alerts") as? Map<*, *>
+            mapOf(
+                "30_min_before" to boolOrDefault(pa?.get("30_min_before")),
+                "15_min_before" to boolOrDefault(pa?.get("15_min_before")),
+                "exact_time" to boolOrDefault(pa?.get("exact_time")),
+            )
+        } else {
+            mapOf(
+                "30_min_before" to (view?.findViewById<CheckBox>(R.id.cb_plan_30_before)?.isChecked != false),
+                "15_min_before" to (view?.findViewById<CheckBox>(R.id.cb_plan_15_before)?.isChecked != false),
+                "exact_time" to (view?.findViewById<CheckBox>(R.id.cb_plan_exact)?.isChecked != false),
+            )
+        }
 
         val alertSettings = mapOf(
             "medicine_alerts" to medicineAlerts,
@@ -557,9 +653,15 @@ class AdminSettingsFragment : Fragment() {
             "plan_alerts" to planAlerts,
         )
 
+        val gmailConfig = if (isAdminCare()) {
+            (AdminDemoData.getAlertSettings()["gmail_config"] as? Map<String, Any?>) ?: emptyMap()
+        } else {
+            mergeGmailConfigForSave()
+        }
+
         return mapOf(
             "alert_settings" to alertSettings,
-            "gmail_config" to mergeGmailConfigForSave(),
+            "gmail_config" to gmailConfig,
         )
     }
 

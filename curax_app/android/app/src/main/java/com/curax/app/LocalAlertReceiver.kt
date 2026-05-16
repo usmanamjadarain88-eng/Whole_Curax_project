@@ -7,6 +7,8 @@ import android.util.Log
 
 /**
  * Fires standalone local alarms scheduled by [LocalAlertsController] (on-device medicine / plan / reminder engine).
+ * Every fired alarm shows a heads-up notification + in-app alert row (when user role is standalone user).
+ * This is separate from [DoseAutoMissedMarker], which only writes silent `missed_auto` log/suppress state.
  */
 class LocalAlertReceiver : BroadcastReceiver() {
 

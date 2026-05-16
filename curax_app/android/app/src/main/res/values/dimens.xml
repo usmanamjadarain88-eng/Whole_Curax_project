@@ -43,4 +43,6 @@
     <dimen name="standalone_sound_card_stroke_selected">2dp</dimen>
     <!-- Dose history + header: fixed row height so every column aligns like the medicine inventory grid. -->
     <dimen name="dose_history_table_row_height">40dp</dimen>
+    <!-- Default-mode panels: visible but not heavy -->
+    <dimen name="panel_stroke_width">1.5dp</dimen>
 </resources>

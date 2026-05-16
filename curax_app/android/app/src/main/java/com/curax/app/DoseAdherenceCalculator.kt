@@ -15,7 +15,7 @@ object DoseAdherenceCalculator {
 
     fun weeklyAdherencePercent(context: Context): Int {
         val app = context.applicationContext
-        val expectedPerDay = AdminDemoData.medicines.sumOf { it.dosePerDay.coerceAtLeast(0) }.coerceAtLeast(0)
+        val expectedPerDay = AdminDemoData.medicines.sumOf { it.totalDoseUnitsPerDay() }.coerceAtLeast(0)
         if (expectedPerDay <= 0) return 100
         val expected = expectedPerDay * 7
         val cal = Calendar.getInstance(TimeZone.getDefault())

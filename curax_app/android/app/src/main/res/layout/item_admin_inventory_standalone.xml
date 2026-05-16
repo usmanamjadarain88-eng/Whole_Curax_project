@@ -97,7 +97,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="16dp"
-                    android:text="Dose/day"
+                    android:text="@string/inventory_col_dose"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp" />
 
@@ -114,20 +114,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:orientation="horizontal">
+                android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/tvRowTime"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="4"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
                 <TextView
                     android:id="@+id/tvRowExpiry"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
             </LinearLayout>

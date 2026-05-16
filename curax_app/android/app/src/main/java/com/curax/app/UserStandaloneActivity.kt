@@ -49,6 +49,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.MenuItemCompat
 import android.widget.ImageButton
@@ -109,6 +110,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private val userShellSwipePageCallback = object : ViewPager2.OnPageChangeCallback() {
         override fun onPageSelected(position: Int) {
+            cancelSpuriousShellPullRefresh()
             applyUserShellSwipeForTab(position)
         }
 
@@ -117,10 +119,17 @@ class UserStandaloneActivity : AppCompatActivity() {
             if (!::swipeRefresh.isInitialized || !::viewPager.isInitialized) return
             if (state != ViewPager2.SCROLL_STATE_IDLE) {
                 swipeRefresh.isEnabled = false
-                swipeRefresh.isRefreshing = false
+                cancelSpuriousShellPullRefresh()
             } else {
+                cancelSpuriousShellPullRefresh()
                 applyUserShellSwipeForTab(viewPager.currentItem)
             }
+        }
+    }
+    /** ViewPager settle can false-trigger outer pull-to-refresh; never treat that as a user pull. */
+    private val cancelSpuriousShellPullRefreshRunnable = Runnable {
+        if (::swipeRefresh.isInitialized) {
+            swipeRefresh.isRefreshing = false
         }
     }
     private var tabMediator: TabLayoutMediator? = null
@@ -258,6 +267,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
 
         setContentView(R.layout.activity_user_standalone)
+        applyWindowSystemBars()
 
         drawerLayout = findViewById(R.id.userStandaloneDrawer)
         val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar)
@@ -334,6 +344,12 @@ class UserStandaloneActivity : AppCompatActivity() {
         )
         swipeRefresh.setOnChildScrollUpCallback { _, _ -> userShellPagerChildCanScrollUp() }
         swipeRefresh.setOnRefreshListener {
+            if (!swipeRefresh.isEnabled ||
+                userShellIsPullToRefreshDisabledTab(viewPager.currentItem)
+            ) {
+                swipeRefresh.isRefreshing = false
+                return@setOnRefreshListener
+            }
             val botId = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
             val base = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -347,6 +363,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                 botId,
                 apiKey,
                 onFetchFinished = { swipeRefresh.isRefreshing = false },
+                broadcastFetchUi = true,
             )
         }
         viewPager.registerOnPageChangeCallback(userShellSwipePageCallback)
@@ -471,6 +488,7 @@ class UserStandaloneActivity : AppCompatActivity() {
 
     override fun onPause() {
         window.decorView.removeCallbacks(standaloneHeavyResumeRunnable)
+        mainHandler.removeCallbacks(cancelSpuriousShellPullRefreshRunnable)
         super.onPause()
     }
 
@@ -623,14 +641,19 @@ class UserStandaloneActivity : AppCompatActivity() {
         val tabCard = findViewById<MaterialCardView>(R.id.userStandaloneTabStripCard)
         val pagerCard = findViewById<MaterialCardView>(R.id.userStandalonePagerCard)
         val tabNavInner = findViewById<View>(R.id.userStandaloneTabNavInner)
+        val panelStrokePx = resources.getDimensionPixelSize(R.dimen.panel_stroke_width)
+        val shellStrokeColor = paletteColor(R.color.summary_stroke)
+        val panelFill = paletteColor(R.color.summary_card)
         if (StandaloneUi.isUserStandalone(this)) {
             main.setBackgroundResource(R.drawable.bg_standalone_app_shell)
             tabCard.setCardBackgroundColor(paletteColor(R.color.standalone_tab_strip_bg))
-            tabCard.strokeWidth = 0
-            tabCard.strokeColor = Color.TRANSPARENT
+            tabCard.strokeWidth = panelStrokePx
+            tabCard.strokeColor = shellStrokeColor
             tabCard.radius = shellDp(20).toFloat()
             tabCard.cardElevation = shellDp(5).toFloat()
             pagerCard.setCardBackgroundColor(paletteColor(R.color.standalone_tab_strip_bg))
+            pagerCard.strokeWidth = panelStrokePx
+            pagerCard.strokeColor = shellStrokeColor
             tabNavInner.setBackgroundResource(R.drawable.bg_standalone_tab_nav_container)
             tabLayout.setBackgroundColor(Color.TRANSPARENT)
             tabLayout.setSelectedTabIndicator(paletteDrawable(R.drawable.tab_indicator_standalone))
@@ -657,13 +680,17 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         } else {
             main.setBackgroundResource(R.drawable.bg_admin_dashboard_surface)
-            val shellBg = paletteColor(R.color.surface_bg)
-            tabCard.setCardBackgroundColor(shellBg)
-            tabCard.strokeWidth = shellDp(1)
-            tabCard.strokeColor = paletteColor(R.color.summary_stroke)
+            // Tab strip in rounded panel (no divider line between tabs and content).
+            tabCard.setCardBackgroundColor(panelFill)
+            tabCard.strokeWidth = panelStrokePx
+            tabCard.strokeColor = shellStrokeColor
             tabCard.radius = shellDp(14).toFloat()
             tabCard.cardElevation = 0f
-            pagerCard.setCardBackgroundColor(shellBg)
+            pagerCard.setCardBackgroundColor(panelFill)
+            pagerCard.strokeWidth = panelStrokePx
+            pagerCard.strokeColor = shellStrokeColor
+            pagerCard.radius = shellDp(12).toFloat()
+            pagerCard.cardElevation = 0f
             tabNavInner.background = null
             tabLayout.setBackgroundColor(Color.TRANSPARENT)
             // Admin-style “needle” strip: full-width underline on the summary card, not the standalone pill strip.
@@ -704,6 +731,17 @@ class UserStandaloneActivity : AppCompatActivity() {
         pagerCard.requestLayout()
         syncSidebarConnectButtonStyleWithRelayState()
         applySidebarAmbientVisibility()
+        applyWindowSystemBars()
+    }
+
+    /** Status + navigation bars match default Smart System shell (green toolbar, light icons). */
+    private fun applyWindowSystemBars() {
+        val barColor = paletteColor(R.color.toolbar_start)
+        window.statusBarColor = barColor
+        window.navigationBarColor = barColor
+        val insets = WindowCompat.getInsetsController(window, window.decorView)
+        insets.isAppearanceLightStatusBars = false
+        insets.isAppearanceLightNavigationBars = false
     }
 
     /** Default (Smart System) mode: ESP32 bridge + hardware ambient above Connect; hidden in Personal Health standalone. */
@@ -1601,6 +1639,7 @@ class UserStandaloneActivity : AppCompatActivity() {
             botId,
             apiKey,
             onFetchFinished = { showLoading(false) },
+            broadcastFetchUi = false,
         )
     }
 
@@ -1721,6 +1760,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
         val content = layoutInflater.inflate(R.layout.popup_toolbar_mode_label, null, false) as TextView
         content.text = label
+        content.setTextColor(paletteColor(R.color.text_primary))
         val density = resources.displayMetrics.density
         val gap = (6 * density).toInt()
         val popup = PopupWindow(
@@ -1800,6 +1840,13 @@ class UserStandaloneActivity : AppCompatActivity() {
                 else -> false
             }
         }
+    }
+
+    private fun cancelSpuriousShellPullRefresh() {
+        if (!::swipeRefresh.isInitialized) return
+        swipeRefresh.isRefreshing = false
+        mainHandler.removeCallbacks(cancelSpuriousShellPullRefreshRunnable)
+        mainHandler.postDelayed(cancelSpuriousShellPullRefreshRunnable, 120L)
     }
 
     private fun applyUserShellSwipeForTab(position: Int) {

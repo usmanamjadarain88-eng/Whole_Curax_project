@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Smart System (linked user): same canvas as dashboard — surface_bg + 6-box grid like Main Dashboard. -->
+<!-- Smart System (linked user): surface_bg + 6 outline-only dose boxes (name + qty; schedule lives in summary below). -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -53,14 +53,15 @@
                 android:id="@+id/dose_card_b1"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:minHeight="86dp"
                 android:layout_columnWeight="1"
                 android:clickable="true"
                 android:focusable="true"
-                app:cardBackgroundColor="@color/med_box_bg"
+                app:cardBackgroundColor="@android:color/transparent"
                 app:cardCornerRadius="12dp"
                 app:cardElevation="0dp"
-                app:rippleColor="#33FFFFFF"
-                app:strokeColor="@color/med_box_stroke"
+                app:rippleColor="@color/smart_shell_tab_ripple"
+                app:strokeColor="@color/button_primary_bg"
                 app:strokeWidth="2dp">
 
                         <LinearLayout
@@ -73,22 +74,24 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="B1"
-                                android:textColor="@color/med_box_label"
+                                android:textColor="@color/text_secondary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b1_name"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:textColor="@color/med_box_text"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/text_primary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b1_qty"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:textColor="@color/med_box_label" />
+                                android:textColor="@color/text_secondary" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -96,14 +99,15 @@
                         android:id="@+id/dose_card_b2"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:minHeight="86dp"
                         android:layout_columnWeight="1"
                         android:clickable="true"
                         android:focusable="true"
-                        app:cardBackgroundColor="@color/med_box_bg"
+                        app:cardBackgroundColor="@android:color/transparent"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp"
-                        app:rippleColor="#33FFFFFF"
-                        app:strokeColor="@color/med_box_stroke"
+                        app:rippleColor="@color/smart_shell_tab_ripple"
+                        app:strokeColor="@color/button_primary_bg"
                         app:strokeWidth="2dp">
 
                         <LinearLayout
@@ -116,22 +120,24 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="B2"
-                                android:textColor="@color/med_box_label"
+                                android:textColor="@color/text_secondary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b2_name"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:textColor="@color/med_box_text"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/text_primary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b2_qty"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:textColor="@color/med_box_label" />
+                                android:textColor="@color/text_secondary" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -139,14 +145,15 @@
                         android:id="@+id/dose_card_b3"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:minHeight="86dp"
                         android:layout_columnWeight="1"
                         android:clickable="true"
                         android:focusable="true"
-                        app:cardBackgroundColor="@color/med_box_bg"
+                        app:cardBackgroundColor="@android:color/transparent"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp"
-                        app:rippleColor="#33FFFFFF"
-                        app:strokeColor="@color/med_box_stroke"
+                        app:rippleColor="@color/smart_shell_tab_ripple"
+                        app:strokeColor="@color/button_primary_bg"
                         app:strokeWidth="2dp">
 
                         <LinearLayout
@@ -159,22 +166,24 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="B3"
-                                android:textColor="@color/med_box_label"
+                                android:textColor="@color/text_secondary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b3_name"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:textColor="@color/med_box_text"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/text_primary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b3_qty"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:textColor="@color/med_box_label" />
+                                android:textColor="@color/text_secondary" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -182,14 +191,15 @@
                         android:id="@+id/dose_card_b4"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:minHeight="86dp"
                         android:layout_columnWeight="1"
                         android:clickable="true"
                         android:focusable="true"
-                        app:cardBackgroundColor="@color/med_box_bg"
+                        app:cardBackgroundColor="@android:color/transparent"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp"
-                        app:rippleColor="#33FFFFFF"
-                        app:strokeColor="@color/med_box_stroke"
+                        app:rippleColor="@color/smart_shell_tab_ripple"
+                        app:strokeColor="@color/button_primary_bg"
                         app:strokeWidth="2dp">
 
                         <LinearLayout
@@ -202,22 +212,24 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="B4"
-                                android:textColor="@color/med_box_label"
+                                android:textColor="@color/text_secondary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b4_name"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:textColor="@color/med_box_text"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/text_primary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b4_qty"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:textColor="@color/med_box_label" />
+                                android:textColor="@color/text_secondary" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -225,14 +237,15 @@
                         android:id="@+id/dose_card_b5"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:minHeight="86dp"
                         android:layout_columnWeight="1"
                         android:clickable="true"
                         android:focusable="true"
-                        app:cardBackgroundColor="@color/med_box_bg"
+                        app:cardBackgroundColor="@android:color/transparent"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp"
-                        app:rippleColor="#33FFFFFF"
-                        app:strokeColor="@color/med_box_stroke"
+                        app:rippleColor="@color/smart_shell_tab_ripple"
+                        app:strokeColor="@color/button_primary_bg"
                         app:strokeWidth="2dp">
 
                         <LinearLayout
@@ -245,22 +258,24 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="B5"
-                                android:textColor="@color/med_box_label"
+                                android:textColor="@color/text_secondary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b5_name"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:textColor="@color/med_box_text"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/text_primary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b5_qty"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:textColor="@color/med_box_label" />
+                                android:textColor="@color/text_secondary" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
@@ -268,14 +283,15 @@
                         android:id="@+id/dose_card_b6"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
+                        android:minHeight="86dp"
                         android:layout_columnWeight="1"
                         android:clickable="true"
                         android:focusable="true"
-                        app:cardBackgroundColor="@color/med_box_bg"
+                        app:cardBackgroundColor="@android:color/transparent"
                         app:cardCornerRadius="12dp"
                         app:cardElevation="0dp"
-                        app:rippleColor="#33FFFFFF"
-                        app:strokeColor="@color/med_box_stroke"
+                        app:rippleColor="@color/smart_shell_tab_ripple"
+                        app:strokeColor="@color/button_primary_bg"
                         app:strokeWidth="2dp">
 
                         <LinearLayout
@@ -288,37 +304,64 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="B6"
-                                android:textColor="@color/med_box_label"
+                                android:textColor="@color/text_secondary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b6_name"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="4dp"
-                                android:textColor="@color/med_box_text"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/text_primary"
                                 android:textStyle="bold" />
 
                             <TextView
                                 android:id="@+id/tv_dose_b6_qty"
-                                android:layout_width="wrap_content"
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:textColor="@color/med_box_label" />
+                                android:textColor="@color/text_secondary" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
         </GridLayout>
 
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="@dimen/panel_stroke_width">
+
+            <TextView
+                android:id="@+id/tvDoseScheduleSummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.15"
+                android:padding="12dp"
+                android:text="@string/dose_tracking_schedule_summary_empty"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/text_secondary" />
+        </com.google.android.material.card.MaterialCardView>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnMarkDoseTaken"
-            style="@style/Widget.MaterialComponents.Button"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
             android:enabled="false"
             android:text="@string/dose_tracking_mark_dose"
             android:textAllCaps="false"
-            app:backgroundTint="@color/button_primary_bg"
-            app:cornerRadius="12dp" />
+            android:textColor="@color/button_primary_bg"
+            app:backgroundTint="@android:color/transparent"
+            app:cornerRadius="12dp"
+            app:rippleColor="@color/smart_shell_tab_ripple"
+            app:strokeColor="@color/button_primary_bg"
+            app:strokeWidth="2dp" />
 
         <!-- History: Logs-style grid (no outer card) -->
         <LinearLayout

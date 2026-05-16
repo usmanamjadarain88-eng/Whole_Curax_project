@@ -15,17 +15,6 @@
         app:title="@string/standalone_alert_choose_sound"
         app:titleTextColor="@android:color/white" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingStart="16dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="4dp"
-        android:text="@string/standalone_alert_sound_list_hint"
-        android:textColor="@color/text_secondary"
-        android:textSize="12sp" />
-
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvStandaloneSounds"
         android:layout_width="match_parent"
