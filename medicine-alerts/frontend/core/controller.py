@@ -1164,6 +1164,29 @@ class AppController(QObject):
             self.admin_status_changed.emit()
         return True, ""
 
+    def _parse_link_error_body(self, body: str, http_code: int):
+        """Return (message, is_missing_route)."""
+        text = (body or "").strip()
+        if text.lower().startswith("<!") or "deployment" in text.lower() or "application" in text.lower():
+            return (
+                "Backend URL wrong or not deployed. Use the same API URL as the admin app "
+                "(e.g. https://whole-curax-project.vercel.app).",
+                True,
+            )
+        try:
+            err = json.loads(text) if text else {}
+            if isinstance(err, dict):
+                msg = (err.get("message") or "").strip()
+                if err.get("path") and msg.lower() == "not found":
+                    return "Link API not found on server — redeploy the latest backend.", True
+                if msg:
+                    return msg, False
+        except Exception:
+            pass
+        if http_code == 404:
+            return "Invalid or expired code. Create a new code in the app.", False
+        return text[:200] if text else f"Link failed ({http_code}).", False
+
     def link_admin_desktop_by_link_code(self, code: str):
         """Redeem code from admin app → load full hub on this PC (single API call)."""
         code = (code or "").strip().upper()
@@ -1172,31 +1195,38 @@ class AppController(QObject):
         base = (self.get_central_api_base_url() or "").strip().rstrip("/")
         if not base:
             return False, "Backend URL not configured."
-        try:
-            import urllib.request
-            import urllib.error
+        import urllib.request
+        import urllib.error
 
-            req = urllib.request.Request(
-                base + "/desktop/link-to-admin",
-                data=json.dumps({"code": code}).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                payload = json.loads(resp.read().decode("utf-8"))
-            return self.apply_admin_hub_link_session(payload)
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8") if e.fp else ""
+        post_paths = (
+            "/desktop/link-to-admin",
+            "/api/desktop_link_to_admin",
+        )
+        last_msg = "Could not link desktop."
+        for path in post_paths:
             try:
-                err = json.loads(body) if body.strip() else {}
-                msg = (err.get("message") or "").strip() if isinstance(err, dict) else body
-            except Exception:
-                msg = body or str(e)
-            if e.code == 404:
-                return False, msg or "Invalid or expired code. Create a new code in the app."
-            return False, msg or f"Link failed ({e.code})."
-        except Exception as e:
-            return False, str(e) or "Could not link desktop."
+                req = urllib.request.Request(
+                    base + path,
+                    data=json.dumps({"code": code}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                return self.apply_admin_hub_link_session(payload)
+            except urllib.error.HTTPError as e:
+                body = e.read().decode("utf-8", errors="replace") if e.fp else ""
+                msg, missing_route = self._parse_link_error_body(body, e.code)
+                last_msg = msg
+                if missing_route and path != post_paths[-1]:
+                    continue
+                return False, last_msg
+            except Exception as e:
+                last_msg = str(e) or last_msg
+                if path != post_paths[-1]:
+                    continue
+                return False, last_msg
+        return False, last_msg
 
     def connect_to_port(self, port_name):
         from connection import serial_connection

@@ -203,6 +203,12 @@ _STEM_TO_PUBLIC_PATH: dict[str, str] = {
     "sync": "/sync",
 }
 
+_API_MULTI_SEGMENT = {
+    "desktop/link-to-admin": "/desktop/link-to-admin",
+    "admin/create-desktop-link-code": "/admin/create-desktop-link-code",
+}
+
+
 def normalize_vercel_api_path(method: str, path_only: str, query: dict) -> str:
     """Map Vercel URL (/api/stem or pretty paths) to the path shape used by dispatch()."""
     p = (path_only or '/').rstrip('/') or '/'
@@ -210,7 +216,10 @@ def normalize_vercel_api_path(method: str, path_only: str, query: dict) -> str:
         return "/"
     if not p.startswith("/api/"):
         return p
-    stem = (p[len("/api/"):]).split("/")[0]
+    suffix = (p[len("/api/"):]).lstrip("/")
+    if suffix in _API_MULTI_SEGMENT:
+        return _API_MULTI_SEGMENT[suffix]
+    stem = suffix.split("/")[0]
     if stem == "medicine_by_id":
         mid = (query.get("medicine_id") or "").strip()
         if mid:

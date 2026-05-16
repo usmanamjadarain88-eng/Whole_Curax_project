@@ -179,6 +179,10 @@
       "destination": "/api/desktop_link_to_admin"
     },
     {
+      "source": "/api/desktop/link-to-admin",
+      "destination": "/api/desktop_link_to_admin"
+    },
+    {
       "source": "/admin",
       "destination": "/api/admin_delete"
     },

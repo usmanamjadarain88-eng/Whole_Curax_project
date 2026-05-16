@@ -4931,6 +4931,11 @@ class CentralDB:
                 out["users_deleted"] = cur.rowcount
             except Exception as e:
                 out["users_error"] = str(e)
+            try:
+                cur.execute("DELETE FROM desktop_link_codes WHERE expires_at <= NOW()")
+                out["desktop_link_codes_deleted"] = cur.rowcount
+            except Exception as e:
+                out["desktop_link_codes_error"] = str(e)
             conn.commit()
         except Exception as e:
             conn.rollback()
