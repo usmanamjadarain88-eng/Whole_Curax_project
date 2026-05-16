@@ -495,8 +495,49 @@ class CentralDB:
                 cur.close()
         return "C" + (secrets.token_hex(4).upper()[: _ADMIN_CODE_LENGTH - 1])  # fallback
 
+    def create_desktop_link_code_for_bot(self, bot_id, api_key, expires_seconds=300):
+        """Admin app (signed in on phone): create one-time PC link code from this device's bot_id + api_key."""
+        bot_id = (bot_id or "").strip()
+        api_key = (api_key or "").strip()
+        if not bot_id or not api_key:
+            return None, None, None
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                "SELECT id, name FROM admins WHERE bot_id = %s AND api_key = %s LIMIT 1",
+                (bot_id, api_key),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None, None, None
+            admin_id = row["id"] if hasattr(row, "keys") else row[0]
+            admin_name = (row["name"] if hasattr(row, "keys") else row[1]) or "Admin"
+            from datetime import timedelta
+            expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_seconds)
+            for _ in range(20):
+                link_code = "".join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(8))
+                try:
+                    cur.execute(
+                        "INSERT INTO desktop_link_codes (code, admin_id, expires_at) VALUES (%s, %s, %s)",
+                        (link_code, admin_id, expires_at),
+                    )
+                    if cur.rowcount:
+                        conn.commit()
+                        return link_code, str(admin_id), admin_name
+                except Exception:
+                    conn.rollback()
+                    continue
+            return None, None, None
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB create_desktop_link_code_for_bot: {e}")
+            return None, None, None
+        finally:
+            cur.close()
+
     def create_desktop_link_code(self, access_code, expires_seconds=300):
-        """Admin creates a one-time code for a user to link desktop to this admin (user view). Code valid 5 min; one-time use. Returns (code, admin_id, admin_name) or (None, None, None)."""
+        """Legacy: resolve admin by admin_access_code. Prefer create_desktop_link_code_for_bot from the app."""
         code = (access_code or "").strip().upper()
         if not code:
             return None, None, None

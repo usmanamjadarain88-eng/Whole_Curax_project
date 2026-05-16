@@ -820,7 +820,8 @@
     <string name="create_code">Create code</string>
     <string name="admin_desktop_link_result_message_core">• Your one-time code: %1$s\n• On your PC, open Curax desktop and enter it where this install links to your admin hub.\n• That desktop then runs as you — same workspace as this phone.\n• Do not share with patients; they link phones using your invite or connection code.\n• Expires in %2$d minutes · single use only.</string>
     <string name="admin_desktop_link_result_admin_line">\n\nWorkspace: %1$s</string>
-    <string name="desktop_link_code_failed_404">Could not create code. Sign out, sign in again as admin, then retry. If it still fails, the server database may need the desktop link tables (contact support).</string>
+    <string name="desktop_link_code_not_signed_in">Open the admin app while signed in, then try again.</string>
+    <string name="desktop_link_code_failed_404">Could not create code. Ask support to add desktop_link_codes on the server, then redeploy backend.</string>
     <string name="desktop_link_code_failed_http">Could not create code (server %1$d). Try again in a moment.</string>
     <string name="return_to_admin">Return to Admin</string>
     <string name="health_hub_alerts_report_title">Alerts report</string>

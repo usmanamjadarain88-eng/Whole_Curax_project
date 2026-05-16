@@ -169,16 +169,20 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun createAdminDesktopLinkCode() {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
-        val accessCode = prefs.adminAccessCode.trim()
-        if (base.isEmpty() || accessCode.isEmpty()) {
-            CuraxFeedback.warn(this, "Not signed in as admin")
+        val botId = prefs.id.trim()
+        val apiKey = prefs.apiKey.trim()
+        if (base.isEmpty() || botId.isEmpty() || apiKey.isEmpty()) {
+            CuraxFeedback.warn(this, getString(R.string.desktop_link_code_not_signed_in), long = true)
             return
         }
         val btn = findViewById<MaterialButton>(R.id.btnDesktopLinkingCode)
         btn.isEnabled = false
         Thread {
             try {
-                val body = JSONObject().put("access_code", accessCode).toString()
+                val bodyJson = JSONObject()
+                    .put("bot_id", botId)
+                    .put("api_key", apiKey)
+                val body = bodyJson.toString()
                     .toRequestBody("application/json".toMediaType())
                 val req = Request.Builder()
                     .url("$base/admin/create-desktop-link-code")

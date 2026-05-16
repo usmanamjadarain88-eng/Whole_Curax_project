@@ -1664,22 +1664,22 @@ def delete_admin(body, query, headers):
         return (404, {"message": "Admin not found or already deleted"})
     return (200, {"message": "Admin deleted", "access_code": access_code})
 def create_desktop_link_code(body, query, headers):
-    """POST { "access_code": "..." } ΓåÆ admin creates a one-time code for a user to link desktop (user view).
-    Returns { "code": "ABC12XYZ", "expires_in": 600 }. Only the admin (with access_code) can create this."""
+    """POST { "bot_id", "api_key" } from admin phone → one-time code for PC (5 min, single use). No user involved."""
     data = body
-    access_code = (data.get("access_code") or "").strip()
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
-    if not access_code:
-        return (400, {"message": "access_code required"})
-    code, admin_id, admin_name = db.create_desktop_link_code(access_code, expires_seconds=300)
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required (open the app signed in as admin)."})
+    expires_seconds = 300
+    code, admin_id, admin_name = db.create_desktop_link_code_for_bot(bot_id, api_key, expires_seconds=expires_seconds)
     if not code:
-        return (404, {
-            "message": "Invalid access code, session expired, or desktop link storage unavailable. "
-            "Sign out and sign in again as admin, then retry. If it persists, run central_schema.sql on the database.",
+        return (503, {
+            "message": "Could not create desktop link code. Check that desktop_link_codes table exists on the server database.",
         })
-    return (200, {"code": code, "expires_in": 300, "admin_name": admin_name})
+    return (200, {"code": code, "expires_in": expires_seconds, "admin_name": admin_name})
 def desktop_link_to_admin(body, query, headers):
     """POST { "code": "..." } → desktop redeems admin's one-time Desktop linking code (from Android Settings).
     Returns admin_id, admin_name, admin_access_code, connection_code so the PC can load the same hub as the phone."""
