@@ -15,7 +15,10 @@ except ImportError:
     )
 
 from ui.tabs.admin_api import linked_users, admin_access_code
-from ui.tabs.admin_ui_common import AdminPageShell, BTN_PRIMARY, BTN_OUTLINE
+from ui.tabs.admin_ui_common import (
+    AdminPageShell, toolbar_card, text_card, apply_input_style,
+    BTN_PRIMARY, BTN_OUTLINE, ADMIN_MUTED,
+)
 
 
 class AdminReportsTab(QWidget):
@@ -29,21 +32,24 @@ class AdminReportsTab(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(shell)
 
-        row = QHBoxLayout()
-        row.addWidget(QLabel("For:"))
+        tool, tool_lo = toolbar_card()
+        lbl = QLabel("Report for")
+        lbl.setStyleSheet(f"color: {ADMIN_MUTED}; font-weight: 600; background: transparent;")
+        tool_lo.addWidget(lbl)
         self._user_combo = QComboBox()
         self._user_combo.addItem("All hub", "")
+        apply_input_style(self._user_combo)
         self._user_combo.currentIndexChanged.connect(self.refresh)
-        row.addWidget(self._user_combo, 1)
+        tool_lo.addWidget(self._user_combo, 1)
         ref = QPushButton("Refresh")
         ref.setStyleSheet(BTN_PRIMARY)
         ref.clicked.connect(self._reload_users)
-        row.addWidget(ref)
+        tool_lo.addWidget(ref)
         ex = QPushButton("Export CSV")
         ex.setStyleSheet(BTN_OUTLINE)
         ex.clicked.connect(self._export_csv)
-        row.addWidget(ex)
-        lo.addLayout(row)
+        tool_lo.addWidget(ex)
+        lo.addWidget(tool)
 
         self._body = QTextEdit()
         self._body.setReadOnly(True)
@@ -51,7 +57,7 @@ class AdminReportsTab(QWidget):
             self._body.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         except AttributeError:
             self._body.setLineWrapMode(QTextEdit.WidgetWidth)
-        lo.addWidget(self._body, 1)
+        lo.addWidget(text_card(self._body), 1)
         if hasattr(controller, "medicine_updated"):
             controller.medicine_updated.connect(self.refresh)
         self._reload_users()

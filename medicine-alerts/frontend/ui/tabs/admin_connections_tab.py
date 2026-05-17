@@ -12,8 +12,9 @@ except ImportError:
 
 from ui.tabs.admin_api import admin_access_code, api_base, pending_link_requests, post_json
 from ui.tabs.admin_ui_common import (
-    AdminPageShell, section_label, card_frame, table_item,
-    prepare_table, resize_table_rows, BTN_PRIMARY, BTN_OUTLINE,
+    AdminPageShell, section_label, card_frame, card_layout, table_item,
+    resize_table_rows, prepare_table, TABLE_STYLE, apply_input_style,
+    muted_label, BTN_PRIMARY, BTN_OUTLINE,
 )
 
 
@@ -36,19 +37,26 @@ class AdminConnectionsTab(QWidget):
         self._pending = QTableWidget(0, 4)
         self._pending.setHorizontalHeaderLabels(["Name", "Email", "When", ""])
         prepare_table(self._pending, stretch_col=1)
-        lo.addWidget(self._pending)
-        self._empty = QLabel("No pending requests.")
-        self._empty.setWordWrap(True)
-        lo.addWidget(self._empty)
+        self._pending.setStyleSheet(TABLE_STYLE)
+        pending_card = card_frame()
+        pl = QVBoxLayout(pending_card)
+        pl.setContentsMargins(0, 0, 0, 0)
+        pl.addWidget(self._pending)
+        foot = QWidget()
+        fl = QHBoxLayout(foot)
+        fl.setContentsMargins(16, 4, 16, 12)
+        self._empty = muted_label("No pending requests.")
+        fl.addWidget(self._empty)
+        pl.addWidget(foot)
+        lo.addWidget(pending_card)
 
         lo.addWidget(section_label("CONNECTION CODE"))
         code_card = card_frame()
-        cl = QVBoxLayout(code_card)
-        cl.setContentsMargins(16, 14, 16, 14)
+        cl = card_layout(code_card)
         row = QHBoxLayout()
         self._code = QLineEdit()
         self._code.setReadOnly(True)
-        self._code.setMinimumHeight(40)
+        apply_input_style(self._code)
         row.addWidget(self._code, 1)
         copy = QPushButton("Copy")
         copy.setStyleSheet(BTN_OUTLINE)

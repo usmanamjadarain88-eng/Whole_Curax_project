@@ -12,8 +12,8 @@ except ImportError:
 
 from ui.tabs.admin_api import linked_users
 from ui.tabs.admin_ui_common import (
-    AdminPageShell, table_item, prepare_table, resize_table_rows,
-    BTN_PRIMARY, BTN_DANGER,
+    AdminPageShell, table_item, resize_table_rows, prepare_table,
+    TABLE_STYLE, card_frame, muted_label, BTN_PRIMARY, BTN_DANGER,
 )
 
 
@@ -38,12 +38,19 @@ class AdminUsersTab(QWidget):
             ["Name", "Email", "Mode", "Relay", "Care", "Remove"]
         )
         prepare_table(self._table, stretch_col=1)
-        lo.addWidget(self._table, 1)
-
-        self._status = QLabel("")
-        self._status.setWordWrap(True)
-        self._status.setStyleSheet("color: #64748B; font-size: 10pt;")
-        lo.addWidget(self._status)
+        self._table.setStyleSheet(TABLE_STYLE)
+        users_card = card_frame()
+        ul = QVBoxLayout(users_card)
+        ul.setContentsMargins(0, 0, 0, 0)
+        ul.setSpacing(0)
+        ul.addWidget(self._table, 1)
+        foot = QWidget()
+        fl = QHBoxLayout(foot)
+        fl.setContentsMargins(16, 4, 16, 12)
+        self._status = muted_label("")
+        fl.addWidget(self._status)
+        ul.addWidget(foot)
+        lo.addWidget(users_card, 1)
 
         if hasattr(controller, "medicine_updated"):
             controller.medicine_updated.connect(self.refresh)

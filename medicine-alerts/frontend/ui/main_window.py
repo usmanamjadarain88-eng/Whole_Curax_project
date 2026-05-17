@@ -1631,7 +1631,7 @@ class MainWindow(QMainWindow):
             else:
                 self._footer_bar.setStyleSheet(
                     "QFrame#footerBar { background-color: rgba(255,255,255,0.38); "
-                    "border-top: 2px solid #c8c8c8; }"
+                    "border-top: 1px solid #E2E8F0; }"
                     f"QLabel#footerLabel {{ font-size: {fpt}pt; color: #6a9e99; background: transparent; }}"
                 )
         self._content_scale = ts
@@ -1707,7 +1707,7 @@ class MainWindow(QMainWindow):
             else:
                 self._footer_bar.setStyleSheet(
                     "QFrame#footerBar { background-color: rgba(255,255,255,0.38); "
-                    "border-top: 2px solid #c8c8c8; }"
+                    "border-top: 1px solid #E2E8F0; }"
                     "QLabel#footerLabel { font-size: 8pt; color: #6a9e99; background: transparent; }"
                 )
         if hasattr(self, "tabs"):
@@ -1816,7 +1816,7 @@ class MainWindow(QMainWindow):
             self.left_column.setStyleSheet(
                 "QWidget#leftColumn {"
                 "background-color: #ffffff;"
-                "border-right: 2px solid #c8c8c8;"
+                "border-right: 1px solid #E2E8F0;"
                 "}"
             )
             self.sidebar.setStyleSheet(
@@ -1824,8 +1824,8 @@ class MainWindow(QMainWindow):
                 "background-color: #ffffff;"
                 "border-top: none;"
                 "border-left: none;"
-                "border-right: 2px solid #c8c8c8;"
-                "border-bottom: 2px solid #c8c8c8;"
+                "border-right: 1px solid #E2E8F0;"
+                "border-bottom: 1px solid #E2E8F0;"
                 "border-bottom-right-radius: 12px;"
                 "}"
                 "QFrame#sidebarFrame QLabel { background: transparent; color: #1f2937; }"
@@ -2059,7 +2059,7 @@ class MainWindow(QMainWindow):
                 self._topbar_frame.setStyleSheet("""
                     QFrame#topBar {
                         background-color: #ffffff;
-                        border-bottom: 2px solid #c8c8c8;
+                        border-bottom: 1px solid #E2E8F0;
                     }
                 """)
 
@@ -2402,14 +2402,14 @@ class MainWindow(QMainWindow):
         topbar.setStyleSheet("""
             QFrame#topBar {
                 background-color: #ffffff;
-                border-bottom: 2px solid #c8c8c8;
+                border-bottom: 1px solid #E2E8F0;
             }
         """)
         self._topbar_frame = topbar
         topbar.setStyleSheet("""
             QFrame#topBar {
                 background-color: #ffffff;
-                border-bottom: 2px solid #c8c8c8;
+                border-bottom: 1px solid #E2E8F0;
             }
         """)
         topbar_layout = QHBoxLayout(topbar)
@@ -2516,7 +2516,7 @@ class MainWindow(QMainWindow):
         self._status_pill.setStyleSheet("""
             QFrame#statusPill {
                 background-color: #ffffff;
-                border: 1.5px solid #c8c8c8;
+                border: 1px solid #E2E8F0;
                 border-radius: 14px;
             }
         """)
@@ -2737,18 +2737,43 @@ class MainWindow(QMainWindow):
         self._header_anim_timer = QTimer(self)
         self._header_anim_timer.timeout.connect(self._animate_header_overlay)
         self._header_anim_timer.start(70)
+        self._system_startup_alert_sent = False
         QTimer.singleShot(1500, self._send_startup_alert_to_bot)
+        QTimer.singleShot(6000, self._send_startup_alert_to_bot)
         # Apply topbar scale after first layout so small window gets smaller toggle/status even before resize
         QTimer.singleShot(100, self._update_topbar_scale)
 
     # ── All original methods preserved below (no logic changes) ──────────────
 
+    def _desktop_alert_user_label(self):
+        name = (getattr(self.controller, "logged_in_admin_name", None) or "").strip()
+        if name:
+            return name
+        try:
+            db = self.controller.get_db()
+            if db and hasattr(db, "get"):
+                n = (db.get("admin_name") or "").strip()
+                if n:
+                    return n
+        except Exception:
+            pass
+        return "Admin"
+
     def _send_startup_alert_to_bot(self):
         try:
+            if getattr(self, "_system_startup_alert_sent", False):
+                return
             has_admin, _ = self._get_desktop_role()
             if not has_admin:
                 return
-            self.controller.send_admin_alert("system_started", "CuraX started")
+            if not (self.controller._get_access_code() or "").strip():
+                return
+            label = self._desktop_alert_user_label()
+            self.controller.send_admin_alert(
+                "system_started",
+                f"{label}'s desktop: CuraX started",
+            )
+            self._system_startup_alert_sent = True
         except Exception:
             pass
 
@@ -2757,7 +2782,13 @@ class MainWindow(QMainWindow):
             has_admin, _ = self._get_desktop_role()
             if not has_admin:
                 return
-            self.controller.send_admin_alert("system_unlocked", "CuraX system unlocked")
+            if not (self.controller._get_access_code() or "").strip():
+                return
+            label = self._desktop_alert_user_label()
+            self.controller.send_admin_alert(
+                "system_unlocked",
+                f"{label}'s desktop: system unlocked",
+            )
         except Exception:
             pass
 
@@ -2893,6 +2924,7 @@ class MainWindow(QMainWindow):
         self._update_status_text()
         self._apply_locked_state()
         if authenticated:
+            self._send_startup_alert_to_bot()
             self._send_unlocked_alert_to_bot()
             self._update_admin_status_label()
         if authenticated and hasattr(self, "com_frame") and self.com_frame.isVisible():

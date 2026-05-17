@@ -13,8 +13,8 @@ except ImportError:
     from PyQt5.QtCore import Qt
 
 from ui.tabs.admin_ui_common import (
-    AdminPageShell, table_item, prepare_table, resize_table_rows,
-    BTN_PRIMARY, BTN_DANGER,
+    AdminPageShell, table_item, resize_table_rows, apply_input_style,
+    table_card, toolbar_card, BTN_PRIMARY, BTN_DANGER,
 )
 
 
@@ -29,38 +29,36 @@ class AdminAlertsTab(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(shell)
 
-        filt = QHBoxLayout()
+        tool, tool_lo = toolbar_card()
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search")
+        self._search.setPlaceholderText("Search alerts…")
+        apply_input_style(self._search)
         self._search.textChanged.connect(self.refresh)
-        filt.addWidget(self._search, 1)
+        tool_lo.addWidget(self._search, 1)
         self._status = QComboBox()
         self._status.addItems(["All", "Taken", "Missed", "System"])
+        apply_input_style(self._status)
         self._status.currentIndexChanged.connect(self.refresh)
-        filt.addWidget(self._status)
+        tool_lo.addWidget(self._status)
         self._sort = QComboBox()
         self._sort.addItems(["Newest", "Oldest"])
+        apply_input_style(self._sort)
         self._sort.currentIndexChanged.connect(self.refresh)
-        filt.addWidget(self._sort)
-        lo.addLayout(filt)
-
-        act = QHBoxLayout()
+        tool_lo.addWidget(self._sort)
         del_btn = QPushButton("Delete selected")
         del_btn.setStyleSheet(BTN_DANGER)
         del_btn.clicked.connect(self._delete_selected)
-        act.addWidget(del_btn)
+        tool_lo.addWidget(del_btn)
         ref = QPushButton("Refresh")
         ref.setStyleSheet(BTN_PRIMARY)
         ref.clicked.connect(self._reload)
-        act.addWidget(ref)
-        act.addStretch(1)
-        lo.addLayout(act)
+        tool_lo.addWidget(ref)
+        lo.addWidget(tool)
 
         self._table = QTableWidget(0, 5)
         self._table.setHorizontalHeaderLabels(["", "Type", "Time", "User", "Detail"])
-        prepare_table(self._table, stretch_col=4)
         self._table.itemChanged.connect(self._on_item_changed)
-        lo.addWidget(self._table, 1)
+        lo.addWidget(table_card(self._table, stretch_col=4), 1)
 
         if hasattr(controller, "medicine_updated"):
             controller.medicine_updated.connect(self.refresh)

@@ -950,8 +950,9 @@ def _send_alert_via_relay(bot_id, api_key, alert_type, message, fcm_token=None, 
     err_msg = (last_error or "Unknown error")[:200]
     return False, err_msg
 def notify_event(body, query, headers):
-    """POST { access_code, event_type, message } ΓåÆ desktop tells backend of admin-only events.
-    Backend finds admin bot_id+api_key by access_code, sends alert to relay ΓåÆ admin's app (FCM preferred).
+    """POST { access_code, event_type, message, user_name? } → desktop tells backend of admin-only events.
+    Backend finds admin bot_id+api_key by access_code, persists alert row (dashboard user), sends to relay
+    → admin's app (FCM + popup), and notifies databus so desktop/mobile Alerts tabs refresh.
     Events: system_started, system_unlocked, admin_login, dose_taken, etc.
     """
     data = body
@@ -966,14 +967,28 @@ def notify_event(body, query, headers):
     bot = db.get_admin_bot_by_access_code(access_code)
     if not bot:
         return (404, {"message": "Admin not found or credentials not yet registered (admin must sign up on app first)"})
+    admin_row = db.get_admin_by_access_code(access_code) or {}
+    admin_id = (admin_row.get("id") or "").strip()
+    admin_name = (data.get("user_name") or admin_row.get("name") or "Admin").strip() or "Admin"
     bid, akey = bot.get("bot_id"), bot.get("api_key")
     fcm = (bot.get("fcm_token") or "").strip() or None
     if not fcm:
         fcm = db.get_fcm_token_for_bot(bid, akey) or None
+    if admin_id:
+        try:
+            duid = db.get_dashboard_user_id(admin_id)
+            if duid:
+                db.create_alert(duid, admin_id, event_type, message)
+        except Exception as e:
+            print(f"[notify-event] create_alert: {e}")
     def _deliver():
         db2 = get_db()
         fcm_now = (fcm or (db2.get_fcm_token_for_bot(bid, akey) if db2 else None) or "").strip() or None
-        _send_alert_via_relay(bid, akey, event_type, message, fcm_token=fcm_now)
+        _send_alert_via_relay(bid, akey, event_type, message, fcm_token=fcm_now, user_name=admin_name)
+        try:
+            notify_databus(access_code)
+        except Exception as e:
+            print(f"[notify-event] databus: {e}")
     threading.Thread(target=_deliver, daemon=True, name="NotifyRelay").start()
     return (200, {"message": "ok"})
 def notify_event_by_user(body, query, headers):

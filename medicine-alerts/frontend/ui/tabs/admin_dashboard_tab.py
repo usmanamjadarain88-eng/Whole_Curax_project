@@ -16,8 +16,9 @@ from datetime import datetime, timedelta
 from ui.tabs.admin_api import linked_users, admin_access_code
 from ui.tabs.admin_chart_widgets import HubChartPanel
 from ui.tabs.admin_ui_common import (
-    AdminPageShell, section_label, table_item, prepare_table,
-    resize_table_rows, BTN_PRIMARY, card_frame,
+    AdminPageShell, section_label, table_item, resize_table_rows,
+    BTN_PRIMARY, card_frame, card_layout, table_card,
+    ADMIN_BORDER, ADMIN_MUTED,
 )
 
 
@@ -25,8 +26,9 @@ class _ClickableStatCard(QFrame):
     def __init__(self, on_click=None, parent=None):
         super().__init__(parent)
         self._on_click = on_click
+        self.setObjectName("hubStatCard")
         self.setStyleSheet(
-            "#hubStatCard { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 14px; }"
+            f"#hubStatCard {{ background: #F8FAFC; border: 1px solid {ADMIN_BORDER}; border-radius: 12px; }}"
             "#hubStatCard:hover { border-color: #0D9488; }"
         )
         if on_click:
@@ -52,7 +54,7 @@ def _stat_card(title: str, value: str, on_click=None):
     cap = QLabel(title)
     cap.setWordWrap(True)
     cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    cap.setStyleSheet("font-size: 9pt; color: #64748B;")
+    cap.setStyleSheet(f"font-size: 9pt; color: {ADMIN_MUTED};")
     lo.addWidget(val)
     lo.addWidget(cap)
     return frame, val
@@ -138,24 +140,28 @@ class AdminDashboardTab(QWidget):
         lo.addLayout(pulse)
 
         lo.addWidget(section_label("INSIGHTS"))
+        charts_card = card_frame()
+        ch_lo = card_layout(charts_card)
         self._charts = HubChartPanel()
         self._charts.setMinimumHeight(160)
-        lo.addWidget(self._charts)
+        ch_lo.addWidget(self._charts)
+        lo.addWidget(charts_card)
 
-        lo.addWidget(section_label("ACTIVITY"))
+        lo.addWidget(section_label("RECENT ACTIVITY"))
         self._alerts_table = QTableWidget(0, 3)
         self._alerts_table.setHorizontalHeaderLabels(["Type", "Time", "Detail"])
-        prepare_table(self._alerts_table, stretch_col=2)
-        lo.addWidget(self._alerts_table)
+        lo.addWidget(table_card(self._alerts_table, stretch_col=2))
 
         lo.addWidget(section_label("DOSE HISTORY"))
+        dose_card = card_frame()
+        dl = card_layout(dose_card)
         self._dose_preview = QLabel("")
         self._dose_preview.setWordWrap(True)
         self._dose_preview.setStyleSheet(
-            "color: #334155; font-size: 10pt; padding: 12px; background: #fff;"
-            "border: 1px solid #E2E8F0; border-radius: 10px;"
+            f"color: #334155; font-size: 10pt; background: transparent; border: none;"
         )
-        lo.addWidget(self._dose_preview)
+        dl.addWidget(self._dose_preview)
+        lo.addWidget(dose_card)
         lo.addStretch(1)
 
         self._refresh_timer = QTimer(self)

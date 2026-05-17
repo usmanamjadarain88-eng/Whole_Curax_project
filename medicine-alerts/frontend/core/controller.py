@@ -1488,6 +1488,8 @@ class AppController(QObject):
             import urllib.request
             import json as _json
             payload = {"event_type": str(alert_type), "message": str(message or "")}
+            admin_label = (getattr(self, "logged_in_admin_name", None) or "").strip() or "Admin"
+            payload["user_name"] = admin_label
             access_code = self._get_access_code()
             if access_code:
                 payload["access_code"] = access_code
@@ -1547,7 +1549,12 @@ class AppController(QObject):
         base = base.rstrip("/")
         access_code = self._get_access_code()
         url = None
-        payload = {"event_type": str(alert_type), "message": str(message)}
+        admin_label = (getattr(self, "logged_in_admin_name", None) or "").strip() or "Admin"
+        payload = {
+            "event_type": str(alert_type),
+            "message": str(message),
+            "user_name": admin_label,
+        }
         if access_code:
             payload["access_code"] = access_code
             url = base + "/notify-event"

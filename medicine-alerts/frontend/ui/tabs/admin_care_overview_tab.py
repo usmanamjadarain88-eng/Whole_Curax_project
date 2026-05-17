@@ -13,8 +13,8 @@ except ImportError:
     from PyQt5.QtCore import Qt
 
 from ui.tabs.admin_ui_common import (
-    AdminPageShell, section_label, card_frame, table_item,
-    prepare_table, resize_table_rows, BTN_PRIMARY, BTN_OUTLINE,
+    AdminPageShell, section_label, card_frame, card_layout, table_item,
+    resize_table_rows, table_card, ADMIN_BORDER, BTN_PRIMARY, BTN_OUTLINE,
 )
 from ui.tabs.add_medicine_tab import AddMedicineTab
 from ui.tabs.main_panel_tab import BoxDetailDialog
@@ -31,7 +31,7 @@ class _CompactBoxCard(QFrame):
         except AttributeError:
             self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(
-            "QFrame { background: #ffffff; border: 1px solid #CBD5E1; border-radius: 10px; }"
+            f"QFrame {{ background: #ffffff; border: 1px solid {ADMIN_BORDER}; border-radius: 10px; }}"
             "QFrame:hover { border-color: #0D9488; }"
         )
         lo = QVBoxLayout(self)
@@ -96,8 +96,7 @@ class AdminCareOverviewTab(QWidget):
 
         lo.addWidget(section_label("MEDICINE BOXES"))
         box_card = card_frame()
-        box_lo = QVBoxLayout(box_card)
-        box_lo.setContentsMargins(12, 12, 12, 12)
+        box_lo = card_layout(box_card)
         grid = QGridLayout()
         grid.setSpacing(8)
         for i in range(1, 7):
@@ -114,9 +113,8 @@ class AdminCareOverviewTab(QWidget):
         self._inv_table.setHorizontalHeaderLabels(
             ["Medicine", "Box", "Qty", "Dose/day", "Expiry", "Time", ""]
         )
-        prepare_table(self._inv_table, stretch_col=0)
         self._inv_table.setMinimumHeight(180)
-        lo.addWidget(self._inv_table, 1)
+        lo.addWidget(table_card(self._inv_table, stretch_col=0), 1)
 
         if hasattr(controller, "medicine_updated"):
             controller.medicine_updated.connect(self.refresh)
