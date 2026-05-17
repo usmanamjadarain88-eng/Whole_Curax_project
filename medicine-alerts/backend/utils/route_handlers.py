@@ -252,7 +252,11 @@ def signup_sign_in_verify(body, query, headers):
     db = get_db()
     if not db:
         return (503, {"message": "Central DB not configured"})
-    r = db.signup_sign_in_verify_otp(email, otp)
+    try:
+        r = db.signup_sign_in_verify_otp(email, otp)
+    except Exception as e:
+        print(f"signup_sign_in_verify: {e}")
+        return (500, {"message": "database_error", "detail": str(e)[:300]})
     if not r.get("ok"):
         err = r.get("error") or "error"
         code = 400

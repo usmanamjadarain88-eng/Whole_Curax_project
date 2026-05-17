@@ -31,6 +31,10 @@
       "destination": "/api/admin_mobile_sign_in_verify"
     },
     {
+      "source": "/signup/sign-in-verify",
+      "destination": "/api/signup_sign_in_verify"
+    },
+    {
       "source": "/admin/email-signup/start",
       "destination": "/api/admin_email_signup_start"
     },
@@ -115,6 +119,14 @@
       "destination": "/api/admin_accept_user_link_request"
     },
     {
+      "source": "/admin/reject-user-link-request",
+      "destination": "/api/admin_reject_user_link_request"
+    },
+    {
+      "source": "/admin/set-user-display-mode",
+      "destination": "/api/admin_set_user_display_mode"
+    },
+    {
       "source": "/admin/fcm-token",
       "destination": "/api/admin_fcm_token"
     },
@@ -171,20 +183,16 @@
       "destination": "/api/admin_notify"
     },
     {
+      "source": "/admin",
+      "destination": "/api/admin_delete"
+    },
+    {
       "source": "/admin/create-desktop-link-code",
       "destination": "/api/admin_create_desktop_link_code"
     },
     {
       "source": "/desktop/link-to-admin",
       "destination": "/api/desktop_link_to_admin"
-    },
-    {
-      "source": "/api/desktop/link-to-admin",
-      "destination": "/api/desktop_link_to_admin"
-    },
-    {
-      "source": "/admin",
-      "destination": "/api/admin_delete"
     },
     {
       "source": "/admin/medical_reminders",

@@ -188,6 +188,7 @@ def main() -> None:
         "user_databus_room": "/user/databus-room",
         "user_plans": "/user/plans",
         "admin_sync": "/admin/sync",
+        "admin_clear_user_dose_logs": "/admin/clear-user-dose-logs",
         "admin_notify": "/admin/notify",
         "admin_delete": "/admin",
         "admin_create_desktop_link_code": "/admin/create-desktop-link-code",

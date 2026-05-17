@@ -14,6 +14,7 @@ _STATIC: List[Tuple[str, str, str]] = [
     ("POST", "/save-credentials", "save_credentials"),
     ("POST", "/admin/mobile-sign-in-start", "admin_mobile_sign_in_start"),
     ("POST", "/admin/mobile-sign-in-verify", "admin_mobile_sign_in_verify"),
+    ("POST", "/signup/sign-in-verify", "signup_sign_in_verify"),
     ("POST", "/admin/email-signup/start", "admin_email_signup_start"),
     ("POST", "/admin/email-signup/verify", "admin_email_signup_verify"),
     ("POST", "/connect-to-admin", "connect_to_admin"),
@@ -24,7 +25,6 @@ _STATIC: List[Tuple[str, str, str]] = [
     ("POST", "/signup/request-admin-link", "signup_request_admin_link"),
     ("GET", "/signup/link-request-status", "signup_link_request_status"),
     ("POST", "/signup/sign-in", "signup_sign_in"),
-    ("POST", "/signup/sign-in-verify", "signup_sign_in_verify"),
     ("POST", "/password-reset/start", "password_reset_start"),
     ("POST", "/password-reset/complete", "password_reset_complete"),
     ("GET", "/user/account-status", "user_account_status"),
@@ -92,6 +92,7 @@ _NAME_TO_FN = {
     "admin_mobile_sign_in_verify": rh.admin_mobile_sign_in_verify,
     "admin_notify": rh.admin_notify,
     "admin_pending_user_link_requests": rh.admin_pending_user_link_requests,
+    "admin_reject_user_link_request": rh.admin_reject_user_link_request,
     "admin_set_user_display_mode": rh.admin_set_user_display_mode,
     "admin_sync": rh.admin_sync,
     "connect_to_admin": rh.connect_to_admin,
@@ -131,6 +132,7 @@ _NAME_TO_FN = {
     "signup_list_admins_directory": rh.signup_list_admins_directory,
     "signup_request_admin_link": rh.signup_request_admin_link,
     "signup_sign_in": rh.signup_sign_in,
+    "signup_sign_in_verify": rh.signup_sign_in_verify,
     "signup_start": rh.signup_start,
     "signup_verify_email": rh.signup_verify_email,
     "sync_get": rh.sync_get,
@@ -155,6 +157,7 @@ _STEM_TO_PUBLIC_PATH: dict[str, str] = {
     "save_credentials": "/save-credentials",
     "admin_mobile_sign_in_start": "/admin/mobile-sign-in-start",
     "admin_mobile_sign_in_verify": "/admin/mobile-sign-in-verify",
+    "signup_sign_in_verify": "/signup/sign-in-verify",
     "admin_email_signup_start": "/admin/email-signup/start",
     "admin_email_signup_verify": "/admin/email-signup/verify",
     "connect_to_admin": "/connect-to-admin",
@@ -165,7 +168,6 @@ _STEM_TO_PUBLIC_PATH: dict[str, str] = {
     "signup_request_admin_link": "/signup/request-admin-link",
     "signup_link_request_status": "/signup/link-request-status",
     "signup_sign_in": "/signup/sign-in",
-    "signup_sign_in_verify": "/signup/sign-in-verify",
     "password_reset_start": "/password-reset/start",
     "password_reset_complete": "/password-reset/complete",
     "user_account_status": "/user/account-status",
@@ -191,6 +193,7 @@ _STEM_TO_PUBLIC_PATH: dict[str, str] = {
     "user_databus_room": "/user/databus-room",
     "user_plans": "/user/plans",
     "admin_sync": "/admin/sync",
+    "admin_clear_user_dose_logs": "/admin/clear-user-dose-logs",
     "admin_notify": "/admin/notify",
     "admin_delete": "/admin",
     "admin_create_desktop_link_code": "/admin/create-desktop-link-code",
@@ -205,12 +208,6 @@ _STEM_TO_PUBLIC_PATH: dict[str, str] = {
     "sync": "/sync",
 }
 
-_API_MULTI_SEGMENT = {
-    "desktop/link-to-admin": "/desktop/link-to-admin",
-    "admin/create-desktop-link-code": "/admin/create-desktop-link-code",
-}
-
-
 def normalize_vercel_api_path(method: str, path_only: str, query: dict) -> str:
     """Map Vercel URL (/api/stem or pretty paths) to the path shape used by dispatch()."""
     p = (path_only or '/').rstrip('/') or '/'
@@ -218,10 +215,7 @@ def normalize_vercel_api_path(method: str, path_only: str, query: dict) -> str:
         return "/"
     if not p.startswith("/api/"):
         return p
-    suffix = (p[len("/api/"):]).lstrip("/")
-    if suffix in _API_MULTI_SEGMENT:
-        return _API_MULTI_SEGMENT[suffix]
-    stem = suffix.split("/")[0]
+    stem = (p[len("/api/"):]).split("/")[0]
     if stem == "medicine_by_id":
         mid = (query.get("medicine_id") or "").strip()
         if mid:

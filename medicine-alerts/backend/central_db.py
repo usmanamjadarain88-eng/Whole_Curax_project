@@ -3514,33 +3514,40 @@ class CentralDB:
         want = self._hash_signup_otp(email_n, otp_s)
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        user_id = None
         try:
             cur.execute(
                 """
-                UPDATE users AS u SET
-                    password_reset_otp_hash = NULL,
-                    password_reset_otp_expires_at = NULL,
-                    updated_at = NOW()
-                FROM (
-                    SELECT u2.id
-                    FROM users u2
-                    WHERE LOWER(TRIM(COALESCE(u2.email, ''))) = %s
-                      AND COALESCE(u2.bot_id, '') IS DISTINCT FROM 'dashboard'
-                      AND u2.password_reset_otp_hash = %s
-                      AND u2.password_reset_otp_expires_at IS NOT NULL
-                      AND u2.password_reset_otp_expires_at > NOW()
-                    ORDER BY u2.updated_at DESC NULLS LAST, u2.created_at DESC NULLS LAST
-                    LIMIT 1
-                ) AS sub
-                WHERE u.id = sub.id
-                RETURNING u.id::text AS id
+                SELECT u.id::text AS id
+                FROM users u
+                WHERE LOWER(TRIM(COALESCE(u.email, ''))) = %s
+                  AND COALESCE(u.bot_id, '') IS DISTINCT FROM 'dashboard'
+                  AND u.password_reset_otp_hash = %s
+                  AND u.password_reset_otp_expires_at IS NOT NULL
+                  AND u.password_reset_otp_expires_at > NOW()
+                ORDER BY u.updated_at DESC NULLS LAST, u.created_at DESC NULLS LAST
+                LIMIT 1
                 """,
                 (email_n, want),
             )
-            updated = cur.fetchone()
-            if not updated:
+            row = cur.fetchone()
+            if not row:
                 conn.rollback()
                 return {"ok": False, "error": "invalid_or_expired"}
+            user_id = str((row.get("id") if hasattr(row, "keys") else row[0]) or "").strip()
+            if not user_id:
+                conn.rollback()
+                return {"ok": False, "error": "invalid_or_expired"}
+            cur.execute(
+                """
+                UPDATE users SET
+                    password_reset_otp_hash = NULL,
+                    password_reset_otp_expires_at = NULL,
+                    updated_at = NOW()
+                WHERE id = %s::uuid
+                """,
+                (user_id,),
+            )
             conn.commit()
         except Exception as e:
             conn.rollback()
