@@ -75,7 +75,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     companion object {
         private const val STATE_VIEW_PAGER_TAB = "user_standalone_vp_tab"
         /** Cold start of this activity after mode toggle (avoids fragment restore from [recreate]). */
-        private const val EXTRA_RELAUNCH_TAB = "user_standalone_relaunch_tab"
+        const val EXTRA_RELAUNCH_TAB = "user_standalone_relaunch_tab"
         /** Toolbar action order: lower = further left (theme → mode → overflow). */
         private const val MENU_ORDER_THEME = 1
         private const val MENU_ORDER_MODE = 2

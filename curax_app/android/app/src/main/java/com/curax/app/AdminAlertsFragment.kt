@@ -159,14 +159,15 @@ class AdminAlertsFragment : Fragment() {
                 { CuraxFeedback.warn(this, R.string.standalone_connect_admin_first) }
             },
             onClick = { item ->
-                startActivity(Intent(requireContext(), AlertDetailActivity::class.java).apply {
-                    putExtra(NotificationHelper.EXTRA_ALERT_ID, item.id)
-                    putExtra(NotificationHelper.EXTRA_ALERT_TYPE, item.type)
-                    putExtra(NotificationHelper.EXTRA_ALERT_MESSAGE, item.message)
-                    putExtra(NotificationHelper.EXTRA_ALERT_TIME, item.receivedAt)
-                    putExtra(NotificationHelper.EXTRA_ALERT_USER_NAME, item.userName.trim())
-                    putExtra(NotificationHelper.EXTRA_INTERNAL_NAV, true)
-                })
+                val user = AlertDisplayRules.linkedUserLabelForAlert(item.type, item.userName)
+                AlertNavigation.launchDetailFromAlertsList(
+                    requireContext(),
+                    alertId = item.id,
+                    type = item.type,
+                    message = item.message,
+                    receivedAt = item.receivedAt,
+                    userName = user,
+                )
             },
             onSelectionChanged = { count -> updateSelectionUi(count) }
         )
@@ -424,7 +425,11 @@ class AdminAlertsFragment : Fragment() {
         val combined = (apiForUi + db).let { raw ->
             if (!AppRole.isAdmin(requireContext())) raw
             else raw.map { item ->
-                val r = AdminLinkedUserDirectory.resolveAlertUserLabel(item.userName, item.message)
+                val r = AdminLinkedUserDirectory.resolveAlertUserLabel(
+                    item.userName,
+                    item.message,
+                    item.type,
+                )
                 when {
                     r.isEmpty() -> item
                     r == item.userName -> item

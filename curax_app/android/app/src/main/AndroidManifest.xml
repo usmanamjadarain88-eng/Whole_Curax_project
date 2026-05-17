@@ -59,7 +59,6 @@
         <activity
             android:name=".AlertDetailActivity"
             android:exported="false"
-            android:parentActivityName=".MainActivity"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:theme="@style/Theme.Curax">

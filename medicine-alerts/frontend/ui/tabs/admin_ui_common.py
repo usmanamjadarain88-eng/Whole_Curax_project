@@ -15,9 +15,10 @@ except ImportError:
     from PyQt5.QtCore import Qt
 
 # Admin hub design tokens (single source for borders / surfaces)
-ADMIN_PAGE_BG = "#F1F5F9"
+ADMIN_PAGE_BG = "#E8EEF4"
 ADMIN_CARD_BG = "#FFFFFF"
-ADMIN_BORDER = "#E2E8F0"
+ADMIN_BORDER = "#94A3B8"
+ADMIN_BORDER_SOFT = "#CBD5E1"
 ADMIN_TEXT = "#0F172A"
 ADMIN_MUTED = "#64748B"
 ADMIN_ACCENT = "#0F766E"
@@ -43,7 +44,7 @@ BTN_DANGER = (
 INPUT_STYLE = f"""
 QLineEdit, QComboBox {{
     background: {ADMIN_CARD_BG};
-    border: 1px solid {ADMIN_BORDER};
+    border: 1.5px solid {ADMIN_BORDER};
     border-radius: 8px;
     padding: 8px 12px;
     min-height: 34px;
@@ -63,7 +64,7 @@ TABLE_STYLE = f"""
 QTableWidget {{
     background: {ADMIN_CARD_BG};
     border: none;
-    gridline-color: {ADMIN_BORDER};
+    gridline-color: {ADMIN_BORDER_SOFT};
     alternate-background-color: #F8FAFC;
     font-size: 10pt;
     color: {ADMIN_TEXT};
@@ -83,7 +84,7 @@ QHeaderView::section {{
     font-size: 9pt;
     padding: 10px 8px;
     border: none;
-    border-bottom: 1px solid {ADMIN_BORDER};
+    border-bottom: 2px solid {ADMIN_BORDER_SOFT};
 }}
 """
 
@@ -100,7 +101,7 @@ QTextEdit {{
 SHELL_STYLE = f"AdminPageShell {{ background: {ADMIN_PAGE_BG}; }}"
 HEADER_STYLE = (
     f"QFrame#adminPageHeader {{"
-    f"  background: {ADMIN_CARD_BG}; border-bottom: 1px solid {ADMIN_BORDER};"
+    f"  background: {ADMIN_CARD_BG}; border-bottom: 2px solid {ADMIN_BORDER};"
     f"}}"
     f"QLabel#adminPageTitle {{"
     f"  font-size: 18pt; font-weight: 800; color: {ADMIN_ACCENT}; background: transparent;"
@@ -203,7 +204,7 @@ def muted_label(text: str = "") -> QLabel:
 def card_frame() -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame {{ background: {ADMIN_CARD_BG}; border: 1px solid {ADMIN_BORDER}; "
+        f"QFrame {{ background: {ADMIN_CARD_BG}; border: 2px solid {ADMIN_BORDER}; "
         f"border-radius: {CARD_RADIUS}; }}"
     )
     return f

@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import android.app.KeyguardManager
 import java.text.SimpleDateFormat
@@ -48,49 +49,30 @@ class AlertDetailActivity : AppCompatActivity() {
         val fromInternalNav = intent.getBooleanExtra(NotificationHelper.EXTRA_INTERNAL_NAV, false)
         val alreadyUnlocked = AppLockState.isUnlockValid()
         if (!fromInternalNav && !alreadyUnlocked && AppLockPolicy.shouldRequireLockOnEntry(this)) {
-            val fallbackType =
-                intent.getStringExtra(NotificationHelper.EXTRA_ALERT_TYPE)
-                    ?: intent.getStringExtra("type")
-                    ?: intent.getStringExtra("gcm.notification.title")
-                    ?: "alert"
-            val fallbackMessage =
-                intent.getStringExtra(NotificationHelper.EXTRA_ALERT_MESSAGE)
-                    ?: intent.getStringExtra("message")
-                    ?: intent.getStringExtra("gcm.notification.body")
-                    ?: ""
-            val fallbackTime =
-                intent.getLongExtra(
-                    NotificationHelper.EXTRA_ALERT_TIME,
-                    System.currentTimeMillis()
-                )
-            val fallbackUser =
-                intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME)?.trim().orEmpty()
-            startActivity(
-                Intent(this, PinEntryActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
-                    putExtra(PinEntryActivity.EXTRA_TARGET, PinEntryActivity.TARGET_ALERT_DETAIL)
-                    putExtra(
-                        NotificationHelper.EXTRA_ALERT_ID,
-                        intent.getLongExtra(NotificationHelper.EXTRA_ALERT_ID, -1L)
-                    )
-                    putExtra(
-                        NotificationHelper.EXTRA_ALERT_TYPE,
-                        fallbackType
-                    )
-                    putExtra(
-                        NotificationHelper.EXTRA_ALERT_MESSAGE,
-                        fallbackMessage
-                    )
-                    putExtra(NotificationHelper.EXTRA_ALERT_USER_NAME, fallbackUser)
-                    putExtra(
-                        NotificationHelper.EXTRA_ALERT_TIME,
-                        fallbackTime
-                    )
-                }
+            AlertNavigation.routeFromNotificationTap(this, intent)
+            finish()
+            return
+        }
+
+        if (!fromInternalNav && isTaskRoot) {
+            AlertNavigation.launchDetailFromNotification(
+                this,
+                alertId = intent.getLongExtra(NotificationHelper.EXTRA_ALERT_ID, -1L),
+                type = intent.getStringExtra(NotificationHelper.EXTRA_ALERT_TYPE).orEmpty(),
+                message = intent.getStringExtra(NotificationHelper.EXTRA_ALERT_MESSAGE).orEmpty(),
+                receivedAt = intent.getLongExtra(NotificationHelper.EXTRA_ALERT_TIME, System.currentTimeMillis()),
+                userName = intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME).orEmpty(),
             )
             finish()
             return
         }
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() = navigateBackFromDetail()
+            },
+        )
 
         AppLockState.clearBackgroundTimestamp()
         AppLockState.markProcessEntryHandled()
@@ -129,14 +111,18 @@ class AlertDetailActivity : AppCompatActivity() {
         // Demo/API alerts use negative ids; only persist when opened from a real notification
         // (positive id already in DB, or missing id with extras). Never insert for in-app list navigation.
         if (!fromInternalNav && alertId <= 0L && fallbackMessage.isNotEmpty()) {
-            alertId = alertDb.insertAlert(fallbackType, fallbackMessage, userName = fallbackUser)
+            val storedUser = AlertDisplayRules.linkedUserLabelForAlert(fallbackType, fallbackUser)
+            alertId = alertDb.insertAlert(fallbackType, fallbackMessage, userName = storedUser)
         }
 
         val fromDb = if (alertId > 0L) alertDb.getAlertById(alertId) else null
         val type = fromDb?.type ?: fallbackType
         val message = fromDb?.message ?: fallbackMessage
         val time = fromDb?.receivedAt ?: fallbackTime
-        val userLabel = fromDb?.userName?.trim().orEmpty().ifEmpty { fallbackUser }
+        val userLabel = AlertDisplayRules.linkedUserLabelForAlert(
+            type,
+            fromDb?.userName?.trim().orEmpty().ifEmpty { fallbackUser },
+        )
 
         tvType.text = type
         tvMessage.text = message
@@ -150,7 +136,15 @@ class AlertDetailActivity : AppCompatActivity() {
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        finish()
+        navigateBackFromDetail()
         return true
+    }
+
+    /** Back returns to Alerts list (or previous screen if opened from in-app list). */
+    private fun navigateBackFromDetail() {
+        if (isTaskRoot) {
+            startActivity(AlertNavigation.homeOnAlertsTabIntent(this))
+        }
+        finish()
     }
 }

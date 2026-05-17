@@ -79,7 +79,8 @@ class MainActivity : AppCompatActivity() {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             connectionService = (service as AlertConnectionService.LocalBinder).getService()
             connectionService?.onAlertReceived = { type, message, userName ->
-                alertDb.insertAlert(type, message, userName = userName)
+                val storedUser = AlertDisplayRules.linkedUserLabelForAlert(type, userName)
+                alertDb.insertAlert(type, message, userName = storedUser)
                 runOnUiThread { loadAlerts() }
             }
             connectionService?.onConnectionStateChanged = { connected ->
@@ -415,13 +416,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun openAlertDetail(item: AlertItem) {
         if (alertsAdapter.isSelectionMode()) return
-        startActivity(Intent(this, AlertDetailActivity::class.java).apply {
-            putExtra(NotificationHelper.EXTRA_ALERT_ID, item.id)
-            putExtra(NotificationHelper.EXTRA_ALERT_TYPE, item.type)
-            putExtra(NotificationHelper.EXTRA_ALERT_MESSAGE, item.message)
-            putExtra(NotificationHelper.EXTRA_ALERT_TIME, item.receivedAt)
-            putExtra(NotificationHelper.EXTRA_INTERNAL_NAV, true)
-        })
+        val user = AlertDisplayRules.linkedUserLabelForAlert(item.type, item.userName)
+        AlertNavigation.launchDetailFromAlertsList(
+            this,
+            alertId = item.id,
+            type = item.type,
+            message = item.message,
+            receivedAt = item.receivedAt,
+            userName = user,
+        )
     }
 
     private fun attachSwipeToDelete() {

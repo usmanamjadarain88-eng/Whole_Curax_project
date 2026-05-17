@@ -969,7 +969,10 @@ def notify_event(body, query, headers):
         return (404, {"message": "Admin not found or credentials not yet registered (admin must sign up on app first)"})
     admin_row = db.get_admin_by_access_code(access_code) or {}
     admin_id = (admin_row.get("id") or "").strip()
-    admin_name = (data.get("user_name") or admin_row.get("name") or "Admin").strip() or "Admin"
+    _system_types = frozenset({"system_started", "system_unlocked", "admin_login", "test_alert"})
+    relay_user_name = None
+    if (event_type or "").strip().lower() not in _system_types:
+        relay_user_name = (data.get("user_name") or "").strip() or None
     bid, akey = bot.get("bot_id"), bot.get("api_key")
     fcm = (bot.get("fcm_token") or "").strip() or None
     if not fcm:
@@ -984,7 +987,7 @@ def notify_event(body, query, headers):
     def _deliver():
         db2 = get_db()
         fcm_now = (fcm or (db2.get_fcm_token_for_bot(bid, akey) if db2 else None) or "").strip() or None
-        _send_alert_via_relay(bid, akey, event_type, message, fcm_token=fcm_now, user_name=admin_name)
+        _send_alert_via_relay(bid, akey, event_type, message, fcm_token=fcm_now, user_name=relay_user_name)
         try:
             notify_databus(access_code)
         except Exception as e:

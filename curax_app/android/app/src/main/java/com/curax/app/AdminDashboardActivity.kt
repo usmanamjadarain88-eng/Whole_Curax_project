@@ -97,7 +97,8 @@ class AdminDashboardActivity : AppCompatActivity() {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             connectionService = (service as AlertConnectionService.LocalBinder).getService()
             connectionService?.onAlertReceived = { type, message, userName ->
-                val alertId = alertDb.insertAlert(type, message, userName = userName)
+                val storedUser = AlertDisplayRules.linkedUserLabelForAlert(type, userName)
+                val alertId = alertDb.insertAlert(type, message, userName = storedUser)
                 runOnUiThread {
                     if (!AppVisibility.isForeground) {
                         NotificationHelper.showAlertNotification(
@@ -106,7 +107,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                             alertId = alertId,
                             type = type,
                             message = message,
-                            userName = userName,
+                            userName = storedUser,
                         )
                     }
                     supportFragmentManager.fragments
@@ -180,6 +181,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         tabLayout = findViewById(R.id.tabLayout)
         viewPager = findViewById(R.id.viewPager)
         refreshTabsForActAsUser()
+        applyOpenAlertsTabFromIntent(intent)
 
         tabLayout?.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
@@ -514,6 +516,18 @@ class AdminDashboardActivity : AppCompatActivity() {
         if (prefs.actAsUserId.isNotEmpty()) return
         drawerLayout.closeDrawer(android.view.Gravity.START)
         viewPager?.setCurrentItem(2, true)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyOpenAlertsTabFromIntent(intent)
+    }
+
+    private fun applyOpenAlertsTabFromIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(AlertNavigation.EXTRA_OPEN_ALERTS_TAB, false) != true) return
+        intent.removeExtra(AlertNavigation.EXTRA_OPEN_ALERTS_TAB)
+        viewPager?.post { navigateAdminHomeToAlertsTab() }
     }
 
     /** Home hub: open drawer where relay Connect lives. */

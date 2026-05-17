@@ -125,7 +125,10 @@ class AdminAlertsTab(QWidget):
             self._table.setItem(i, 0, chk)
             self._table.setItem(i, 1, table_item(a.get("type") or "Alert"))
             self._table.setItem(i, 2, table_item(_ts(a)[:19].replace("T", " ")))
-            self._table.setItem(i, 3, table_item(a.get("user_name") or ""))
+            user_col = "" if typ in (
+                "system_started", "system_unlocked", "admin_login", "test_alert",
+            ) else (a.get("user_name") or "")
+            self._table.setItem(i, 3, table_item(user_col))
             self._table.setItem(i, 4, table_item(a.get("message") or ""))
         if self._table.rowCount() == 0:
             self._table.setRowCount(1)

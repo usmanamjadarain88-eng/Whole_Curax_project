@@ -49,7 +49,8 @@ object AdminLinkedUserDirectory {
     /**
      * Prefer stored relay/FCM user line; else infer from roster (single linked user, or name/email substring in message).
      */
-    fun resolveAlertUserLabel(storedUserName: String, message: String): String {
+    fun resolveAlertUserLabel(storedUserName: String, message: String, type: String = ""): String {
+        if (AlertDisplayRules.isAdminHubSystemEvent(type)) return ""
         val s = storedUserName.trim()
         val generic = s.equals("null", ignoreCase = true) || s.equals("user", ignoreCase = true)
         if (s.isNotEmpty() && !generic) return s

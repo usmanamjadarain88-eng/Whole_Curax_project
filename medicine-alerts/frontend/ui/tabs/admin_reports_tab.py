@@ -15,6 +15,7 @@ except ImportError:
     )
 
 from ui.tabs.admin_api import linked_users, admin_access_code
+from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_ui_common import (
     AdminPageShell, toolbar_card, text_card, apply_input_style,
     BTN_PRIMARY, BTN_OUTLINE, ADMIN_MUTED,
@@ -60,6 +61,7 @@ class AdminReportsTab(QWidget):
         lo.addWidget(text_card(self._body), 1)
         if hasattr(controller, "medicine_updated"):
             controller.medicine_updated.connect(self.refresh)
+        self._fetch_gen = 0
         self._reload_users()
 
     def showEvent(self, event):
@@ -67,18 +69,32 @@ class AdminReportsTab(QWidget):
         self._reload_users()
 
     def _reload_users(self):
-        self._user_combo.blockSignals(True)
-        self._user_combo.clear()
-        self._user_combo.addItem("All hub", "")
-        users, _ = linked_users(self.controller)
-        self._linked = users or []
-        for u in self._linked:
-            if isinstance(u, dict):
-                uid = (u.get("user_id") or u.get("id") or "").strip()
-                if uid:
-                    self._user_combo.addItem((u.get("name") or "User").strip(), uid)
-        self._user_combo.blockSignals(False)
-        self.refresh()
+        self._fetch_gen += 1
+        gen = self._fetch_gen
+
+        def work():
+            return linked_users(self.controller, resolve_code=True)
+
+        def done(result):
+            if gen != self._fetch_gen:
+                return
+            self._user_combo.blockSignals(True)
+            self._user_combo.clear()
+            self._user_combo.addItem("All hub", "")
+            if isinstance(result, Exception):
+                self._linked = []
+            else:
+                users, _ = result
+                self._linked = users or []
+                for u in self._linked:
+                    if isinstance(u, dict):
+                        uid = (u.get("user_id") or u.get("id") or "").strip()
+                        if uid:
+                            self._user_combo.addItem((u.get("name") or "User").strip(), uid)
+            self._user_combo.blockSignals(False)
+            self.refresh()
+
+        run_bg(work, done)
 
     def refresh(self):
         if not admin_access_code(self.controller):

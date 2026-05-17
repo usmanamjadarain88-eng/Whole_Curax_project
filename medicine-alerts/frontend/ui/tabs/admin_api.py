@@ -5,16 +5,24 @@ import urllib.request
 
 
 def admin_access_code(controller) -> str:
-    code = ""
+    """Fast path: local DB only (never blocks UI on network recovery)."""
     db = getattr(controller, "_db", None)
     if db and hasattr(db, "get"):
-        code = (db.get("admin_access_code") or "").strip()
-    if not code and hasattr(controller, "_get_access_code"):
+        return (db.get("admin_access_code") or "").strip()
+    return ""
+
+
+def admin_access_code_resolved(controller) -> str:
+    """May call backend recovery — use only from background threads."""
+    code = admin_access_code(controller)
+    if code:
+        return code
+    if hasattr(controller, "_get_access_code"):
         try:
-            code = (controller._get_access_code() or "").strip()
+            return (controller._get_access_code() or "").strip()
         except Exception:
             pass
-    return code
+    return ""
 
 
 def api_base(controller) -> str:
@@ -40,8 +48,8 @@ def post_json(url: str, payload: dict, timeout: int = 25):
         return json.loads(raw) if raw.strip() else {}
 
 
-def linked_users(controller, dose_preview: bool = False):
-    code = admin_access_code(controller)
+def linked_users(controller, dose_preview: bool = False, resolve_code: bool = False):
+    code = admin_access_code_resolved(controller) if resolve_code else admin_access_code(controller)
     base = api_base(controller)
     if not code or not base:
         return None, "Link from the admin app first (lock screen → Link with code)."
@@ -58,8 +66,8 @@ def linked_users(controller, dose_preview: bool = False):
         return None, str(e)
 
 
-def pending_link_requests(controller):
-    code = admin_access_code(controller)
+def pending_link_requests(controller, resolve_code: bool = False):
+    code = admin_access_code_resolved(controller) if resolve_code else admin_access_code(controller)
     base = api_base(controller)
     if not code or not base:
         return None, "Link from the admin app first."

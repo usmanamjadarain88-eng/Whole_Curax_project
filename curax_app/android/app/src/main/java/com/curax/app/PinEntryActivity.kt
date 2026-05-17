@@ -110,16 +110,14 @@ class PinEntryActivity : AppCompatActivity() {
 
         val target = intent.getStringExtra(EXTRA_TARGET)
         if (target == TARGET_ALERT_DETAIL) {
-            val detailIntent = Intent(this, AlertDetailActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                putExtra(NotificationHelper.EXTRA_INTERNAL_NAV, true)
-                putExtra(NotificationHelper.EXTRA_ALERT_ID, intent.getLongExtra(NotificationHelper.EXTRA_ALERT_ID, -1L))
-                putExtra(NotificationHelper.EXTRA_ALERT_TYPE, intent.getStringExtra(NotificationHelper.EXTRA_ALERT_TYPE))
-                putExtra(NotificationHelper.EXTRA_ALERT_MESSAGE, intent.getStringExtra(NotificationHelper.EXTRA_ALERT_MESSAGE))
-                putExtra(NotificationHelper.EXTRA_ALERT_USER_NAME, intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME))
-                putExtra(NotificationHelper.EXTRA_ALERT_TIME, intent.getLongExtra(NotificationHelper.EXTRA_ALERT_TIME, System.currentTimeMillis()))
-            }
-            startActivity(detailIntent)
+            AlertNavigation.launchDetailFromNotification(
+                this,
+                alertId = intent.getLongExtra(NotificationHelper.EXTRA_ALERT_ID, -1L),
+                type = intent.getStringExtra(NotificationHelper.EXTRA_ALERT_TYPE).orEmpty(),
+                message = intent.getStringExtra(NotificationHelper.EXTRA_ALERT_MESSAGE).orEmpty(),
+                receivedAt = intent.getLongExtra(NotificationHelper.EXTRA_ALERT_TIME, System.currentTimeMillis()),
+                userName = intent.getStringExtra(NotificationHelper.EXTRA_ALERT_USER_NAME).orEmpty(),
+            )
         } else {
             val homeIntent = if (role == LocalUserStore.ROLE_ADMIN) {
                 Intent(this, AdminDashboardActivity::class.java)

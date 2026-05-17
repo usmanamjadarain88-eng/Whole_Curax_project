@@ -11,6 +11,7 @@ except ImportError:
     )
 
 from ui.tabs.admin_api import linked_users
+from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_ui_common import (
     AdminPageShell, table_item, resize_table_rows, prepare_table,
     TABLE_STYLE, card_frame, muted_label, BTN_PRIMARY, BTN_DANGER,
@@ -54,6 +55,7 @@ class AdminUsersTab(QWidget):
 
         if hasattr(controller, "medicine_updated"):
             controller.medicine_updated.connect(self.refresh)
+        self._fetch_gen = 0
         self.refresh()
 
     def showEvent(self, event):
@@ -61,39 +63,57 @@ class AdminUsersTab(QWidget):
         self.refresh()
 
     def refresh(self):
-        self._table.setRowCount(0)
-        users, err = linked_users(self.controller)
-        if err:
-            self._status.setText(err)
+        self._fetch_gen += 1
+        gen = self._fetch_gen
+        self._status.setText("Loading…")
+
+        def work():
+            return linked_users(self.controller, resolve_code=True)
+
+        def done(result):
+            if gen != self._fetch_gen:
+                return
+            self._table.setRowCount(0)
+            if isinstance(result, Exception):
+                self._status.setText(str(result))
+                return
+            users, err = result
+            if err:
+                self._status.setText(err)
+                return
+            if not users:
+                self._status.setText("No linked users.")
+                return
+            self._status.setText(f"{len(users)} linked.")
+            for i, u in enumerate(users):
+                self._apply_user_row(i, u)
+            resize_table_rows(self._table)
+
+        run_bg(work, done)
+
+    def _apply_user_row(self, i, u):
+        if not isinstance(u, dict):
             return
-        if not users:
-            self._status.setText("No linked users.")
-            return
-        self._status.setText(f"{len(users)} linked.")
-        for i, u in enumerate(users):
-            if not isinstance(u, dict):
-                continue
-            uid = (u.get("user_id") or u.get("id") or "").strip()
-            name = (u.get("name") or u.get("full_name") or "User").strip()
-            self._table.insertRow(i)
-            self._table.setItem(i, 0, table_item(name))
-            self._table.setItem(i, 1, table_item(u.get("email") or ""))
-            self._table.setItem(i, 2, table_item(u.get("app_mode") or u.get("mode") or "default"))
-            self._table.setItem(i, 3, table_item("Ready" if (u.get("bot_id") or "").strip() else "Pending"))
-            cw, rw = QWidget(), QWidget()
-            care = QPushButton("Care")
-            care.setStyleSheet(BTN_PRIMARY)
-            care.clicked.connect(lambda _=False, id=uid, n=name, m=u.get("app_mode") or "default": self._open_care(id, n, m))
-            rm = QPushButton("Remove")
-            rm.setStyleSheet(BTN_DANGER)
-            rm.clicked.connect(lambda _=False, id=uid, n=name: self._remove_user(id, n))
-            for cell, btn in ((cw, care), (rw, rm)):
-                h = QHBoxLayout(cell)
-                h.setContentsMargins(4, 2, 4, 2)
-                h.addWidget(btn)
-            self._table.setCellWidget(i, 4, cw)
-            self._table.setCellWidget(i, 5, rw)
-        resize_table_rows(self._table)
+        uid = (u.get("user_id") or u.get("id") or "").strip()
+        name = (u.get("name") or u.get("full_name") or "User").strip()
+        self._table.insertRow(i)
+        self._table.setItem(i, 0, table_item(name))
+        self._table.setItem(i, 1, table_item(u.get("email") or ""))
+        self._table.setItem(i, 2, table_item(u.get("app_mode") or u.get("mode") or "default"))
+        self._table.setItem(i, 3, table_item("Ready" if (u.get("bot_id") or "").strip() else "Pending"))
+        cw, rw = QWidget(), QWidget()
+        care = QPushButton("Care")
+        care.setStyleSheet(BTN_PRIMARY)
+        care.clicked.connect(lambda _=False, id=uid, n=name, m=u.get("app_mode") or "default": self._open_care(id, n, m))
+        rm = QPushButton("Remove")
+        rm.setStyleSheet(BTN_DANGER)
+        rm.clicked.connect(lambda _=False, id=uid, n=name: self._remove_user(id, n))
+        for cell, btn in ((cw, care), (rw, rm)):
+            h = QHBoxLayout(cell)
+            h.setContentsMargins(4, 2, 4, 2)
+            h.addWidget(btn)
+        self._table.setCellWidget(i, 4, cw)
+        self._table.setCellWidget(i, 5, rw)
 
     def _open_care(self, user_id, name, mode):
         fn = getattr(self.controller, "enter_care_mode", None)

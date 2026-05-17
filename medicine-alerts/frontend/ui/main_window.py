@@ -2591,8 +2591,8 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setStyleSheet(
-            "QTabWidget::pane { border: none; background: #F1F5F9; }"
-            "QTabBar { background: #ffffff; border-bottom: 1px solid #E2E8F0; }"
+            "QTabWidget::pane { border: none; background: #E8EEF4; }"
+            "QTabBar { background: #ffffff; border-bottom: 2px solid #94A3B8; }"
             "QTabBar::tab {"
             "  min-width: 100px; padding: 12px 22px; margin: 0;"
             "  font-size: 10pt; font-weight: 600; color: #64748B;"
@@ -2738,8 +2738,11 @@ class MainWindow(QMainWindow):
         self._header_anim_timer.timeout.connect(self._animate_header_overlay)
         self._header_anim_timer.start(70)
         self._system_startup_alert_sent = False
-        QTimer.singleShot(1500, self._send_startup_alert_to_bot)
-        QTimer.singleShot(6000, self._send_startup_alert_to_bot)
+        self._unlock_alert_sent_this_session = False
+        for _ms in (0, 400, 1200, 3000, 6000, 12000):
+            QTimer.singleShot(_ms, self._send_startup_alert_to_bot)
+        if hasattr(self.controller, "central_fetch_done"):
+            self.controller.central_fetch_done.connect(self._on_central_data_for_bot_alerts)
         # Apply topbar scale after first layout so small window gets smaller toggle/status even before resize
         QTimer.singleShot(100, self._update_topbar_scale)
 
@@ -2759,35 +2762,68 @@ class MainWindow(QMainWindow):
             pass
         return "Admin"
 
+    def _desktop_has_admin_link(self) -> bool:
+        try:
+            has_admin, _ = self._get_desktop_role()
+            if not has_admin:
+                return False
+            db = getattr(self.controller, "_db", None)
+            if db and hasattr(db, "get") and (db.get("admin_access_code") or "").strip():
+                return True
+            if getattr(self.controller, "admin_bot", None):
+                ab = self.controller.admin_bot or {}
+                if (ab.get("bot_id") or "").strip() and (ab.get("api_key") or "").strip():
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def _mark_startup_alert_sent(self):
+        self._system_startup_alert_sent = True
+
+    def _mark_unlock_alert_sent(self):
+        self._unlock_alert_sent_this_session = True
+
+    def _on_central_data_for_bot_alerts(self, _payload=None):
+        if not self._desktop_has_admin_link():
+            return
+        QTimer.singleShot(50, self._send_startup_alert_to_bot)
+        if getattr(self.controller, "authenticated", False):
+            QTimer.singleShot(50, self._send_unlocked_alert_to_bot)
+
+    def _schedule_unlock_bot_alerts(self):
+        self._unlock_alert_sent_this_session = False
+        for _ms in (0, 400, 1200, 3000, 6000, 10000):
+            QTimer.singleShot(_ms, self._send_unlocked_alert_to_bot)
+
     def _send_startup_alert_to_bot(self):
         try:
             if getattr(self, "_system_startup_alert_sent", False):
                 return
-            has_admin, _ = self._get_desktop_role()
-            if not has_admin:
-                return
-            if not (self.controller._get_access_code() or "").strip():
+            if not self._desktop_has_admin_link():
                 return
             label = self._desktop_alert_user_label()
             self.controller.send_admin_alert(
                 "system_started",
                 f"{label}'s desktop: CuraX started",
+                on_success=self._mark_startup_alert_sent,
             )
-            self._system_startup_alert_sent = True
         except Exception:
             pass
 
     def _send_unlocked_alert_to_bot(self):
         try:
-            has_admin, _ = self._get_desktop_role()
-            if not has_admin:
+            if getattr(self, "_unlock_alert_sent_this_session", False):
                 return
-            if not (self.controller._get_access_code() or "").strip():
+            if not getattr(self.controller, "authenticated", False):
+                return
+            if not self._desktop_has_admin_link():
                 return
             label = self._desktop_alert_user_label()
             self.controller.send_admin_alert(
                 "system_unlocked",
                 f"{label}'s desktop: system unlocked",
+                on_success=self._mark_unlock_alert_sent,
             )
         except Exception:
             pass
@@ -2925,8 +2961,10 @@ class MainWindow(QMainWindow):
         self._apply_locked_state()
         if authenticated:
             self._send_startup_alert_to_bot()
-            self._send_unlocked_alert_to_bot()
+            self._schedule_unlock_bot_alerts()
             self._update_admin_status_label()
+        else:
+            self._unlock_alert_sent_this_session = False
         if authenticated and hasattr(self, "com_frame") and self.com_frame.isVisible():
             self.com_frame.setVisible(False)
         self.tools_section_title.setVisible(authenticated)
@@ -4386,7 +4424,13 @@ class MainWindow(QMainWindow):
         try:
             act = getattr(QEvent, "Type", QEvent)
             if event.type() == getattr(act, "ActivationChange", None) and self.isActiveWindow():
-                self.controller.fetch_from_central_and_apply()
+                if not hasattr(self, "_focus_fetch_timer"):
+                    self._focus_fetch_timer = QTimer(self)
+                    self._focus_fetch_timer.setSingleShot(True)
+                    self._focus_fetch_timer.timeout.connect(
+                        self.controller.fetch_from_central_and_apply
+                    )
+                self._focus_fetch_timer.start(1200)
         except Exception:
             pass
 

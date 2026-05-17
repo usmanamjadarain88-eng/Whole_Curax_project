@@ -74,21 +74,16 @@ object NotificationHelper {
     ) {
         createChannel(context)
 
-        val detailIntent = Intent(context, AlertDetailActivity::class.java).apply {
-            putExtra(EXTRA_ALERT_ID, alertId)
-            putExtra(EXTRA_ALERT_TYPE, type)
-            putExtra(EXTRA_ALERT_MESSAGE, message)
-            putExtra(EXTRA_ALERT_USER_NAME, userName.trim())
-            putExtra(EXTRA_ALERT_TIME, receivedAt)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NO_USER_ACTION or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
-        }
-
-        val pi = TaskStackBuilder.create(context)
-            .addNextIntentWithParentStack(detailIntent)
-            .getPendingIntent(
-                notificationId,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
+        val subUser = AlertDisplayRules.notificationSubtext(type, userName)
+        val pi = AlertNavigation.pendingIntentFromNotification(
+            context,
+            notificationId,
+            alertId,
+            type,
+            message,
+            receivedAt,
+            subUser,
+        )
 
         val title = when {
             type.contains("stock", ignoreCase = true) -> "Stock alert"
@@ -102,16 +97,17 @@ object NotificationHelper {
 
         val soundUri = resolveStandaloneAlertSoundUri(context)
         val vibrateOn = resolveStandaloneVibrate(context)
-        val sub = userName.trim()
         val b = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .apply {
-                if (sub.isNotEmpty()) setSubText(sub)
+                if (subUser.isNotEmpty()) setSubText(subUser)
             }
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .setContentIntent(pi)
+            .apply {
+                if (pi != null) setContentIntent(pi)
+            }
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

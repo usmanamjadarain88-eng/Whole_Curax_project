@@ -11,6 +11,7 @@ except ImportError:
     )
 
 from ui.tabs.admin_api import admin_access_code, api_base, pending_link_requests, post_json
+from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_ui_common import (
     AdminPageShell, section_label, card_frame, card_layout, table_item,
     resize_table_rows, prepare_table, TABLE_STYLE, apply_input_style,
@@ -65,6 +66,7 @@ class AdminConnectionsTab(QWidget):
         cl.addLayout(row)
         lo.addWidget(code_card)
         lo.addStretch(1)
+        self._fetch_gen = 0
         self.refresh()
 
     def showEvent(self, event):
@@ -73,21 +75,34 @@ class AdminConnectionsTab(QWidget):
 
     def refresh(self):
         self._load_code()
-        self._load_pending()
+        self._fetch_gen += 1
+        gen = self._fetch_gen
+
+        def work():
+            return pending_link_requests(self.controller, resolve_code=True)
+
+        def done(result):
+            if gen != self._fetch_gen:
+                return
+            if isinstance(result, Exception):
+                self._empty.setText(str(result))
+                self._empty.show()
+                self._pending.setRowCount(0)
+                return
+            self._apply_pending(result)
+
+        run_bg(work, done)
 
     def _load_code(self):
         code = ""
         db = getattr(self.controller, "_db", None)
         if db and hasattr(db, "get"):
             code = (db.get("admin_connection_code") or "").strip()
-        if not code and hasattr(self.controller, "get_admin_codes_from_backend"):
-            _, cc = self.controller.get_admin_codes_from_backend()
-            code = (cc or "").strip()
         self._code.setText(code or "—")
 
-    def _load_pending(self):
+    def _apply_pending(self, result):
+        reqs, err = result
         self._pending.setRowCount(0)
-        reqs, err = pending_link_requests(self.controller)
         if err or not reqs:
             self._empty.setText(err or "No pending requests.")
             self._empty.show()

@@ -14,6 +14,7 @@ except ImportError:
 
 from datetime import datetime, timedelta
 from ui.tabs.admin_api import linked_users, admin_access_code
+from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_chart_widgets import HubChartPanel
 from ui.tabs.admin_ui_common import (
     AdminPageShell, section_label, table_item, resize_table_rows,
@@ -171,6 +172,7 @@ class AdminDashboardTab(QWidget):
             controller.medicine_updated.connect(self.refresh)
         if hasattr(controller, "admin_status_changed"):
             controller.admin_status_changed.connect(self.refresh)
+        self._fetch_gen = 0
         self.refresh()
 
     def showEvent(self, event):
@@ -213,31 +215,43 @@ class AdminDashboardTab(QWidget):
         self._fill_pulse(alerts)
         self._fill_charts(alerts)
         if not admin_access_code(self.controller):
-            self._val_users.setText("0")
+            self._val_users.setText("…")
             self._apply_readiness(0, 0)
             self._dose_preview.setText("Link desktop from admin app.")
             return
-        users, err = linked_users(self.controller, dose_preview=False)
-        if err:
-            self._val_users.setText("—")
-            self._dose_preview.setText(err)
-            return
-        users = users or []
-        self._val_users.setText(str(len(users)))
-        linked = pending = 0
-        for u in users:
-            if not isinstance(u, dict):
-                continue
-            if (u.get("bot_id") or "").strip():
-                linked += 1
-            else:
-                pending += 1
-        self._apply_readiness(linked, pending)
-        self._val_pulse_ready.setText(f"{int(100 * linked / len(users))}%" if users else "—")
-        users_dose, err2 = linked_users(self.controller, dose_preview=True)
-        self._dose_preview.setText(err2 if err2 else "")
-        if not err2:
-            self._fill_dose_preview(users_dose or [])
+        self._fetch_gen += 1
+        gen = self._fetch_gen
+
+        def work():
+            return linked_users(self.controller, dose_preview=True, resolve_code=True)
+
+        def done(result):
+            if gen != self._fetch_gen:
+                return
+            if isinstance(result, Exception):
+                self._val_users.setText("—")
+                self._dose_preview.setText(str(result))
+                return
+            users, err = result
+            if err:
+                self._val_users.setText("—")
+                self._dose_preview.setText(err)
+                return
+            users = users or []
+            self._val_users.setText(str(len(users)))
+            linked = pending = 0
+            for u in users:
+                if not isinstance(u, dict):
+                    continue
+                if (u.get("bot_id") or "").strip():
+                    linked += 1
+                else:
+                    pending += 1
+            self._apply_readiness(linked, pending)
+            self._val_pulse_ready.setText(f"{int(100 * linked / len(users))}%" if users else "—")
+            self._fill_dose_preview(users)
+
+        run_bg(work, done)
 
     def _apply_readiness(self, linked, pending):
         total = linked + pending

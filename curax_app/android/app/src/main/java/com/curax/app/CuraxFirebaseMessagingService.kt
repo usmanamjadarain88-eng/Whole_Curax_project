@@ -103,7 +103,8 @@ class CuraxFirebaseMessagingService : FirebaseMessagingService() {
                 acquire(15_000L) // Hold so full-screen intent can fire and turn screen on
             }
             val db = AlertDb(this)
-            val alertId = db.insertAlert(type, message, userName = userName)
+            val storedUser = AlertDisplayRules.linkedUserLabelForAlert(type, userName)
+            val alertId = db.insertAlert(type, message, userName = storedUser)
 
             sendBroadcast(Intent(AlertEvents.ACTION_ALERTS_UPDATED))
 
@@ -114,7 +115,7 @@ class CuraxFirebaseMessagingService : FirebaseMessagingService() {
                 alertId = alertId,
                 type = type,
                 message = message,
-                userName = userName,
+                userName = storedUser,
             )
         } catch (e: Exception) {
             Log.e(TAG, "FCM handle error", e)

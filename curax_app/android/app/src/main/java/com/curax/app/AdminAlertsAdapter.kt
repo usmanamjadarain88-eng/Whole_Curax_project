@@ -79,8 +79,13 @@ class AdminAlertsAdapter(
 
         holder.tvType.text = item.type.uppercase(Locale.getDefault())
         holder.tvMessage.text = item.message
-        holder.tvUser.text = item.userName.ifEmpty {
-            holder.itemView.context.getString(R.string.admin_user_display_fallback)
+        val userLine = AlertDisplayRules.linkedUserLabelForAlert(item.type, item.userName)
+        if (userLine.isEmpty()) {
+            holder.tvUser.visibility = View.GONE
+            holder.tvUser.text = ""
+        } else {
+            holder.tvUser.visibility = View.VISIBLE
+            holder.tvUser.text = userLine
         }
         holder.tvTime.text = timeFormat.format(Date(item.receivedAt))
         holder.cbSelect.visibility = if (selectionMode) View.VISIBLE else View.GONE

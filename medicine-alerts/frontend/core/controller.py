@@ -1477,9 +1477,10 @@ class AppController(QObject):
     def send_mobile_alert(self, alert_type, message, priority="NORMAL"):
         return self._send_bot_alert(self.mobile_bot, alert_type, message)
 
-    def send_admin_alert(self, alert_type, message, priority="NORMAL"):
+    def send_admin_alert(self, alert_type, message, priority="NORMAL", on_success=None):
         """Tell backend of admin-only events (system_started, system_unlocked, admin_login, dose_taken).
-        Uses access_code if this desktop has admin credentials; else uses linked user's bot_id/api_key (notify-event-by-user) so admin receives alerts from each user's desktop."""
+        Uses access_code if this desktop has admin credentials; else uses linked user's bot_id/api_key (notify-event-by-user) so admin receives alerts from each user's desktop.
+        on_success: optional callable() invoked on main thread after HTTP 200."""
         base = self.get_central_api_base_url()
         if not base:
             return False
@@ -1487,29 +1488,30 @@ class AppController(QObject):
         try:
             import urllib.request
             import json as _json
-            payload = {"event_type": str(alert_type), "message": str(message or "")}
-            admin_label = (getattr(self, "logged_in_admin_name", None) or "").strip() or "Admin"
-            payload["user_name"] = admin_label
-            access_code = self._get_access_code()
-            if access_code:
-                payload["access_code"] = access_code
-                url = base + "/notify-event"
-            else:
-                linked = self._db.get_linked_user() if hasattr(self._db, "get_linked_user") else None
-                bot_id = (linked or {}).get("linked_user_bot_id") if linked else None
-                api_key = (linked or {}).get("linked_user_api_key") if linked else None
-                if bot_id and api_key:
-                    payload["bot_id"] = bot_id
-                    payload["api_key"] = api_key
-                    url = base + "/notify-event-by-user"
-                else:
-                    return False
-            data = _json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(url, data=data, method="POST", headers={"Content-Type": "application/json"})
+
             def _send():
+                payload = {"event_type": str(alert_type), "message": str(message or "")}
+                access_code = (self._get_access_code() or "").strip()
+                if access_code:
+                    payload["access_code"] = access_code
+                    url = base + "/notify-event"
+                else:
+                    linked = self._db.get_linked_user() if hasattr(self._db, "get_linked_user") else None
+                    bot_id = (linked or {}).get("linked_user_bot_id") if linked else None
+                    api_key = (linked or {}).get("linked_user_api_key") if linked else None
+                    if bot_id and api_key:
+                        payload["bot_id"] = bot_id
+                        payload["api_key"] = api_key
+                        url = base + "/notify-event-by-user"
+                    else:
+                        return False
+                data = _json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(
+                    url, data=data, method="POST", headers={"Content-Type": "application/json"}
+                )
                 try:
-                    with urllib.request.urlopen(req, timeout=10) as resp:
-                        return resp.status in (200, 201)
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        ok = resp.status in (200, 201)
                 except urllib.error.HTTPError as e:
                     if e.code == 410:
                         try:
@@ -1524,13 +1526,20 @@ class AppController(QObject):
                         _emit_safe(self.linked_user_deleted_by_admin, msg)
                     elif getattr(self, "_log", None):
                         self._log(f"[AdminAlert] notify failed: {e}")
-                    return False
+                    ok = False
                 except Exception as e:
                     if getattr(self, "_log", None):
                         self._log(f"[AdminAlert] notify failed: {e}")
-                    return False
-            t = threading.Thread(target=_send, daemon=True)
-            t.start()
+                    ok = False
+                if ok and on_success:
+                    try:
+                        from PyQt6.QtCore import QTimer
+                    except ImportError:
+                        from PyQt5.QtCore import QTimer
+                    QTimer.singleShot(0, on_success)
+                return ok
+
+            threading.Thread(target=_send, daemon=True).start()
             return True
         except Exception:
             return False
@@ -1549,11 +1558,9 @@ class AppController(QObject):
         base = base.rstrip("/")
         access_code = self._get_access_code()
         url = None
-        admin_label = (getattr(self, "logged_in_admin_name", None) or "").strip() or "Admin"
         payload = {
             "event_type": str(alert_type),
             "message": str(message),
-            "user_name": admin_label,
         }
         if access_code:
             payload["access_code"] = access_code
