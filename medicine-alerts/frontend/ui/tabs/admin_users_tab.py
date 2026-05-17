@@ -14,7 +14,7 @@ from ui.tabs.admin_api import linked_users
 from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_ui_common import (
     AdminPageShell, table_item, resize_table_rows, prepare_table,
-    TABLE_STYLE, card_frame, muted_label, BTN_PRIMARY, BTN_DANGER,
+    TABLE_STYLE, table_card, muted_label, BTN_PRIMARY, BTN_DANGER,
 )
 
 
@@ -38,13 +38,8 @@ class AdminUsersTab(QWidget):
         self._table.setHorizontalHeaderLabels(
             ["Name", "Email", "Mode", "Relay", "Care", "Remove"]
         )
-        prepare_table(self._table, stretch_col=1)
-        self._table.setStyleSheet(TABLE_STYLE)
-        users_card = card_frame()
+        users_card = table_card(self._table, stretch_col=1)
         ul = QVBoxLayout(users_card)
-        ul.setContentsMargins(0, 0, 0, 0)
-        ul.setSpacing(0)
-        ul.addWidget(self._table, 1)
         foot = QWidget()
         fl = QHBoxLayout(foot)
         fl.setContentsMargins(16, 4, 16, 12)
@@ -55,6 +50,8 @@ class AdminUsersTab(QWidget):
 
         if hasattr(controller, "medicine_updated"):
             controller.medicine_updated.connect(self.refresh)
+        if hasattr(controller, "central_fetch_done"):
+            controller.central_fetch_done.connect(lambda _p=None: self.refresh())
         self._fetch_gen = 0
         self.refresh()
 

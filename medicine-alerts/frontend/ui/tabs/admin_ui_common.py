@@ -14,10 +14,12 @@ except ImportError:
     )
     from PyQt5.QtCore import Qt
 
-# Admin hub design tokens — clean light surfaces, subtle separation (not heavy grid lines)
+# Admin hub — light mode: white cards, heavy black OUTER borders on each block
 ADMIN_PAGE_BG = "#F1F5F9"
 ADMIN_CARD_BG = "#FFFFFF"
+ADMIN_BORDER_OUTER = "#000000"
 ADMIN_BORDER = "#E2E8F0"
+ADMIN_OUTER_BORDER_CSS = f"3px solid {ADMIN_BORDER_OUTER}"
 ADMIN_TEXT = "#0F172A"
 ADMIN_MUTED = "#64748B"
 ADMIN_ACCENT = "#0F766E"
@@ -203,7 +205,7 @@ def muted_label(text: str = "") -> QLabel:
 def card_frame() -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame {{ background: {ADMIN_CARD_BG}; border: 1px solid {ADMIN_BORDER}; "
+        f"QFrame {{ background: {ADMIN_CARD_BG}; border: {ADMIN_OUTER_BORDER_CSS}; "
         f"border-radius: {CARD_RADIUS}; }}"
     )
     return f

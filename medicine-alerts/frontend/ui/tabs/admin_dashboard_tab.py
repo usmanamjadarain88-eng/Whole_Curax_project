@@ -13,7 +13,7 @@ except ImportError:
     from PyQt5.QtCore import Qt, QTimer
 
 from datetime import datetime, timedelta
-from ui.tabs.admin_api import linked_users, admin_access_code, api_base
+from ui.tabs.admin_api import linked_users, admin_access_code, api_base, admin_display_name
 from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_chart_widgets import HubChartPanel
 from ui.tabs.admin_ui_common import (
@@ -29,7 +29,7 @@ class _ClickableStatCard(QFrame):
         self._on_click = on_click
         self.setObjectName("hubStatCard")
         self.setStyleSheet(
-            f"#hubStatCard {{ background: #F8FAFC; border: 1px solid {ADMIN_BORDER}; border-radius: 12px; }}"
+            f"#hubStatCard {{ background: #F8FAFC; border: 3px solid #000000; border-radius: 12px; }}"
             "#hubStatCard:hover { border-color: #0D9488; }"
         )
         if on_click:
@@ -193,11 +193,7 @@ class AdminDashboardTab(QWidget):
                 pass
 
     def _admin_first_name(self) -> str:
-        name = (getattr(self.controller, "logged_in_admin_name", None) or "").strip()
-        if not name:
-            db = getattr(self.controller, "_db", None)
-            if db and hasattr(db, "get"):
-                name = (db.get("admin_name") or "").strip()
+        name = admin_display_name(self.controller)
         return name.split()[0] if name else ""
 
     def refresh(self):

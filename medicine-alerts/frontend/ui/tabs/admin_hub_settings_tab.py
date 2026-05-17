@@ -122,15 +122,19 @@ class AdminHubSettingsTab(QWidget):
         dlg.exec()
 
     def _app_info(self):
+        from ui.tabs.admin_api import admin_display_name
         db = getattr(self.controller, "_db", None)
-        name = id_ = ""
-        if db and hasattr(db, "get"):
-            name = (db.get("admin_name") or "").strip()
-            id_ = (db.get("admin_id") or "").strip()
+        name = admin_display_name(self.controller)
+        id_ = ""
+        if db and hasattr(db, "get_admin_info"):
+            try:
+                info = db.get_admin_info() or {}
+                id_ = (info.get("admin_id") or "").strip()
+            except Exception:
+                pass
         lines = [
-            f"Admin name: {name or '—'}",
+            f"Admin name: {name}",
             f"Admin id: {id_ or '—'}",
-            f"Desktop: {getattr(self.controller, 'logged_in_admin_name', '') or '—'}",
         ]
         QMessageBox.information(self, "App info", "\n".join(lines))
 

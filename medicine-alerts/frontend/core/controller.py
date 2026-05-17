@@ -112,7 +112,8 @@ class AppController(QObject):
             self.admin_logged_in = True
             try:
                 info = self._db.get_admin_info() if hasattr(self._db, "get_admin_info") else None
-                self.logged_in_admin_name = (info.get("name") or "Admin").strip() if info else "Admin"
+                n = (info.get("name") or "").strip() if info else ""
+                self.logged_in_admin_name = n if n else "Admin"
             except Exception:
                 self.logged_in_admin_name = "Admin"
 
@@ -126,6 +127,8 @@ class AppController(QObject):
         self._databus_stop = threading.Event()
         self._databus_thread = None
         self._databus_timer = None
+        self._desktop_system_alert_lock = threading.Lock()
+        self._desktop_system_alerts_sent = set()
 
         self._central_refresh_timer = QTimer(self)
         self._central_refresh_timer.timeout.connect(self.fetch_from_central_and_apply)
@@ -1477,6 +1480,11 @@ class AppController(QObject):
     def send_mobile_alert(self, alert_type, message, priority="NORMAL"):
         return self._send_bot_alert(self.mobile_bot, alert_type, message)
 
+    def clear_desktop_unlock_alert_dedupe(self):
+        """Allow one system_unlocked alert on the next unlock (after lock)."""
+        with self._desktop_system_alert_lock:
+            self._desktop_system_alerts_sent.discard("system_unlocked")
+
     def send_admin_alert(self, alert_type, message, priority="NORMAL", on_success=None):
         """Tell backend of admin-only events (system_started, system_unlocked, admin_login, dose_taken).
         Uses access_code if this desktop has admin credentials; else uses linked user's bot_id/api_key (notify-event-by-user) so admin receives alerts from each user's desktop.
@@ -1485,11 +1493,19 @@ class AppController(QObject):
         if not base:
             return False
         base = base.rstrip("/")
+        event_key = str(alert_type or "").strip().lower()
+        system_once = event_key in ("system_started", "system_unlocked")
+        if system_once:
+            with self._desktop_system_alert_lock:
+                if event_key in self._desktop_system_alerts_sent:
+                    return False
+
         try:
             import urllib.request
             import json as _json
 
             def _send():
+                ok = False
                 payload = {"event_type": str(alert_type), "message": str(message or "")}
                 access_code = (self._get_access_code() or "").strip()
                 if access_code:
@@ -1504,6 +1520,8 @@ class AppController(QObject):
                         payload["api_key"] = api_key
                         url = base + "/notify-event-by-user"
                     else:
+                        if getattr(self, "_log", None):
+                            self._log(f"[AdminAlert] skip {event_key}: no access_code or bot credentials")
                         return False
                 data = _json.dumps(payload).encode("utf-8")
                 req = urllib.request.Request(
@@ -1531,6 +1549,9 @@ class AppController(QObject):
                     if getattr(self, "_log", None):
                         self._log(f"[AdminAlert] notify failed: {e}")
                     ok = False
+                if ok and system_once:
+                    with self._desktop_system_alert_lock:
+                        self._desktop_system_alerts_sent.add(event_key)
                 if ok and on_success:
                     try:
                         from PyQt6.QtCore import QTimer

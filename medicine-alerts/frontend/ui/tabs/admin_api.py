@@ -4,6 +4,23 @@ import urllib.parse
 import urllib.request
 
 
+def admin_display_name(controller) -> str:
+    """Admin name for labels/alerts — from session, then local credentials, never empty."""
+    name = (getattr(controller, "logged_in_admin_name", None) or "").strip()
+    if name:
+        return name
+    db = getattr(controller, "_db", None)
+    if db and hasattr(db, "get_admin_info"):
+        try:
+            info = db.get_admin_info() or {}
+            name = (info.get("name") or "").strip()
+            if name:
+                return name
+        except Exception:
+            pass
+    return "Admin"
+
+
 def admin_access_code(controller) -> str:
     db = getattr(controller, "_db", None)
     if db and hasattr(db, "get"):
@@ -49,7 +66,7 @@ def post_json(url: str, payload: dict, timeout: int = 25):
         return json.loads(raw) if raw.strip() else {}
 
 
-def linked_users(controller, dose_preview: bool = False, resolve_code: bool = False):
+def linked_users(controller, dose_preview: bool = False, resolve_code: bool = True):
     code = admin_access_code_resolved(controller) if resolve_code else admin_access_code(controller)
     base = api_base(controller)
     if not code or not base:
