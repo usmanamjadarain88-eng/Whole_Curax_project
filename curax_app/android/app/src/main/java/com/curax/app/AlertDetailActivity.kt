@@ -140,10 +140,12 @@ class AlertDetailActivity : AppCompatActivity() {
         return true
     }
 
-    /** Back returns to Alerts list (or previous screen if opened from in-app list). */
+    /** Back: pop detail only. Parent (Alerts tab) is already under this activity in the stack. */
     private fun navigateBackFromDetail() {
         if (isTaskRoot) {
             startActivity(AlertNavigation.homeOnAlertsTabIntent(this))
+            finish()
+            return
         }
         finish()
     }

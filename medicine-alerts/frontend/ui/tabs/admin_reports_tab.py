@@ -73,7 +73,7 @@ class AdminReportsTab(QWidget):
         gen = self._fetch_gen
 
         def work():
-            return linked_users(self.controller, resolve_code=True)
+            return linked_users(self.controller)
 
         def done(result):
             if gen != self._fetch_gen:

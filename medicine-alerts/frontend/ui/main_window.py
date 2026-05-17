@@ -2591,8 +2591,8 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setStyleSheet(
-            "QTabWidget::pane { border: none; background: #E8EEF4; }"
-            "QTabBar { background: #ffffff; border-bottom: 2px solid #94A3B8; }"
+            "QTabWidget::pane { border: none; background: #F1F5F9; }"
+            "QTabBar { background: #ffffff; border-bottom: 1px solid #E2E8F0; }"
             "QTabBar::tab {"
             "  min-width: 100px; padding: 12px 22px; margin: 0;"
             "  font-size: 10pt; font-weight: 600; color: #64748B;"

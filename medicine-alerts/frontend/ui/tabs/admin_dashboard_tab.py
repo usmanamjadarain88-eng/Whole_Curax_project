@@ -13,7 +13,7 @@ except ImportError:
     from PyQt5.QtCore import Qt, QTimer
 
 from datetime import datetime, timedelta
-from ui.tabs.admin_api import linked_users, admin_access_code
+from ui.tabs.admin_api import linked_users, admin_access_code, api_base
 from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_chart_widgets import HubChartPanel
 from ui.tabs.admin_ui_common import (
@@ -214,16 +214,17 @@ class AdminDashboardTab(QWidget):
         self._fill_recent_alerts(alerts[:15])
         self._fill_pulse(alerts)
         self._fill_charts(alerts)
-        if not admin_access_code(self.controller):
-            self._val_users.setText("…")
-            self._apply_readiness(0, 0)
-            self._dose_preview.setText("Link desktop from admin app.")
+        if not api_base(self.controller):
+            self._val_users.setText("—")
+            self._dose_preview.setText("Backend URL not configured.")
             return
         self._fetch_gen += 1
         gen = self._fetch_gen
+        self._val_users.setText("…")
+        self._dose_preview.setText("Loading…")
 
         def work():
-            return linked_users(self.controller, dose_preview=True, resolve_code=True)
+            return linked_users(self.controller, dose_preview=True)
 
         def done(result):
             if gen != self._fetch_gen:

@@ -79,7 +79,15 @@ class AdminConnectionsTab(QWidget):
         gen = self._fetch_gen
 
         def work():
-            return pending_link_requests(self.controller, resolve_code=True)
+            pending = pending_link_requests(self.controller)
+            code = ""
+            db = getattr(self.controller, "_db", None)
+            if db and hasattr(db, "get"):
+                code = (db.get("admin_connection_code") or "").strip()
+            if not code and hasattr(self.controller, "get_admin_codes_from_backend"):
+                _, cc = self.controller.get_admin_codes_from_backend()
+                code = (cc or "").strip()
+            return pending, code
 
         def done(result):
             if gen != self._fetch_gen:
@@ -89,7 +97,10 @@ class AdminConnectionsTab(QWidget):
                 self._empty.show()
                 self._pending.setRowCount(0)
                 return
-            self._apply_pending(result)
+            pending_result, code = result
+            if code:
+                self._code.setText(code)
+            self._apply_pending(pending_result)
 
         run_bg(work, done)
 

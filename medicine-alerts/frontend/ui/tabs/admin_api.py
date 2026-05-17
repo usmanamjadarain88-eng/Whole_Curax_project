@@ -5,15 +5,16 @@ import urllib.request
 
 
 def admin_access_code(controller) -> str:
-    """Fast path: local DB only (never blocks UI on network recovery)."""
     db = getattr(controller, "_db", None)
     if db and hasattr(db, "get"):
-        return (db.get("admin_access_code") or "").strip()
+        code = (db.get("admin_access_code") or "").strip()
+        if code:
+            return code
     return ""
 
 
 def admin_access_code_resolved(controller) -> str:
-    """May call backend recovery — use only from background threads."""
+    """Resolve access code including backend recovery — background threads only."""
     code = admin_access_code(controller)
     if code:
         return code
@@ -66,7 +67,7 @@ def linked_users(controller, dose_preview: bool = False, resolve_code: bool = Fa
         return None, str(e)
 
 
-def pending_link_requests(controller, resolve_code: bool = False):
+def pending_link_requests(controller, resolve_code: bool = True):
     code = admin_access_code_resolved(controller) if resolve_code else admin_access_code(controller)
     base = api_base(controller)
     if not code or not base:

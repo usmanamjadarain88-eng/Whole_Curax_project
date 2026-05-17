@@ -180,8 +180,8 @@ class AdminDashboardActivity : AppCompatActivity() {
 
         tabLayout = findViewById(R.id.tabLayout)
         viewPager = findViewById(R.id.viewPager)
-        refreshTabsForActAsUser()
-        applyOpenAlertsTabFromIntent(intent)
+        val initialTab = resolveInitialHubTab(intent, savedInstanceState)
+        refreshTabsForActAsUser(initialTab)
 
         tabLayout?.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
@@ -428,7 +428,20 @@ class AdminDashboardActivity : AppCompatActivity() {
      * Care mode: Overview, Reminders, optional temp adjustment, Logs, Settings — no Alerts/Dose/Reports
      * (admin home strip already has Alerts/Reports). Pure admin: hub · Users · Alerts · Reports · Connections.
      */
-    private fun refreshTabsForActAsUser() {
+    private fun resolveInitialHubTab(intent: Intent?, savedInstanceState: Bundle?): Int {
+        if (intent?.getBooleanExtra(AlertNavigation.EXTRA_OPEN_ALERTS_TAB, false) == true) {
+            intent.removeExtra(AlertNavigation.EXTRA_OPEN_ALERTS_TAB)
+            if (prefs.actAsUserId.isEmpty()) return 2
+        }
+        return savedInstanceState?.getInt(STATE_HUB_TAB, 0) ?: 0
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        viewPager?.let { outState.putInt(STATE_HUB_TAB, it.currentItem) }
+    }
+
+    private fun refreshTabsForActAsUser(initialTab: Int = 0) {
         val tl = tabLayout ?: return
         val vp = viewPager ?: return
         tabMediator?.detach()
@@ -499,7 +512,9 @@ class AdminDashboardActivity : AppCompatActivity() {
                 }
             }
         }.apply { attach() }
-        vp.setCurrentItem(0, false)
+        val maxTab = (count - 1).coerceAtLeast(0)
+        val start = if (actingAsUser) 0 else initialTab.coerceIn(0, maxTab)
+        vp.setCurrentItem(start, false)
         updateToolbarSubtitle()
         invalidateOptionsMenu()
     }
@@ -527,7 +542,8 @@ class AdminDashboardActivity : AppCompatActivity() {
     private fun applyOpenAlertsTabFromIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(AlertNavigation.EXTRA_OPEN_ALERTS_TAB, false) != true) return
         intent.removeExtra(AlertNavigation.EXTRA_OPEN_ALERTS_TAB)
-        viewPager?.post { navigateAdminHomeToAlertsTab() }
+        if (prefs.actAsUserId.isNotEmpty()) return
+        viewPager?.setCurrentItem(2, false)
     }
 
     /** Home hub: open drawer where relay Connect lives. */
@@ -807,6 +823,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val STATE_HUB_TAB = "admin_hub_vp_tab"
         /** Throttle sidebar linked/pending counts over frequent [ACTION_ADMIN_DATA_SYNCED] (WebSocket). */
         private const val SIDEBAR_LINKED_OVERVIEW_MIN_INTERVAL_MS = 90_000L
     }

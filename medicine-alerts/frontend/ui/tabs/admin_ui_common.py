@@ -14,11 +14,10 @@ except ImportError:
     )
     from PyQt5.QtCore import Qt
 
-# Admin hub design tokens (single source for borders / surfaces)
-ADMIN_PAGE_BG = "#E8EEF4"
+# Admin hub design tokens — clean light surfaces, subtle separation (not heavy grid lines)
+ADMIN_PAGE_BG = "#F1F5F9"
 ADMIN_CARD_BG = "#FFFFFF"
-ADMIN_BORDER = "#94A3B8"
-ADMIN_BORDER_SOFT = "#CBD5E1"
+ADMIN_BORDER = "#E2E8F0"
 ADMIN_TEXT = "#0F172A"
 ADMIN_MUTED = "#64748B"
 ADMIN_ACCENT = "#0F766E"
@@ -34,7 +33,7 @@ BTN_PRIMARY = (
 )
 BTN_OUTLINE = (
     f"background: {ADMIN_CARD_BG}; color: {ADMIN_ACCENT}; font-weight: 600; padding: 10px 18px;"
-    f"border-radius: 8px; border: 1.5px solid {ADMIN_ACCENT_BRIGHT}; min-height: 36px;"
+    f"border-radius: 8px; border: 1px solid {ADMIN_ACCENT_BRIGHT}; min-height: 36px;"
 )
 BTN_DANGER = (
     "background: #DC2626; color: #ffffff; font-weight: 600; padding: 10px 18px;"
@@ -44,7 +43,7 @@ BTN_DANGER = (
 INPUT_STYLE = f"""
 QLineEdit, QComboBox {{
     background: {ADMIN_CARD_BG};
-    border: 1.5px solid {ADMIN_BORDER};
+    border: 1px solid {ADMIN_BORDER};
     border-radius: 8px;
     padding: 8px 12px;
     min-height: 34px;
@@ -64,13 +63,13 @@ TABLE_STYLE = f"""
 QTableWidget {{
     background: {ADMIN_CARD_BG};
     border: none;
-    gridline-color: {ADMIN_BORDER_SOFT};
+    gridline-color: transparent;
     alternate-background-color: #F8FAFC;
     font-size: 10pt;
     color: {ADMIN_TEXT};
 }}
 QTableWidget::item {{
-    padding: 6px 10px;
+    padding: 8px 10px;
     border: none;
 }}
 QTableWidget::item:selected {{
@@ -84,7 +83,7 @@ QHeaderView::section {{
     font-size: 9pt;
     padding: 10px 8px;
     border: none;
-    border-bottom: 2px solid {ADMIN_BORDER_SOFT};
+    border-bottom: 1px solid {ADMIN_BORDER};
 }}
 """
 
@@ -101,7 +100,7 @@ QTextEdit {{
 SHELL_STYLE = f"AdminPageShell {{ background: {ADMIN_PAGE_BG}; }}"
 HEADER_STYLE = (
     f"QFrame#adminPageHeader {{"
-    f"  background: {ADMIN_CARD_BG}; border-bottom: 2px solid {ADMIN_BORDER};"
+    f"  background: {ADMIN_CARD_BG}; border-bottom: 1px solid {ADMIN_BORDER};"
     f"}}"
     f"QLabel#adminPageTitle {{"
     f"  font-size: 18pt; font-weight: 800; color: {ADMIN_ACCENT}; background: transparent;"
@@ -204,7 +203,7 @@ def muted_label(text: str = "") -> QLabel:
 def card_frame() -> QFrame:
     f = QFrame()
     f.setStyleSheet(
-        f"QFrame {{ background: {ADMIN_CARD_BG}; border: 2px solid {ADMIN_BORDER}; "
+        f"QFrame {{ background: {ADMIN_CARD_BG}; border: 1px solid {ADMIN_BORDER}; "
         f"border-radius: {CARD_RADIUS}; }}"
     )
     return f
@@ -222,9 +221,10 @@ def apply_input_style(widget):
 
 
 def table_card(table: QTableWidget, stretch_col: int = -1) -> QFrame:
-    """White bordered block containing a data table."""
+    """White card containing a data table (no double border)."""
     prepare_table(table, stretch_col=stretch_col)
     table.setStyleSheet(TABLE_STYLE)
+    table.setShowGrid(False)
     card = card_frame()
     lo = QVBoxLayout(card)
     lo.setContentsMargins(0, 0, 0, 0)
@@ -266,11 +266,11 @@ def prepare_table(table: QTableWidget, stretch_col: int = -1):
     try:
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        table.setShowGrid(True)
+        table.setShowGrid(False)
     except AttributeError:
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectRows)
-        table.setShowGrid(True)
+        table.setShowGrid(False)
     table.horizontalHeader().setStretchLastSection(True)
     pol = _expanding()
     table.setSizePolicy(pol[0], pol[1])
