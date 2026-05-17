@@ -118,11 +118,13 @@ class AnalogClockWidget(QWidget):
 
 
 class AlertsTab(QWidget):
-    def __init__(self, controller, main_window=None, parent=None):
+    def __init__(self, controller, main_window=None, parent=None, panel_mode="all"):
         super().__init__(parent)
         self.controller = controller
         self.main_window = main_window
+        self._panel_mode = (panel_mode or "all").lower()
         self._build_ui()
+        self._apply_panel_mode()
         self._start_clock_timer()
         self._load_from_controller()
         self._refresh_activity_feed()
@@ -423,6 +425,38 @@ class AlertsTab(QWidget):
             self.cb_30_days, self.cb_15_days, self.cb_7_days, self.cb_1_day,
         ]
 
+    def _apply_panel_mode(self):
+        """panel_mode: all | settings (admin Settings tab) | inbox (legacy; use AdminAlertsTab)."""
+        mode = getattr(self, "_panel_mode", "all")
+        if mode == "all":
+            return
+        hide = []
+        if mode == "settings":
+            hide = [
+                getattr(self, "clock_group", None),
+                getattr(self, "next_group", None),
+                getattr(self, "g_activity", None),
+            ]
+            if hasattr(self, "_title_label"):
+                self._title_label.setText("Alert settings")
+            if hasattr(self, "_subtitle_label"):
+                self._subtitle_label.setText(
+                    "Medicine time, missed dose, stock, and expiry — same as admin app Settings."
+                )
+        elif mode == "inbox":
+            hide = [
+                getattr(self, "g1", None),
+                getattr(self, "g_missed", None),
+                getattr(self, "g2", None),
+                getattr(self, "g3", None),
+                getattr(self, "_alert_save_btn", None),
+                getattr(self, "clock_group", None),
+                getattr(self, "next_group", None),
+            ]
+        for w in hide:
+            if w is not None:
+                w.hide()
+
     def _on_controller_data_updated(self):
         try:
             self._load_from_controller()
@@ -444,7 +478,7 @@ class AlertsTab(QWidget):
         has_admin = getattr(self.controller, "_db", None) and getattr(self.controller._db, "has_admin_credentials", lambda: False)()
         is_user = getattr(self.controller, "is_user_view", lambda: False)()
         admin_signed_in = getattr(self.controller, "admin_logged_in", False)
-        show = has_admin and not is_user and not admin_signed_in
+        show = has_admin and not is_user and admin_signed_in
         if hasattr(self, "g_activity"):
             self.g_activity.setVisible(show)
         if not show or not hasattr(self, "_activity_list"):

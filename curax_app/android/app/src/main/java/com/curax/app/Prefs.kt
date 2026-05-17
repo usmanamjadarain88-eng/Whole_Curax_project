@@ -71,6 +71,14 @@ class Prefs(context: Context) {
         get() = prefs.getBoolean(KEY_HAS_EVER_CONNECTED, false)
         set(value) = prefs.edit().putBoolean(KEY_HAS_EVER_CONNECTED, value).apply()
 
+    /**
+     * User/admin tapped Connect once (permissions + relay setup). App reopen may restore relay silently.
+     * Not set on sign-in or admin link alone — only after the Connect button flow.
+     */
+    var relayAutoConnectEnabled: Boolean
+        get() = prefs.getBoolean(KEY_RELAY_AUTO_CONNECT_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_RELAY_AUTO_CONNECT_ENABLED, value).apply()
+
     /** Base URL for API (get-role, connect-to-admin). Uses default when not set. */
     var centralApiUrl: String
         get() = prefs.getString(KEY_CENTRAL_API_URL, "")?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CENTRAL_API_URL
@@ -532,6 +540,7 @@ class Prefs(context: Context) {
         private const val KEY_LAST_BACKGROUND_AT_MS = "last_background_at_ms"
         private const val KEY_LAST_EXIT_WAS_CLOSE = "last_exit_was_close"
         private const val KEY_HAS_EVER_CONNECTED = "has_ever_connected"
+        private const val KEY_RELAY_AUTO_CONNECT_ENABLED = "relay_auto_connect_enabled"
         private const val KEY_CENTRAL_API_URL = "central_api_url"
         private const val KEY_CONNECTION_CODE = "connection_code"
         private const val KEY_DATABUS_ACCESS_CODE = "databus_access_code"

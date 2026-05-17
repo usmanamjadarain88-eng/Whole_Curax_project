@@ -639,6 +639,8 @@
     <string name="admin_alerts_screen_subtitle">Dose alerts and system notices from all linked users and relay.</string>
     <string name="error_generic_with_reason">Something went wrong: %1$s</string>
     <string name="admin_verify_email_title">Check your email</string>
+    <string name="user_sign_in_verify_title">Verify sign-in</string>
+    <string name="user_sign_in_verify_body">We sent a 6-digit code to %1$s. Enter it below to finish signing in — same as admin sign-in.</string>
     <string name="admin_verify_email_body">We sent a 6-digit code to %1$s. It confirms you are signing in as an administrator.</string>
     <string name="admin_verify_continue">Verify &amp; continue</string>
     <string name="admin_auth_promo_title">Care coordination</string>

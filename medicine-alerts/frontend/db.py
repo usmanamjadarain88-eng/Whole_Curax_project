@@ -180,6 +180,39 @@ class AlertDB:
         except Exception:
             return False
 
+    def has_admin_unlock_password(self):
+        """True only if admin set a desktop unlock password (not after phone link with no password)."""
+        try:
+            data = self._read_data()
+            ac = data.get("admin_credentials") or {}
+            ph = (ac.get("password_hash") or "").strip()
+            if not ph:
+                return False
+            return ph != self._hash_password("")
+        except Exception:
+            return False
+
+    def set_admin_identity_from_link(self, name, admin_id):
+        """After phone link: store admin identity; keep existing desktop password only if already set."""
+        try:
+            data = self._read_data()
+            existing = data.get("admin_credentials") or {}
+            ph = (existing.get("password_hash") or "").strip()
+            if ph == self._hash_password(""):
+                ph = ""
+            data["admin_credentials"] = {
+                "name": (name or "").strip() or "Admin",
+                "admin_id": (admin_id or "").strip(),
+                "email": (existing.get("email") or "").strip(),
+                "phone": (existing.get("phone") or "").strip(),
+                "password_hash": ph,
+            }
+            self._write_data(data)
+            return True
+        except Exception as e:
+            print(f"Error set_admin_identity_from_link: {e}")
+            return False
+
     def set_user_device_password(self, password):
         """Set the device password for this desktop when used as a user (for unlock without ESP32)."""
         try:
@@ -353,6 +386,17 @@ class AlertDB:
         except Exception as e:
             print(f"Error clearing desktop linked admin: {e}")
             return False
+
+    def clear_legacy_user_desktop_modes(self):
+        """Admin-only desktop: drop old user-link / user-view keys from JSON."""
+        for key in (
+            "linked_user_id", "linked_user_name", "linked_user_bot_id", "linked_user_api_key",
+            "desktop_linked_admin_id", "desktop_linked_admin_name", "user_device_password_hash",
+        ):
+            try:
+                self.delete(key)
+            except Exception:
+                pass
 
     def delete_admin_account(self):
         """Clear admin from this desktop's JSON file: admin_credentials set to None.

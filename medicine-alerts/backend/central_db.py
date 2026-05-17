@@ -3404,6 +3404,168 @@ class CentralDB:
         finally:
             cur.close()
 
+    def _issue_signin_verify_otp(self, email_n: str, user_id: str) -> dict:
+        """Store OTP on users.password_reset_otp_* for post sign-in email verify (reuses existing columns)."""
+        otp = str(secrets.randbelow(900_000) + 100_000)
+        otp_h = self._hash_signup_otp(email_n, otp)
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                UPDATE users SET
+                    password_reset_otp_hash = %s,
+                    password_reset_otp_expires_at = NOW() + INTERVAL '15 minutes',
+                    updated_at = NOW()
+                WHERE id = %s::uuid
+                """,
+                (otp_h, user_id),
+            )
+            conn.commit()
+            if cur.rowcount == 0:
+                conn.rollback()
+                return {"ok": False, "error": "database_error"}
+        except Exception as e:
+            conn.rollback()
+            err = str(e).lower()
+            if (
+                "password_reset_otp" in err
+                or "undefinedcolumn" in err.replace(" ", "")
+                or ("column" in err and "does not exist" in err)
+            ):
+                return {
+                    "ok": False,
+                    "error": "signin_verify_not_configured",
+                    "detail": "Run central_schema.sql on Postgres (password_reset_otp columns on users).",
+                }
+            print(f"CentralDB _issue_signin_verify_otp: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+
+        email_sent = False
+        try:
+            email_sent = bool(_send_signup_otp_email(email_n, otp))
+            if email_sent:
+                print(f"  [sign-in verify OTP] email sent to {email_n} (expires in 15m)")
+            else:
+                print(f"  [sign-in verify OTP] {email_n} -> {otp} (expires in 15m; configure SIGNUP_SMTP_*)")
+        except Exception as e:
+            print(f"  [sign-in verify OTP] SMTP error for {email_n}: {e}; OTP: {otp}")
+            email_sent = False
+        out = {"ok": True, "message": "otp_sent", "email_sent": email_sent}
+        if (os.environ.get("SIGNUP_DEV_RETURN_OTP") or "").strip().lower() in ("1", "true", "yes"):
+            out["dev_otp"] = otp
+        return out
+
+    def _active_user_signin_payload(self, email_n: str) -> dict:
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT u.bot_id, u.api_key, u.admin_id::text AS admin_id,
+                       COALESCE(a.name, '') AS admin_name,
+                       COALESCE(a.admin_access_code, '') AS databus_access_code,
+                       COALESCE(a.connection_code, '') AS connection_code,
+                       COALESCE(u.email, '') AS email
+                FROM users u
+                INNER JOIN admins a ON a.id = u.admin_id
+                WHERE LOWER(TRIM(COALESCE(u.email, ''))) = %s
+                  AND COALESCE(u.bot_id, '') IS DISTINCT FROM 'dashboard'
+                ORDER BY u.updated_at DESC NULLS LAST, u.created_at DESC NULLS LAST
+                LIMIT 1
+                """,
+                (email_n,),
+            )
+            urow = cur.fetchone()
+        finally:
+            cur.close()
+        if not urow:
+            return {"ok": False, "error": "user_missing"}
+        if hasattr(urow, "keys"):
+            return {
+                "ok": True,
+                "email": (urow.get("email") or "").strip() or email_n,
+                "bot_id": str(urow.get("bot_id") or "").strip(),
+                "api_key": str(urow.get("api_key") or "").strip(),
+                "admin_id": str(urow.get("admin_id") or "").strip(),
+                "admin_name": str(urow.get("admin_name") or "").strip(),
+                "databus_access_code": str(urow.get("databus_access_code") or "").strip(),
+                "connection_code": str(urow.get("connection_code") or "").strip(),
+            }
+        return {
+            "ok": True,
+            "email": (urow[6] or "").strip() or email_n,
+            "bot_id": str(urow[0] or "").strip(),
+            "api_key": str(urow[1] or "").strip(),
+            "admin_id": str(urow[2] or "").strip(),
+            "admin_name": str(urow[3] or "").strip(),
+            "databus_access_code": str(urow[4] or "").strip(),
+            "connection_code": str(urow[5] or "").strip(),
+        }
+
+    def signup_sign_in_verify_otp(self, email, otp):
+        """Verify sign-in email OTP (users.password_reset_otp_*), return active session fields."""
+        email_n = self._normalize_signup_email(email)
+        otp_s = (otp or "").strip().replace(" ", "")
+        if not email_n or len(otp_s) < 6:
+            return {"ok": False, "error": "invalid_input"}
+        want = self._hash_signup_otp(email_n, otp_s)
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute(
+                """
+                UPDATE users AS u SET
+                    password_reset_otp_hash = NULL,
+                    password_reset_otp_expires_at = NULL,
+                    updated_at = NOW()
+                FROM (
+                    SELECT u2.id
+                    FROM users u2
+                    WHERE LOWER(TRIM(COALESCE(u2.email, ''))) = %s
+                      AND COALESCE(u2.bot_id, '') IS DISTINCT FROM 'dashboard'
+                      AND u2.password_reset_otp_hash = %s
+                      AND u2.password_reset_otp_expires_at IS NOT NULL
+                      AND u2.password_reset_otp_expires_at > NOW()
+                    ORDER BY u2.updated_at DESC NULLS LAST, u2.created_at DESC NULLS LAST
+                    LIMIT 1
+                ) AS sub
+                WHERE u.id = sub.id
+                RETURNING u.id::text AS id
+                """,
+                (email_n, want),
+            )
+            updated = cur.fetchone()
+            if not updated:
+                conn.rollback()
+                return {"ok": False, "error": "invalid_or_expired"}
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            err = str(e).lower()
+            if (
+                "password_reset_otp" in err
+                or "undefinedcolumn" in err.replace(" ", "")
+                or ("column" in err and "does not exist" in err)
+            ):
+                return {
+                    "ok": False,
+                    "error": "signin_verify_not_configured",
+                    "detail": "Run central_schema.sql on Postgres (password_reset_otp columns on users).",
+                }
+            print(f"CentralDB signup_sign_in_verify_otp: {e}")
+            return {"ok": False, "error": "database_error"}
+        finally:
+            cur.close()
+
+        payload = self._active_user_signin_payload(email_n)
+        if not payload.get("ok"):
+            return payload
+        payload["account_phase"] = "active"
+        return payload
+
     def admin_email_signup_start(self, email, password):
         """Independent mobile admin registration: OTP email; verify creates admins row with desktop_password_hash."""
         email_n = self._normalize_signup_email(email)
@@ -3906,7 +4068,8 @@ class CentralDB:
         try:
             cur2.execute(
                 """
-                SELECT u.bot_id, u.api_key, u.password_hash, u.account_status, u.admin_id::text AS admin_id,
+                SELECT u.id::text AS id, u.bot_id, u.api_key, u.password_hash, u.account_status,
+                       u.admin_id::text AS admin_id,
                        COALESCE(a.name, '') AS admin_name,
                        COALESCE(a.admin_access_code, '') AS databus_access_code,
                        COALESCE(a.connection_code, '') AS connection_code
@@ -3951,16 +4114,20 @@ class CentralDB:
         if st in ("PENDING_EMAIL", "PENDING_ADMIN", "PENDING"):
             return {"ok": False, "error": "account_incomplete", "account_status": st}
 
-        return {
+        user_id = str(urow.get("id") or "").strip()
+        if not user_id:
+            return {"ok": False, "error": "database_error"}
+        otp_out = self._issue_signin_verify_otp(email_n, user_id)
+        if not otp_out.get("ok"):
+            return otp_out
+        out = {
             "ok": True,
-            "account_phase": "active",
-            "bot_id": str(urow.get("bot_id") or "").strip(),
-            "api_key": str(urow.get("api_key") or "").strip(),
-            "admin_id": str(urow.get("admin_id") or "").strip(),
-            "admin_name": str(urow.get("admin_name") or "").strip(),
-            "databus_access_code": str(urow.get("databus_access_code") or "").strip(),
-            "connection_code": str(urow.get("connection_code") or "").strip(),
+            "account_phase": "signin_verify",
+            "email_sent": bool(otp_out.get("email_sent")),
         }
+        if otp_out.get("dev_otp"):
+            out["dev_otp"] = otp_out["dev_otp"]
+        return out
 
     def signup_sign_in_oauth_email(self, verified_email: str):
         """Same outcomes as [signup_sign_in] but identity is already proved by Google/Facebook server-side."""

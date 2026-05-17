@@ -63,6 +63,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     private var tabMediator: TabLayoutMediator? = null
 
     private var connectionService: AlertConnectionService? = null
+    private var pendingRelayConnectAfterNotificationPermission = false
     private var alertsReceiverRegistered = false
     private var adminDataSyncReceiverRegistered = false
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
@@ -208,10 +209,15 @@ class AdminDashboardActivity : AppCompatActivity() {
                 CuraxFeedback.info(this, getString(R.string.admin_relay_disconnected_toast))
             } else {
                 CuraxFeedback.info(this, getString(R.string.admin_relay_registering))
-                askNotificationPermission()
-                ensureFullScreenIntentPermission()
-                requestBatteryOptimizationExemption()
-                connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+                if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
+                    pendingRelayConnectAfterNotificationPermission = true
+                    ConnectRelaySetup.requestNotificationPrompt(this)
+                } else {
+                    pendingRelayConnectAfterNotificationPermission = false
+                    ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
+                    prefs.relayAutoConnectEnabled = true
+                    connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+                }
             }
         }
     }
@@ -290,7 +296,25 @@ class AdminDashboardActivity : AppCompatActivity() {
         updateReturnToAdminBar()
         applySidebarLocalStats()
         fetchAdminSnapshotFromServer()
-        ConnectionManager.requestReconnectRelayNow(this)
+        ConnectionManager.ensureRelayLiveOnAppOpen(this)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != ConnectRelaySetup.REQ_POST_NOTIFICATIONS || !pendingRelayConnectAfterNotificationPermission) {
+            return
+        }
+        pendingRelayConnectAfterNotificationPermission = false
+        val id = prefs.id.trim()
+        val apiKey = prefs.apiKey.trim()
+        if (id.isEmpty() || apiKey.isEmpty()) return
+        ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
+        prefs.relayAutoConnectEnabled = true
+        connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
     }
 
     private fun fetchAdminSnapshotFromServer() {
@@ -372,6 +396,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         prefs.actAsUserId = ""
         prefs.actAsUserName = ""
         prefs.actAsUserDisplayMode = ""
+        DoseTrackingLocalStore.clear(applicationContext)
         refreshTabsForActAsUser()
         updateReturnToAdminBar()
         fetchSidebarHealthOverview(force = true)

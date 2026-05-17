@@ -200,18 +200,12 @@ class MainActivity : AppCompatActivity() {
                 CuraxFeedback.info(this, "Disconnected")
             } else {
                 CuraxFeedback.info(this, "Registering FCM and connecting to relay…")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
-                    PackageManager.PERMISSION_GRANTED
-                ) {
+                if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
                     pendingRelayConnectAfterNotificationPermission = true
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                        1,
-                    )
+                    ConnectRelaySetup.requestNotificationPrompt(this)
                 } else {
                     pendingRelayConnectAfterNotificationPermission = false
+                    ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
                     runMainConnectWakeAndRelayFlow(id, apiKey)
                 }
             }
@@ -251,7 +245,7 @@ class MainActivity : AppCompatActivity() {
         if (prefs.linkedAdminId.isNotEmpty() && prefs.id.isNotEmpty()) {
             checkUserDeletedByAdmin()
         }
-        ConnectionManager.requestReconnectRelayNow(this)
+        ConnectionManager.ensureRelayLiveOnAppOpen(this)
     }
 
     override fun onRequestPermissionsResult(
@@ -260,11 +254,12 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 1 && pendingRelayConnectAfterNotificationPermission) {
+        if (requestCode == ConnectRelaySetup.REQ_POST_NOTIFICATIONS && pendingRelayConnectAfterNotificationPermission) {
             pendingRelayConnectAfterNotificationPermission = false
             val id = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
             if (id.isNotEmpty() && apiKey.isNotEmpty()) {
+                ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
                 runMainConnectWakeAndRelayFlow(id, apiKey)
             }
         }
@@ -496,20 +491,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun runMainConnectWakeAndRelayFlow(id: String, apiKey: String) {
-        requestBatteryOptimizationExemption()
+        prefs.relayAutoConnectEnabled = true
         connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
-    }
-
-    private fun requestBatteryOptimizationExemption(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (pm.isIgnoringBatteryOptimizations(packageName)) return false
-        return try {
-            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(Uri.parse("package:$packageName")))
-            true
-        } catch (_: Exception) {
-            false
-        }
     }
 
     private fun connectWithLatestFcmToken(serverUrl: String, id: String, apiKey: String) {
@@ -595,6 +578,7 @@ class MainActivity : AppCompatActivity() {
             )
         )
         btnConnect.text = if (connected) getString(R.string.disconnect) else getString(R.string.connect)
+        if (connected) prefs.hasEverConnected = true
     }
 
     private fun loadAlerts() {

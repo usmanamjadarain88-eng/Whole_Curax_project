@@ -207,6 +207,43 @@ object DoseTrackingLocalStore {
         writeLog(context.applicationContext, entries.take(500))
     }
 
+    /** Central API dose_logs rows → local history shape (care mode / user sync). */
+    fun replaceFromServerDoseLogsArray(context: Context, arr: JSONArray?) {
+        if (arr == null) return
+        val meds = AdminDemoData.medicines
+        val out = mutableListOf<Map<String, Any?>>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val boxRaw = o.optString("box_id", "").trim()
+            if (boxRaw.isEmpty()) continue
+            val takenRaw = o.optString("taken_at", "").trim()
+            val ts = formatServerTakenAt(takenRaw)
+            val medName =
+                meds.find { it.box.equals(boxRaw, ignoreCase = true) }?.name?.trim().orEmpty()
+            val src = o.optString("source", "").trim().ifEmpty { "recorded" }
+            out.add(
+                mapOf(
+                    "timestamp" to ts,
+                    "box" to boxRaw,
+                    "medicine" to medName,
+                    "dose_taken" to 1,
+                    "remaining" to "—",
+                    "kind" to src,
+                ),
+            )
+        }
+        replaceLogEntries(context, out)
+    }
+
+    private fun formatServerTakenAt(raw: String): String {
+        val t = raw.trim()
+        if (t.isEmpty()) return ""
+        if (t.length >= 19 && t[10] == 'T') {
+            return t.take(10) + " " + t.substring(11, 19)
+        }
+        return t
+    }
+
     private fun sigFor(m: Map<String, Any?>): String {
         val ts = m["timestamp"]?.toString().orEmpty()
         val box = m["box"]?.toString().orEmpty()

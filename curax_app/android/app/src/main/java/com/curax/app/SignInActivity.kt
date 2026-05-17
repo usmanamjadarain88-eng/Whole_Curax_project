@@ -673,6 +673,27 @@ class SignInActivity : AppCompatActivity() {
                 }
                 startActivity(i)
             }
+            "signin_verify" -> {
+                jo.optString("dev_otp", "").trim().takeIf { it.isNotEmpty() }?.let { devOtp ->
+                    CuraxFeedback.warn(
+                        this,
+                        getString(R.string.admin_signup_otp_dev_preview, devOtp),
+                        long = true,
+                    )
+                } ?: run {
+                    if (jo.optBoolean("email_sent", true)) {
+                        CuraxFeedback.success(this, getString(R.string.admin_otp_sent_short))
+                    }
+                }
+                startActivity(
+                    Intent(this, SignUpActivity::class.java)
+                        .putExtra(SignUpActivity.EXTRA_START_AT_OTP, true)
+                        .putExtra(SignUpActivity.EXTRA_FROM_SIGNIN_ACTIVE_VERIFY, true)
+                        .putExtra(SignUpActivity.EXTRA_EMAIL, resolvedEmail)
+                        .putExtra(SignUpActivity.EXTRA_PASSWORD, password)
+                        .putExtra(SignUpActivity.EXTRA_DISPLAY_NAME, resolvedEmail),
+                )
+            }
             "pending_admin" -> {
                 val botId = jo.optString("bot_id", "").trim()
                 val apiKey = jo.optString("api_key", "").trim()
@@ -714,71 +735,17 @@ class SignInActivity : AppCompatActivity() {
         apiKey: String,
         base: String,
     ) {
-        prefs.id = botId
-        prefs.apiKey = apiKey
-        prefs.connectionCode = jo.optString("connection_code", "").trim()
-        prefs.databusAccessCode = jo.optString("databus_access_code", "").trim()
-        prefs.linkedAdminId = jo.optString("admin_id", "").trim()
-        prefs.linkedAdminName = jo.optString("admin_name", "").trim()
-        prefs.hasEverConnected = true
-        store.saveUser(email, password, LocalUserStore.ROLE_USER)
-        SignUpFlowState.clear()
-        prefs.clearSignupWipLink()
-
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
-            if (fcmToken.isNotEmpty()) prefs.fcmToken = fcmToken
-            val adminId = prefs.linkedAdminId.trim()
-            if (fcmToken.isNotEmpty() && adminId.isNotEmpty()) {
-                Thread {
-                    try {
-                        val body = JSONObject().apply {
-                            put("bot_id", botId)
-                            put("api_key", apiKey)
-                            put("role", "user")
-                            put("admin_id", adminId)
-                            put("fcm_token", fcmToken)
-                        }
-                        val req = Request.Builder()
-                            .url("$base/save-credentials")
-                            .post(body.toString().toRequestBody(JSON_MEDIA))
-                            .build()
-                        http.newCall(req).execute().close()
-                    } catch (_: Exception) {
-                    }
-                }.start()
-            }
-            runOnUiThread {
-                UserDataBusClient.fetchAndApplyUserData(
-                    this@SignInActivity,
-                    base,
-                    botId,
-                    apiKey,
-                    onSuccess = {
-                        runOnUiThread {
-                            CuraxFeedback.successThen(
-                                this@SignInActivity,
-                                R.string.sign_in_success,
-                                delayMs = 220L,
-                                snackbarDuration = Snackbar.LENGTH_SHORT,
-                            ) {
-                                navigateToUserHomeAfterAuth()
-                            }
-                        }
-                    },
-                    onAuthRejected = { msg ->
-                        runOnUiThread {
-                            UserLogoutHelper.clearLocalSession(this@SignInActivity)
-                            CuraxFeedback.warn(
-                                this@SignInActivity,
-                                msg.ifBlank { getString(R.string.account_removed_by_admin) },
-                                long = true,
-                            )
-                        }
-                    },
-                )
-            }
-        }
+        UserActiveSignInBootstrap.complete(
+            activity = this,
+            jo = jo,
+            email = email,
+            password = password,
+            base = base,
+            http = http,
+            prefs = prefs,
+            store = store,
+            onNavigateHome = { navigateToUserHomeAfterAuth() },
+        )
     }
 
     companion object {

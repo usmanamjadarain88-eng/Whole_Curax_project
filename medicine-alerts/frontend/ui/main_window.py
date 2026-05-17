@@ -40,12 +40,14 @@ try:
 except ImportError:
     ACCENT_DARK = ACCENT_LIGHT
 from ui.widgets.theme_toggle import ThemeToggle
-from ui.tabs.main_panel_tab import MainPanelTab
-from ui.tabs.add_medicine_tab import AddMedicineTab
-from ui.tabs.dose_tracking_tab import DoseTrackingTab
+from ui.tabs.admin_dashboard_tab import AdminDashboardTab
+from ui.tabs.admin_alerts_tab import AdminAlertsTab
+from ui.tabs.admin_hub_settings_tab import AdminHubSettingsTab
+from ui.tabs.admin_care_overview_tab import AdminCareOverviewTab
 from ui.tabs.medical_reminders_tab import MedicalRemindersTab
-from ui.tabs.alerts_tab import AlertsTab
-from ui.tabs.settings_tab import SettingsTab
+from ui.tabs.admin_users_tab import AdminUsersTab
+from ui.tabs.admin_reports_tab import AdminReportsTab
+from ui.tabs.admin_connections_tab import AdminConnectionsTab
 from auth.pin_dialog import PinDialog
 
 # ── SVG lock icon ─────────────────────────────────────────────────────────────
@@ -2242,12 +2244,8 @@ class MainWindow(QMainWindow):
             "QPushButton:hover { background-color: #E5F2EC; border: 1px solid #A8C9C0; }"
         )
 
-        self.user_view_btn = QPushButton("User View")
-        self.user_view_btn.setStyleSheet(sidebar_nav_style)
-        self.user_view_btn.setVisible(False)
-        sidebar_layout.addWidget(self.user_view_btn)
-
         self.esp32_btn = QPushButton("ESP32")
+        self.esp32_btn.setVisible(False)
         self.esp32_btn.setObjectName("esp32ToggleBtn")
         self.esp32_btn.clicked.connect(self._toggle_esp32_section)
         sidebar_layout.addWidget(self.esp32_btn)
@@ -2297,6 +2295,7 @@ class MainWindow(QMainWindow):
         self.com_status.setMinimumHeight(14)
         com_layout.addWidget(self.com_status)
 
+        self.com_frame.setVisible(False)
         sidebar_layout.addWidget(self.com_frame)
 
         # Admin unlock frame
@@ -2358,14 +2357,6 @@ class MainWindow(QMainWindow):
         self.sidebar_test_alert_btn.clicked.connect(self._on_sidebar_test_alert_clicked)
         tool_layout.addWidget(self.sidebar_test_alert_btn)
         sidebar_layout.addWidget(self.tool_group)
-
-        self.linked_to_admin_status = QLabel("Linked to Admin")
-        self.linked_to_admin_status.setStyleSheet(
-            f"background: #1E293B; color: #94A3B8; padding: 6px 10px; min-height: {SIDEBAR_ROW_HEIGHT-2}px; "
-            "border: none; border-radius: 8px; font-weight: 600; font-size: 9pt;"
-        )
-        self.linked_to_admin_status.setVisible(False)
-        sidebar_layout.addWidget(self.linked_to_admin_status)
 
         self.admin_section_title = _section_title("Admin")
         self.admin_section_title.setVisible(False)
@@ -2598,18 +2589,66 @@ class MainWindow(QMainWindow):
         main_inner.setContentsMargins(0, 2, 0, 0)
         main_inner.setSpacing(0)
         self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.tabs.setStyleSheet(
+            "QTabWidget::pane { border: none; background: #F1F5F9; }"
+            "QTabBar { background: #ffffff; border-bottom: 1px solid #E2E8F0; }"
+            "QTabBar::tab {"
+            "  min-width: 100px; padding: 12px 22px; margin: 0;"
+            "  font-size: 10pt; font-weight: 600; color: #64748B;"
+            "  background: transparent; border: none;"
+            "  border-bottom: 3px solid transparent;"
+            "}"
+            "QTabBar::tab:selected { color: #0F766E; border-bottom: 3px solid #0D9488; }"
+            "QTabBar::tab:hover { color: #0D9488; background: #F0FDFA; }"
+        )
         self.tabs.currentChanged.connect(self._on_tab_change_guard)
         # Pass parent=self explicitly so tabs are never parentless top-level windows
-        self.tabs.addTab(MainPanelTab(controller, self, parent=self.tabs), "Main Panel")
-        self.tabs.addTab(AddMedicineTab(controller, self, parent=self.tabs), "Add Medicine")
-        self.tabs.addTab(DoseTrackingTab(controller, self, parent=self.tabs), "Dose Tracking")
-        self.tabs.addTab(MedicalRemindersTab(controller, self, parent=self.tabs), "Medical Reminders")
-        self.tabs.addTab(AlertsTab(controller, self, parent=self.tabs), "Alerts")
-        self.tabs.addTab(SettingsTab(controller, self, parent=self.tabs), "Settings")
-        self._alerts_tab_index = 4
-        self._add_medicine_tab_index = 1
-        self._medical_reminders_tab_index = 3
-        main_inner.addWidget(self.tabs)
+        # Same tab order/names as admin Android app: Dashboard · Users · Alerts · Reports · Connections · Settings
+        self._tab_dashboard = AdminDashboardTab(controller, self, parent=self.tabs)
+        self.tabs.addTab(self._tab_dashboard, "Dashboard")
+        self.tabs.addTab(AdminUsersTab(controller, self, parent=self.tabs), "Users")
+        self.tabs.addTab(AdminAlertsTab(controller, self, parent=self.tabs), "Alerts")
+        self.tabs.addTab(AdminReportsTab(controller, self, parent=self.tabs), "Reports")
+        self.tabs.addTab(AdminConnectionsTab(controller, self, parent=self.tabs), "Connections")
+        self._tab_settings = AdminHubSettingsTab(controller, self, parent=self.tabs)
+        self.tabs.addTab(self._tab_settings, "Settings")
+        self._overview_tab_index = 0
+        self._users_tab_index = 1
+        self._alerts_tab_index = 2
+        self._reports_tab_index = 3
+        self._connections_tab_index = 4
+        self._settings_tab_index = 5
+        self._care_tabs = QTabWidget()
+        self._care_tabs.setDocumentMode(True)
+        self._care_tabs.setStyleSheet(self.tabs.styleSheet())
+        self._care_tabs.currentChanged.connect(self._on_tab_change_guard)
+        self._care_tabs_built = False
+        self._tab_mode_stack = QStackedWidget()
+        self._tab_mode_stack.addWidget(self.tabs)
+        self._tab_mode_stack.addWidget(self._care_tabs)
+        self._care_banner = QFrame()
+        self._care_banner.setObjectName("careBanner")
+        self._care_banner.setStyleSheet(
+            "QFrame#careBanner { background: #0F766E; border-radius: 0; }"
+            "QLabel { color: white; font-weight: 600; background: transparent; }"
+        )
+        self._care_banner.hide()
+        cb_lo = QHBoxLayout(self._care_banner)
+        cb_lo.setContentsMargins(16, 8, 16, 8)
+        self._care_banner_label = QLabel("")
+        self._care_banner_label.setWordWrap(True)
+        cb_lo.addWidget(self._care_banner_label, 1)
+        self._care_exit_btn = QPushButton("Return to Admin")
+        self._care_exit_btn.setStyleSheet(
+            "background: white; color: #0F766E; font-weight: 700; padding: 6px 14px; border-radius: 8px;"
+        )
+        self._care_exit_btn.clicked.connect(self.show_hub_mode_ui)
+        cb_lo.addWidget(self._care_exit_btn)
+        main_inner.addWidget(self._care_banner)
+        main_inner.addWidget(self._tab_mode_stack, 1)
+        if hasattr(controller, "care_mode_changed"):
+            controller.care_mode_changed.connect(self._on_care_mode_changed)
         self.stacked.addWidget(main_content)
         content_layout.addWidget(self.stacked, 1)
         main_layout.addWidget(content, 1)
@@ -2706,8 +2745,8 @@ class MainWindow(QMainWindow):
 
     def _send_startup_alert_to_bot(self):
         try:
-            has_admin, desktop_linked = self._get_desktop_role()
-            if has_admin and not desktop_linked:
+            has_admin, _ = self._get_desktop_role()
+            if not has_admin:
                 return
             self.controller.send_admin_alert("system_started", "CuraX started")
         except Exception:
@@ -2715,8 +2754,8 @@ class MainWindow(QMainWindow):
 
     def _send_unlocked_alert_to_bot(self):
         try:
-            has_admin, desktop_linked = self._get_desktop_role()
-            if has_admin and not desktop_linked:
+            has_admin, _ = self._get_desktop_role()
+            if not has_admin:
                 return
             self.controller.send_admin_alert("system_unlocked", "CuraX system unlocked")
         except Exception:
@@ -2958,11 +2997,16 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _get_desktop_role(self):
+        """Admin workstation only — no user / desktop_linked modes."""
         try:
             db = self.controller.get_db()
-            has_admin = db.has_admin_credentials() if db else False
-            desktop_linked = db.get_desktop_linked_admin() if (db and hasattr(db, "get_desktop_linked_admin")) else None
-            return (bool(has_admin), bool(desktop_linked))
+            has_admin = bool(
+                db and (
+                    db.has_admin_credentials()
+                    or getattr(self.controller, "admin_logged_in", False)
+                )
+            )
+            return (has_admin, False)
         except Exception:
             return (False, False)
 
@@ -2973,12 +3017,10 @@ class MainWindow(QMainWindow):
         self.locked_subtitle.setVisible(True)
         self.locked_status.setVisible(True)
         self._sidebar_locked_mode = not is_unlocked
-        has_admin, desktop_linked = self._get_desktop_role()
+        has_admin, _ = self._get_desktop_role()
 
         if hasattr(self, "link_admin_access_btn"):
-            self.link_admin_access_btn.setVisible(
-                self._sidebar_locked_mode and (not has_admin) and (not desktop_linked)
-            )
+            self.link_admin_access_btn.setVisible(self._sidebar_locked_mode and not has_admin)
 
         if self._sidebar_locked_mode:
             self.sidebar_visible = False
@@ -3024,26 +3066,6 @@ class MainWindow(QMainWindow):
                         self.unlock_with_password_btn.setToolTip("")
                 except Exception:
                     pass
-            elif desktop_linked:
-                if hasattr(self, "unlock_admin_frame"):
-                    self.unlock_admin_frame.setVisible(True)
-                if hasattr(self, "_unlock_admin_hint"):
-                    self._unlock_admin_hint.setVisible(False)
-                if hasattr(self, "unlock_without_device_btn"):
-                    self.unlock_without_device_btn.setVisible(False)
-                if hasattr(self, "esp32_btn"):
-                    self.esp32_btn.setVisible(True)
-                if hasattr(self, "com_frame"):
-                    self.com_frame.setVisible(True)
-                if hasattr(self, "connect_btn"):
-                    self.connect_btn.setVisible(False)
-                if hasattr(self, "port_combo"):
-                    self.port_combo.setVisible(False)
-                if hasattr(self, "auth_btn"):
-                    self.auth_btn.setVisible(True)
-                if hasattr(self, "locked_screen_widget"):
-                    self.locked_screen_widget.set_first_time_pulse(True)
-                self._try_auto_connect_user()
             else:
                 if hasattr(self, "locked_screen_widget"):
                     self.locked_screen_widget.set_first_time_pulse(True)
@@ -3093,17 +3115,12 @@ class MainWindow(QMainWindow):
         base_style = self._status_pill_style(for_ready=is_ready)
         accent = ACCENT_LIGHT if theme == "light" else NEON_GREEN
         secondary = "#475569" if theme == "light" else "#94A3B8"
-        has_admin, desktop_linked = self._get_desktop_role()
+        has_admin, _ = self._get_desktop_role()
         if self.controller.authenticated:
             msg = "System Ready"
             color = accent
         else:
-            if has_admin:
-                msg = "Open menu (☰) → Unlock"
-            elif not desktop_linked:
-                msg = "Open menu (☰) → Link with code from app"
-            else:
-                msg = "Open menu (☰) → Unlock"
+            msg = "Open menu (☰) → Link with code from app" if not has_admin else "Open menu (☰) → Unlock"
             color = secondary
         # Update the status pill text (font size from _topbar_scale for small screens)
         self.locked_status.setText(msg)
@@ -3127,37 +3144,24 @@ class MainWindow(QMainWindow):
         try:
             db = self.controller.get_db()
             has_admin = db.has_admin_credentials()
-            linked = db.get_linked_user() if hasattr(db, "get_linked_user") else None
-            desktop_linked = db.get_desktop_linked_admin() if hasattr(db, "get_desktop_linked_admin") else None
         except Exception:
             has_admin = False
-            linked = None
-            desktop_linked = None
+            db = None
 
         if getattr(self.controller, "admin_logged_in", False):
             name = getattr(self.controller, "logged_in_admin_name", None) or "Admin"
             self.admin_status.setText(f"Admin: {name}")
-        elif linked:
-            self.admin_status.setText(f"User: {linked.get('linked_user_name', 'Linked user')}")
-        elif desktop_linked:
-            user_name = (linked.get("linked_user_name", "User") if linked else "User")
-            self.admin_status.setText(f"User: {user_name}")
-            if hasattr(self, "linked_to_admin_status"):
-                self.linked_to_admin_status.setText(f"Linked to Admin: {desktop_linked.get('desktop_linked_admin_name', 'Admin')}")
-                self.linked_to_admin_status.setVisible(True)
         elif has_admin:
             try:
-                info = db.get_admin_info() if hasattr(db, "get_admin_info") else None
+                info = db.get_admin_info() if db and hasattr(db, "get_admin_info") else None
                 name = (info.get("name") or "Admin").strip() if info else "Admin"
             except Exception:
                 name = "Admin"
             self.admin_status.setText(f"Admin: {name}")
         else:
-            self.admin_status.setText("Features Locked")
+            self.admin_status.setText("Link admin app")
 
-        if not desktop_linked and hasattr(self, "linked_to_admin_status"):
-            self.linked_to_admin_status.setVisible(False)
-        self._update_alerts_tab_visibility(linked=linked)
+        self._update_alerts_tab_visibility()
         if hasattr(self, "admin_section_title"):
             try:
                 self.admin_section_title.setVisible(
@@ -3175,16 +3179,15 @@ class MainWindow(QMainWindow):
             pass
 
     def _update_alerts_tab_visibility(self, linked=None):
-        """Admin workstation: always show main tabs (user mirror removed from desktop)."""
-        if not hasattr(self, "tabs") or not hasattr(self, "_alerts_tab_index"):
+        """Admin workstation: all admin tabs visible."""
+        if not hasattr(self, "tabs"):
             return
         try:
-            for idx in [self._alerts_tab_index, getattr(self, "_add_medicine_tab_index", None), getattr(self, "_medical_reminders_tab_index", None)]:
-                if idx is not None:
-                    try:
-                        self.tabs.setTabVisible(idx, True)
-                    except Exception:
-                        pass
+            for idx in range(self.tabs.count()):
+                try:
+                    self.tabs.setTabVisible(idx, True)
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -3582,6 +3585,16 @@ class MainWindow(QMainWindow):
             dlg.exec()
 
         if has_admin:
+            needs_unlock = bool(
+                db and (
+                    getattr(db, "has_desktop_app_unlock_pin", lambda: False)()
+                    or getattr(db, "has_admin_unlock_password", lambda: False)()
+                )
+            )
+            if not needs_unlock:
+                self.controller.authenticated = True
+                self.controller.authenticated_changed.emit(True)
+                return
             use_desktop_pin = bool(
                 db and getattr(db, "has_desktop_app_unlock_pin", lambda: False)()
             )
@@ -3598,17 +3611,9 @@ class MainWindow(QMainWindow):
                     "Enter your admin account password.",
                     lambda pwd: getattr(db, "verify_admin_password", lambda p: False)(pwd),
                 )
-        elif has_user_pwd or desktop_linked:
-            _big_unlock_dlg("User", "Enter device password",
-                lambda pwd: getattr(db, "verify_user_device_password", lambda p: False)(pwd))
         else:
-            reply = QMessageBox.question(self, "Unlock",
-                "Unlock now to continue with User Setup or Admin Setup?",
-                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
-                QMessageBox.StandardButton.Ok)
-            if reply == QMessageBox.StandardButton.Ok:
-                self.controller.authenticated = True
-                self.controller.authenticated_changed.emit(True)
+            self.controller.authenticated = True
+            self.controller.authenticated_changed.emit(True)
 
     def _show_pin_dialog(self):
         if not self.controller.connected:
@@ -3753,6 +3758,46 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Backup Database", f"Backup failed: {e}")
 
+    def _build_care_tabs_if_needed(self):
+        if getattr(self, "_care_tabs_built", False):
+            return
+        c = self.controller
+        from ui.tabs.alerts_tab import AlertsTab
+        self._care_tabs.addTab(AdminCareOverviewTab(c, self, parent=self._care_tabs), "Overview")
+        self._care_tabs.addTab(MedicalRemindersTab(c, self, parent=self._care_tabs), "Reminders")
+        self._care_tabs.addTab(AdminAlertsTab(c, self, parent=self._care_tabs), "Logs")
+        self._care_tabs.addTab(AlertsTab(c, self, parent=self._care_tabs, panel_mode="settings"), "Settings")
+        self._care_tabs_built = True
+
+    def show_care_mode_ui(self):
+        self._build_care_tabs_if_needed()
+        name = (getattr(self.controller, "act_as_user_name", None) or "User").strip()
+        self._care_banner_label.setText(f"Care mode: {name}")
+        self._care_banner.show()
+        self._tab_mode_stack.setCurrentIndex(1)
+        self._care_tabs.setCurrentIndex(0)
+        for w in (self._tab_dashboard,):
+            if w and hasattr(w, "refresh"):
+                try:
+                    w.refresh()
+                except Exception:
+                    pass
+
+    def show_hub_mode_ui(self):
+        if getattr(self.controller, "is_care_mode", lambda: False)():
+            self.controller.exit_care_mode()
+        self._care_banner.hide()
+        self._tab_mode_stack.setCurrentIndex(0)
+        self.tabs.setCurrentIndex(getattr(self, "_overview_tab_index", 0))
+
+    def _on_care_mode_changed(self):
+        if getattr(self.controller, "is_care_mode", lambda: False)():
+            self.show_care_mode_ui()
+        else:
+            if hasattr(self, "_tab_mode_stack"):
+                self._care_banner.hide()
+                self._tab_mode_stack.setCurrentIndex(0)
+
     def _on_tab_change_guard(self, index: int):
         """Block tab navigation when system is locked — silently, no popup."""
         # Only block if user clicked a non-zero tab while locked
@@ -3761,9 +3806,10 @@ class MainWindow(QMainWindow):
             return
         if not getattr(self.controller, "authenticated", False):
             # Silently revert — lock screen is covering tabs anyway
-            self.tabs.blockSignals(True)
-            self.tabs.setCurrentIndex(0)
-            self.tabs.blockSignals(False)
+            tw = self._care_tabs if getattr(self, "_tab_mode_stack", None) and self._tab_mode_stack.currentIndex() == 1 else self.tabs
+            tw.blockSignals(True)
+            tw.setCurrentIndex(0)
+            tw.blockSignals(False)
 
     def _require_unlocked(self) -> bool:
         """Returns True if unlocked. If locked, shows a friendly toast and returns False."""
@@ -4029,9 +4075,12 @@ class MainWindow(QMainWindow):
 
                 def _done():
                     dlg.accept()
+                    self.controller.authenticated = True
+                    self.controller.authenticated_changed.emit(True)
                     self._apply_locked_state()
                     self._update_status_text()
-                    self._unlock_without_device()
+                    if hasattr(self, "tabs"):
+                        self.tabs.setCurrentIndex(getattr(self, "_overview_tab_index", 0))
 
                 QTimer.singleShot(150, _done)
             else:

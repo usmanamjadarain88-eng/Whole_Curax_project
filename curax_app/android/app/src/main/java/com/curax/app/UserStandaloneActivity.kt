@@ -219,9 +219,11 @@ class UserStandaloneActivity : AppCompatActivity() {
     private val relayConnectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             when (intent?.action) {
-                AlertEvents.ACTION_CONNECTION_STATE_CHANGED,
-                AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE,
-                -> refreshUserSidebar()
+                AlertEvents.ACTION_CONNECTION_STATE_CHANGED -> {
+                    val connected = intent?.getBooleanExtra(AlertEvents.EXTRA_CONNECTED, false) == true
+                    updateConnectionUi(connected)
+                }
+                AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE -> refreshUserSidebar()
             }
         }
     }
@@ -440,15 +442,12 @@ class UserStandaloneActivity : AppCompatActivity() {
                 CuraxFeedback.info(this, "Disconnected")
             } else if (id.isNotEmpty() && apiKey.isNotEmpty()) {
                 CuraxFeedback.info(this, "Registering FCM and connecting to relay...")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notificationsChannelReady()) {
+                if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
                     pendingRelayConnectAfterNotificationPermission = true
-                    ActivityCompat.requestPermissions(
-                        this,
-                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                        1,
-                    )
+                    ConnectRelaySetup.requestNotificationPrompt(this)
                 } else {
                     pendingRelayConnectAfterNotificationPermission = false
+                    ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
                     runConnectWakeAndRelayFlow()
                 }
             }
@@ -506,6 +505,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (!StandaloneUi.isUserStandalone(this)) {
             CuraxEsp32BleLink.init(this)
             CuraxEsp32BleLink.connectSavedDevice(this)
+            autoReconnectRelaySilentlyIfNeeded()
         }
         refreshUserSidebar()
         AwaitingAdminLinkCoordinator.pollIfNeeded(this)
@@ -522,9 +522,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 1) {
+        if (requestCode == ConnectRelaySetup.REQ_POST_NOTIFICATIONS) {
             if (pendingRelayConnectAfterNotificationPermission) {
                 pendingRelayConnectAfterNotificationPermission = false
+                ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
                 runConnectWakeAndRelayFlow()
             } else {
                 refreshUserSidebar()
@@ -959,8 +960,8 @@ class UserStandaloneActivity : AppCompatActivity() {
         ensureUserDataBusConnected()
         UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
         bootstrapStandaloneDataOnce()
-        ConnectionManager.requestReconnectRelayNow(this)
         if (!StandaloneUi.isUserStandalone(this)) {
+            autoReconnectRelaySilentlyIfNeeded()
             window.decorView.postDelayed({ refreshUserSidebar() }, 900L)
             window.decorView.postDelayed({ refreshUserSidebar() }, 2800L)
         }
@@ -1047,24 +1048,41 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
-    /** Battery-optimization system prompt when still optimizing this app, then relay + FCM. Notification prompt is handled before this runs (or skipped on older Android). */
     private fun runConnectWakeAndRelayFlow() {
         val id = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         if (id.isEmpty() || apiKey.isEmpty()) return
-        requestBatteryOptimizationExemption()
+        prefs.relayAutoConnectEnabled = true
         connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
     }
 
-    private fun requestBatteryOptimizationExemption(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
-        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        if (pm.isIgnoringBatteryOptimizations(packageName)) return false
-        return try {
-            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(android.net.Uri.parse("package:$packageName")))
-            true
+    /**
+     * After first Connect (permissions done), reopening the app runs the same relay+FCM path
+     * as the Connect button — without showing permission dialogs again.
+     */
+    private fun autoReconnectRelaySilentlyIfNeeded() {
+        if (StandaloneUi.isUserStandalone(this)) return
+        if (!prefs.relayAutoConnectEnabled) return
+        val id = prefs.id.trim()
+        val apiKey = prefs.apiKey.trim()
+        if (id.isEmpty() || apiKey.isEmpty()) return
+        if (connectionService?.isConnected() == true || ConnectionManager.isRelayConnectedHint()) {
+            bindRelayServiceIfNeeded()
+            return
+        }
+        bindRelayServiceIfNeeded()
+        connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+    }
+
+    private fun bindRelayServiceIfNeeded() {
+        if (!prefs.relayAutoConnectEnabled || connectionService != null) return
+        try {
+            bindService(
+                Intent(this, AlertConnectionService::class.java),
+                serviceConnection,
+                Context.BIND_AUTO_CREATE,
+            )
         } catch (_: Exception) {
-            false
         }
     }
 
@@ -1133,6 +1151,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
         setSidebarConnectBackgroundDrawable(connected = connected, connecting = false)
         applySidebarConnectIconForMode()
+        if (connected) prefs.hasEverConnected = true
         refreshUserSidebar()
     }
 

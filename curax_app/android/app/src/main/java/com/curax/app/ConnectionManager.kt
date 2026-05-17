@@ -35,11 +35,25 @@ object ConnectionManager {
     }
 
     fun requestReconnectRelayNow(context: Context) {
-        context.applicationContext.startService(
-            Intent(context.applicationContext, AlertConnectionService::class.java).apply {
-                action = AlertConnectionService.ACTION_RECONNECT_NOW
-            },
-        )
+        val app = context.applicationContext
+        val intent = Intent(app, AlertConnectionService::class.java).apply {
+            action = AlertConnectionService.ACTION_RECONNECT_NOW
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            app.startForegroundService(intent)
+        } else {
+            app.startService(intent)
+        }
+    }
+
+    /** User/admin home resume: reconnect relay after first Connect flow (not sign-in / admin link alone). */
+    fun ensureRelayLiveOnAppOpen(context: Context) {
+        val prefs = Prefs(context.applicationContext)
+        if (!prefs.relayAutoConnectEnabled) return
+        if (prefs.id.trim().isEmpty() || prefs.apiKey.trim().isEmpty() || prefs.serverUrl.trim().isEmpty()) {
+            return
+        }
+        requestReconnectRelayNow(context)
     }
 
     /** Best-effort; prefer service binder [AlertConnectionService.isConnected] in activities. */

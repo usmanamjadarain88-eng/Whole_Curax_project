@@ -311,6 +311,13 @@ object AdminDataBusClient {
         AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
+        val actAs = prefs.actAsUserId.trim()
+        if (actAs.isNotEmpty()) {
+            val doseArr = data.optJSONArray("dose_logs") ?: data.optJSONArray("dose_log")
+            if (doseArr != null) {
+                DoseTrackingLocalStore.replaceFromServerDoseLogsArray(context, doseArr)
+            }
+        }
     }
 
     private fun broadcastAdminSnapshotApplied(app: Context) {

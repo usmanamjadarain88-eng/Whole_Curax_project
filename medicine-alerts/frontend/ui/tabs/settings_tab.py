@@ -40,11 +40,14 @@ class _DeleteAdminWorker(QThread):
 
 
 class SettingsTab(QWidget):
-    def __init__(self, controller, main_window=None, parent=None):
+    def __init__(self, controller, main_window=None, parent=None, admin_workstation=False):
         super().__init__(parent)
         self.controller = controller
         self.main_window = main_window
+        self._admin_workstation = bool(admin_workstation)
         self._build_ui()
+        if self._admin_workstation:
+            self._apply_admin_workstation_trim()
         self._load()
         try:
             self.controller.medicine_updated.connect(self._on_controller_data_updated)
@@ -451,6 +454,38 @@ class SettingsTab(QWidget):
         if hasattr(self.controller, "test_alert_done"):
             self.controller.test_alert_done.connect(self._on_test_alert_done)
 
+    def _apply_admin_workstation_trim(self):
+        """Desktop admin hub: no signup noise, no phone-only link flows, short copy."""
+        if hasattr(self, "_sys_desc"):
+            self._sys_desc.setText("Gmail, do-not-disturb, and appearance.")
+        if hasattr(self, "_title_label"):
+            self._title_label.setText("Settings")
+        for name in (
+            "link_to_admin_only_group",
+            "linked_to_admin_group",
+            "link_to_admin_btn",
+            "unlink_desktop_btn",
+            "_link_to_admin_desc",
+        ):
+            w = getattr(self, name, None)
+            if w is not None:
+                w.hide()
+        if hasattr(self, "acc_rules"):
+            self.acc_rules.setText(
+                "Desktop unlock PIN (this PC) and optional device box PIN if you use hardware."
+            )
+        tabs = getattr(self, "_settings_tabs", None)
+        if tabs is None:
+            return
+        for i in range(tabs.count()):
+            t = (tabs.tabText(i) or "").lower()
+            if "admin panel" in t:
+                try:
+                    tabs.setTabText(i, "Admin")
+                except Exception:
+                    pass
+        self._update_admin_tab_visibility()
+
     def _refresh_admin_ui(self, db=None):
         """Admin workstation only — mobile app owns user/link flows; always show admin credentials UI."""
         if not hasattr(self, "admin_status_label") or not hasattr(self, "admin_action_btn"):
@@ -476,9 +511,20 @@ class SettingsTab(QWidget):
             self.admin_codes_container.setVisible(has_admin)
 
         if has_admin:
-            # Device is admin-specific: short label; codes are shown below Test alert
-            self.admin_status_label.setText("This device is set up as admin.")
+            self.admin_status_label.setText("Admin account linked to this desktop.")
             self.admin_status_label.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: 9pt;")
+        if getattr(self, "_admin_workstation", False) and has_admin:
+            for w in (
+                getattr(self, "admin_name", None),
+                getattr(self, "admin_id", None),
+                getattr(self, "admin_email", None),
+                getattr(self, "admin_phone", None),
+                getattr(self, "admin_password", None),
+                getattr(self, "setup_admin_btn", None),
+                getattr(self, "admin_action_btn", None),
+            ):
+                if w is not None:
+                    w.hide()
         elif getattr(self.controller, "admin_logged_in", False):
             self.admin_status_label.setText(
                 f"✅ Logged in as {self.controller.logged_in_admin_name or 'Admin'} – all features unlocked."

@@ -94,10 +94,24 @@ class AlertConnectionService : Service() {
                 stopSelf()
             }
             ACTION_RECONNECT_NOW -> {
-                if (lastServerUrl != null && lastBotId != null && lastApiKey != null && !isConnected()) {
+                restoreRelayCredentialsFromPrefsIfNeeded()
+                val url = lastServerUrl
+                val botId = lastBotId
+                val apiKey = lastApiKey
+                if (url.isNullOrEmpty() || botId.isNullOrEmpty() || apiKey.isNullOrEmpty()) {
+                    return@onStartCommand START_STICKY
+                }
+                if (!isConnected()) {
                     reconnectBackoffMs = 2000L
                     cancelReconnect()
-                    handler.postDelayed({ connect(lastServerUrl!!, lastBotId!!, lastApiKey!!) }, 500L)
+                    acquireWakeLock()
+                    startForeground(NOTIF_ID, createNotification(false))
+                    handler.postDelayed({ connect(url, botId, apiKey) }, 500L)
+                } else {
+                    val fcm = Prefs(this).fcmToken.trim()
+                    if (fcm.isNotEmpty()) {
+                        sendRegister(botId, apiKey, fcm)
+                    }
                 }
             }
         }
@@ -333,6 +347,22 @@ class AlertConnectionService : Service() {
     }
 
     fun isConnected(): Boolean = webSocket != null && !isConnecting && client != null
+
+    /** After first Connect, app open can restore relay without tapping Connect again. */
+    private fun restoreRelayCredentialsFromPrefsIfNeeded() {
+        if (!lastServerUrl.isNullOrEmpty() && !lastBotId.isNullOrEmpty() && !lastApiKey.isNullOrEmpty()) {
+            return
+        }
+        val prefs = Prefs(this)
+        if (!prefs.relayAutoConnectEnabled) return
+        val url = prefs.serverUrl.trim()
+        val id = prefs.id.trim()
+        val key = prefs.apiKey.trim()
+        if (url.isEmpty() || id.isEmpty() || key.isEmpty()) return
+        lastServerUrl = url
+        lastBotId = id
+        lastApiKey = key
+    }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (lastServerUrl != null && lastBotId != null && lastApiKey != null) {

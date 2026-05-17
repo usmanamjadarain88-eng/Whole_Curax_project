@@ -603,7 +603,7 @@ object UserDataBusClient {
         // wipe clears on-device history (local store was previously never updated for standalone users).
         if (StandaloneUi.isUserStandalone(ctx) && AppRole.isUser(ctx)) {
             if (!incremental && doseLogsFromServer != null) {
-                DoseTrackingLocalStore.replaceLogEntries(ctx, standaloneRowsFromServerDoseLogs(doseLogsFromServer))
+                DoseTrackingLocalStore.replaceFromServerDoseLogsArray(ctx, doseLogsFromServer)
             }
         } else {
             DoseTrackingLocalStore.mergeFromPayloadArray(ctx, doseLogsFromServer)

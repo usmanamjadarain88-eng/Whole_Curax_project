@@ -244,6 +244,44 @@ def admin_mobile_sign_in_start(body, query, headers):
     return (200, {k: v for k, v in r.items() if k != "ok"})
 
 
+def signup_sign_in_verify(body, query, headers):
+    """POST { email, otp } → active user session fields after sign-in email verify."""
+    data = body or {}
+    email = (data.get("email") or "").strip()
+    otp = (data.get("otp") or "").strip()
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    r = db.signup_sign_in_verify_otp(email, otp)
+    if not r.get("ok"):
+        err = r.get("error") or "error"
+        code = 400
+        if err in ("signin_verify_not_configured", "database_error"):
+            code = 503
+        elif err in ("invalid_or_expired", "invalid_input"):
+            code = 401
+        elif err == "user_missing":
+            code = 404
+        out = {"message": err}
+        if r.get("detail"):
+            out["detail"] = r["detail"]
+        return (code, out)
+    phase = r.get("account_phase") or "active"
+    out = {"message": "ok", "account_phase": phase}
+    if r.get("email"):
+        out["email"] = r["email"]
+    for k in (
+        "bot_id",
+        "api_key",
+        "admin_id",
+        "admin_name",
+        "databus_access_code",
+        "connection_code",
+    ):
+        out[k] = r.get(k) or ""
+    return (200, out)
+
+
 def admin_mobile_sign_in_verify(body, query, headers):
     """POST { challenge_token, otp } → admin_access_code, connection_code, name, email."""
     data = body or {}
@@ -466,6 +504,10 @@ def signup_sign_in(body, query, headers):
     out = {"message": "ok", "account_phase": phase}
     if r.get("email"):
         out["email"] = r["email"]
+    if phase == "signin_verify":
+        out["email_sent"] = bool(r.get("email_sent"))
+        if r.get("dev_otp"):
+            out["dev_otp"] = r["dev_otp"]
     if phase == "active":
         for k in (
             "bot_id",

@@ -87,6 +87,8 @@ class SignUpActivity : AppCompatActivity() {
     private var resendTimer: CountDownTimer? = null
     private var step2ContinueOnly = false
     private var otpEntryMode = false
+    /** Active user signed in with password; OTP already sent via /signup/sign-in. */
+    private var fromSignInActiveVerify = false
     private var pendingDisplayName = ""
     /** Populated when continuing pending-email OTP after Google/Facebook sign-in (no password on device). */
     private var pendingGoogleIdToken: String? = null
@@ -205,6 +207,7 @@ class SignUpActivity : AppCompatActivity() {
         }
 
         otpEntryMode = intent.getBooleanExtra(EXTRA_START_AT_OTP, false)
+        fromSignInActiveVerify = intent.getBooleanExtra(EXTRA_FROM_SIGNIN_ACTIVE_VERIFY, false)
         pendingDisplayName = intent.getStringExtra(EXTRA_DISPLAY_NAME).orEmpty()
 
         savedInstanceState?.let { b ->
@@ -221,6 +224,7 @@ class SignUpActivity : AppCompatActivity() {
             if (!intent.getBooleanExtra(EXTRA_START_AT_OTP, false)) {
                 otpEntryMode = b.getBoolean(STATE_OTP_ENTRY_MODE, false)
             }
+            fromSignInActiveVerify = b.getBoolean(STATE_FROM_SIGNIN_ACTIVE_VERIFY, fromSignInActiveVerify)
         }
 
         updateOtpDashDisplay("")
@@ -247,11 +251,18 @@ class SignUpActivity : AppCompatActivity() {
                 resetStep2UiForOtpEntry()
                 tvVerifySubtitle.text = getString(R.string.verify_pin_subtitle, pendingEmail)
                 showStep(Step.TWO)
-                if (intent.getBooleanExtra(EXTRA_FROM_SIGNIN_PENDING_EMAIL, false)) {
-                    requestOtpEmailAfterSignInPending()
-                } else {
-                    startResendCooldown()
-                    etOtp.post { focusOtpField() }
+                when {
+                    intent.getBooleanExtra(EXTRA_FROM_SIGNIN_PENDING_EMAIL, false) ->
+                        requestOtpEmailAfterSignInPending()
+                    intent.getBooleanExtra(EXTRA_FROM_SIGNIN_ACTIVE_VERIFY, false) -> {
+                        fromSignInActiveVerify = true
+                        startResendCooldown()
+                        etOtp.post { focusOtpField() }
+                    }
+                    else -> {
+                        startResendCooldown()
+                        etOtp.post { focusOtpField() }
+                    }
                 }
             }
             savedInstanceState != null && step2ContinueOnly -> {
@@ -292,6 +303,7 @@ class SignUpActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_STEP2_CONTINUE_ONLY, step2ContinueOnly)
         outState.putBoolean(STATE_OTP_ENTRY_MODE, otpEntryMode)
+        outState.putBoolean(STATE_FROM_SIGNIN_ACTIVE_VERIFY, fromSignInActiveVerify)
         outState.putString(STATE_PENDING_EMAIL, pendingEmail)
         outState.putString(STATE_PENDING_PASSWORD, pendingPassword)
         outState.putString(STATE_PENDING_DISPLAY_NAME, pendingDisplayName)
@@ -621,8 +633,16 @@ class SignUpActivity : AppCompatActivity() {
         tvResend.isEnabled = false
         Thread {
             try {
-                val json = JSONObject().apply { putSignupStartCredentials(this) }
-                val (code, jo) = postJson("/signup/start", json)
+                val json = if (fromSignInActiveVerify) {
+                    JSONObject().apply {
+                        put("email", pendingEmail)
+                        put("password", pendingPassword)
+                    }
+                } else {
+                    JSONObject().apply { putSignupStartCredentials(this) }
+                }
+                val path = if (fromSignInActiveVerify) "/signup/sign-in" else "/signup/start"
+                val (code, jo) = postJson(path, json)
                 runOnUiThread {
                     if (code == 200) {
                         startResendCooldown()
@@ -631,6 +651,13 @@ class SignUpActivity : AppCompatActivity() {
                             CuraxFeedback.success(this, getString(R.string.otp_resend_email_success))
                         } else {
                             CuraxFeedback.warn(this, getString(R.string.otp_resend_email_saved_smtp_failed), long = true)
+                        }
+                        jo?.optString("dev_otp", "")?.trim()?.takeIf { it.isNotEmpty() }?.let { devOtp ->
+                            CuraxFeedback.warn(
+                                this,
+                                getString(R.string.admin_signup_otp_dev_preview, devOtp),
+                                long = true,
+                            )
                         }
                     } else {
                         CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
@@ -646,6 +673,14 @@ class SignUpActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun navigateToUserHomeAfterAuth() {
+        val home = UserHomeIntent.forSignedInUser(this).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        startActivity(home)
+        finish()
     }
 
     private fun onVerifyOtpClicked() {
@@ -670,22 +705,37 @@ class SignUpActivity : AppCompatActivity() {
                     put("email", pendingEmail)
                     put("otp", otp)
                 }
-                val (code, jo) = postJson("/signup/verify-email", json)
+                val path = if (fromSignInActiveVerify) "/signup/sign-in-verify" else "/signup/verify-email"
+                val (code, jo) = postJson(path, json)
                 runOnUiThread {
-                    if (code == 200) {
+                    if (code == 200 && jo != null) {
                         cancelResendTimer()
-                        botIdForLink = UUID.randomUUID().toString().take(8)
-                        apiKeyForLink = UUID.randomUUID().toString().replace("-", "").take(16)
-                        val linkName = pendingDisplayName.trim().ifBlank { pendingEmail }
-                        SignUpFlowState.set(
-                            pendingEmail,
-                            pendingPassword,
-                            botIdForLink,
-                            apiKeyForLink,
-                            nameForLink = linkName,
-                        )
-                        SignUpFlowState.persistWipToPrefs(prefs)
-                        linkAdminLauncher.launch(Intent(this, SignUpLinkAdminActivity::class.java))
+                        if (fromSignInActiveVerify) {
+                            UserActiveSignInBootstrap.complete(
+                                activity = this,
+                                jo = jo,
+                                email = pendingEmail,
+                                password = pendingPassword,
+                                base = base,
+                                http = http,
+                                prefs = prefs,
+                                store = store,
+                                onNavigateHome = { navigateToUserHomeAfterAuth() },
+                            )
+                        } else {
+                            botIdForLink = UUID.randomUUID().toString().take(8)
+                            apiKeyForLink = UUID.randomUUID().toString().replace("-", "").take(16)
+                            val linkName = pendingDisplayName.trim().ifBlank { pendingEmail }
+                            SignUpFlowState.set(
+                                pendingEmail,
+                                pendingPassword,
+                                botIdForLink,
+                                apiKeyForLink,
+                                nameForLink = linkName,
+                            )
+                            SignUpFlowState.persistWipToPrefs(prefs)
+                            linkAdminLauncher.launch(Intent(this, SignUpLinkAdminActivity::class.java))
+                        }
                     } else {
                         CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                     }
@@ -706,6 +756,8 @@ class SignUpActivity : AppCompatActivity() {
         const val EXTRA_START_AT_OTP = "start_at_otp"
         /** True when opening verify after /signup/sign-in returned pending_email (needs /signup/start for mail). */
         const val EXTRA_FROM_SIGNIN_PENDING_EMAIL = "from_signin_pending_email"
+        /** True when opening verify after /signup/sign-in returned signin_verify (OTP already sent). */
+        const val EXTRA_FROM_SIGNIN_ACTIVE_VERIFY = "from_signin_active_verify"
         const val EXTRA_EMAIL = "pending_email"
         const val EXTRA_PASSWORD = "pending_password"
         const val EXTRA_DISPLAY_NAME = "display_name"
@@ -714,6 +766,7 @@ class SignUpActivity : AppCompatActivity() {
 
         private const val STATE_STEP2_CONTINUE_ONLY = "signup_step2_continue_only"
         private const val STATE_OTP_ENTRY_MODE = "signup_otp_entry_mode"
+        private const val STATE_FROM_SIGNIN_ACTIVE_VERIFY = "signup_from_signin_active_verify"
         private const val STATE_PENDING_EMAIL = "signup_pending_email"
         private const val STATE_PENDING_PASSWORD = "signup_pending_password"
         private const val STATE_PENDING_DISPLAY_NAME = "signup_pending_display_name"

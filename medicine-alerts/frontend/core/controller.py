@@ -44,6 +44,7 @@ class AppController(QObject):
     medicine_updated = pyqtSignal()
     temperature_update = pyqtSignal(str)
     admin_status_changed = pyqtSignal()
+    care_mode_changed = pyqtSignal()  # admin entered/exited Care mode (act-as linked user)
     linked_user_changed = pyqtSignal()  # emitted when desktop is linked/unlinked to an app user
     linked_user_deleted_by_admin = pyqtSignal(str)  # message when server returns 410 (user removed by admin)
     central_fetch_done = pyqtSignal(object)  # payload dict from GET /admin/data, or None on failure
@@ -68,6 +69,10 @@ class AppController(QObject):
         self.admin_logged_in = False
         self.logged_in_admin_name = None
         self.admin_alerts = []
+        self.act_as_user_id = ""
+        self.act_as_user_name = ""
+        self.act_as_user_display_mode = ""
+        self._hub_snapshot_before_care = None
 
         self.temp_settings = {
             "peltier1": {"min": 15, "max": 20, "current": 18},
@@ -216,11 +221,26 @@ class AppController(QObject):
             return self._central_db
         return None
 
+    _DEFAULT_BACKEND_URL = "https://whole-curax-project.vercel.app"
+
+    @classmethod
+    def _sanitize_backend_url(cls, url: str) -> str:
+        """Same host as the admin Android app (Vercel). Ignore dead Railway/Render URLs in old config files."""
+        u = (url or "").strip().rstrip("/")
+        if not u:
+            return cls._DEFAULT_BACKEND_URL
+        low = u.lower()
+        if "railway.app" in low or "render.com" in low:
+            return cls._DEFAULT_BACKEND_URL
+        if not (low.startswith("https://") or low.startswith("http://")):
+            return cls._DEFAULT_BACKEND_URL
+        return u
+
     def get_backend_url(self):
-        """Single source for central API URL. All backend HTTP calls use get_central_api_base_url() which calls this. Order: BACKEND_URL or CENTRAL_API_URL env, then backend/backend_url.txt or api_base_url.txt, else default. Ã¢â‚¬â€ Server URL in Admin Mobile App."""
-        url = (os.environ.get("BACKEND_URL") or os.environ.get("CENTRAL_API_URL") or "").strip()
-        if url:
-            return url.rstrip("/")
+        """Central API base URL — must match admin app (Prefs.centralApiUrl / Vercel)."""
+        env_url = (os.environ.get("BACKEND_URL") or os.environ.get("CENTRAL_API_URL") or "").strip()
+        if env_url:
+            return self._sanitize_backend_url(env_url)
         for _path in [
             os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "backend", "backend_url.txt"),
             os.path.join(os.getcwd(), "backend", "backend_url.txt"),
@@ -233,11 +253,10 @@ class AppController(QObject):
                         for _line in _f:
                             _line = _line.strip()
                             if _line and not _line.startswith("#"):
-                                return _line.rstrip("/")
+                                return self._sanitize_backend_url(_line)
                 except Exception:
                     pass
-        # Default: production backend on Vercel (override with BACKEND_URL env or backend/backend_url.txt)
-        return "https://whole-curax-project.vercel.app"
+        return self._DEFAULT_BACKEND_URL
 
     def get_central_api_base_url(self):
         """Same as get_backend_url(): backend serves API (data) and we derive WebSocket from it."""
@@ -421,15 +440,21 @@ class AppController(QObject):
             self.admin_status_changed.emit()
         return True, ""
 
+    def _http_to_ws_url(self, url: str) -> str:
+        u = (url or "").strip().rstrip("/")
+        if "railway.app" in u.lower() or "render.com" in u.lower():
+            return "wss://databus.vercel.app"
+        if u.startswith("https://"):
+            return u.replace("https://", "wss://", 1)
+        if u.startswith("http://"):
+            return u.replace("http://", "ws://", 1)
+        return "wss://" + u if u else "wss://databus.vercel.app"
+
     def get_data_bus_url(self):
-        """WebSocket for live updates. If DATA_BUS_URL or backend/data_bus_url.txt set, use it; else same host as backend, port 5052."""
+        """WebSocket for live updates — Vercel databus (same as admin app)."""
         url = (os.environ.get("DATA_BUS_URL") or "").strip().rstrip("/")
         if url:
-            if url.startswith("https://"):
-                return url.replace("https://", "wss://", 1)
-            if url.startswith("http://"):
-                return url.replace("http://", "ws://", 1)
-            return "wss://" + url
+            return self._http_to_ws_url(url)
         for _path in [
             os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "backend", "data_bus_url.txt"),
             os.path.join(os.getcwd(), "backend", "data_bus_url.txt"),
@@ -440,15 +465,9 @@ class AppController(QObject):
                         for _line in _f:
                             _line = _line.strip()
                             if _line and not _line.startswith("#"):
-                                url = _line.rstrip("/")
-                                if url.startswith("https://"):
-                                    return url.replace("https://", "wss://", 1)
-                                if url.startswith("http://"):
-                                    return url.replace("http://", "ws://", 1)
-                                return "wss://" + url if ":" not in url or url.endswith(":443") else "ws://" + url
+                                return self._http_to_ws_url(_line)
                 except Exception:
                     pass
-        # Default: production databus on Vercel (desktop realtime: set DATABUS_ABLY_SUBSCRIBE_KEY).
         return "wss://databus.vercel.app"
 
     def get_relay_alert_url(self):
@@ -694,15 +713,93 @@ class AppController(QObject):
             self._fetch_user_data(base, bot_id, api_key)
             return
 
+    def is_care_mode(self) -> bool:
+        return bool((self.act_as_user_id or "").strip())
+
+    def enter_care_mode(self, user_id: str, user_name: str = "", display_mode: str = "default"):
+        """Load linked user's hub data (same as admin app Care mode)."""
+        user_id = (user_id or "").strip()
+        if not user_id:
+            return False, "Invalid user."
+        if not self._hub_snapshot_before_care:
+            self._hub_snapshot_before_care = {
+                "medicine_boxes": dict(self.medicine_boxes),
+                "dose_log": list(self.dose_log),
+                "medical_reminders": dict(self.medical_reminders) if isinstance(self.medical_reminders, dict) else {},
+                "alert_settings": json.loads(json.dumps(self.alert_settings)),
+                "admin_alerts": list(self.admin_alerts),
+            }
+        self.act_as_user_id = user_id
+        self.act_as_user_name = (user_name or "User").strip() or "User"
+        self.act_as_user_display_mode = (display_mode or "default").strip().lower()
+        _emit_safe(self.care_mode_changed)
+        self.fetch_from_central_and_apply()
+        return True, ""
+
+    def exit_care_mode(self):
+        """Return to admin hub view."""
+        self.act_as_user_id = ""
+        self.act_as_user_name = ""
+        self.act_as_user_display_mode = ""
+        snap = self._hub_snapshot_before_care
+        self._hub_snapshot_before_care = None
+        if snap:
+            self.medicine_boxes = snap.get("medicine_boxes") or {f"B{i}": None for i in range(1, 7)}
+            self.dose_log = snap.get("dose_log") or []
+            self.medical_reminders = snap.get("medical_reminders") or {
+                "appointments": [], "prescriptions": [], "lab_tests": [], "custom": []
+            }
+            self.alert_settings = snap.get("alert_settings") or self.alert_settings
+            self.admin_alerts = snap.get("admin_alerts") or []
+            _emit_safe(self.medicine_updated)
+        _emit_safe(self.care_mode_changed)
+        self.fetch_from_central_and_apply()
+
+    def delete_linked_user(self, user_id: str):
+        """DELETE /admin/users/<id> — remove user from hub (admin app parity)."""
+        user_id = (user_id or "").strip()
+        code = self._get_access_code()
+        base = self.get_central_api_base_url()
+        if not code or not base or not user_id:
+            return False, "Not linked or missing user id."
+        import urllib.request
+        import urllib.error
+        try:
+            req = urllib.request.Request(
+                f"{base.rstrip('/')}/admin/users/{urllib.parse.quote(user_id, safe='')}",
+                data=json.dumps({"access_code": code}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="DELETE",
+            )
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                json.loads(resp.read().decode("utf-8") or "{}")
+            if self.act_as_user_id == user_id:
+                self.exit_care_mode()
+            self.fetch_from_central_and_apply()
+            return True, "User removed."
+        except urllib.error.HTTPError as e:
+            try:
+                body = json.loads(e.read().decode("utf-8") or "{}")
+                msg = (body.get("message") or "").strip()
+            except Exception:
+                msg = ""
+            return False, msg or f"Remove failed ({e.code})."
+        except Exception as e:
+            return False, str(e) or "Remove failed."
+
     def _fetch_admin_data(self, base, access_code):
         """Fetch GET /admin/data and apply (existing behaviour)."""
         import urllib.parse
+        act_as = (self.act_as_user_id or "").strip()
         def do_fetch():
             payload = None
             try:
                 import urllib.request
+                q = f"access_code={urllib.parse.quote(access_code, safe='')}"
+                if act_as:
+                    q += f"&act_as_user_id={urllib.parse.quote(act_as, safe='')}"
                 req = urllib.request.Request(
-                    f"{base}/admin/data?access_code={urllib.parse.quote(access_code, safe='')}",
+                    f"{base}/admin/data?{q}",
                     method="GET",
                 )
                 resp = urllib.request.urlopen(req, timeout=15)
@@ -720,8 +817,11 @@ class AppController(QObject):
                     recovered = self._recover_admin_access_code()
                     if recovered:
                         try:
+                            q2 = f"access_code={urllib.parse.quote(recovered, safe='')}"
+                            if act_as:
+                                q2 += f"&act_as_user_id={urllib.parse.quote(act_as, safe='')}"
                             req2 = urllib.request.Request(
-                                f"{base}/admin/data?access_code={urllib.parse.quote(recovered, safe='')}",
+                                f"{base}/admin/data?{q2}",
                                 method="GET",
                             )
                             resp2 = urllib.request.urlopen(req2, timeout=15)
@@ -1146,7 +1246,11 @@ class AppController(QObject):
             db.set("admin_access_code", sync_key)
             if connection_code:
                 db.set("admin_connection_code", connection_code)
-        if db and hasattr(db, "set_admin_credentials"):
+        if db and hasattr(db, "clear_legacy_user_desktop_modes"):
+            db.clear_legacy_user_desktop_modes()
+        if db and hasattr(db, "set_admin_identity_from_link"):
+            db.set_admin_identity_from_link(admin_name, admin_id_str)
+        elif db and hasattr(db, "set_admin_credentials"):
             db.set_admin_credentials(admin_name, admin_id_str, "", "", "")
         self.apply_data_sync_from_central(hub)
         self.admin_logged_in = True
@@ -1165,45 +1269,46 @@ class AppController(QObject):
         return True, ""
 
     def _parse_link_error_body(self, body: str, http_code: int):
-        """Return (message, is_missing_route)."""
+        """Return (message, try_fallback_path)."""
         text = (body or "").strip()
-        if text.lower().startswith("<!") or "deployment" in text.lower() or "application" in text.lower():
-            return (
-                "Backend URL wrong or not deployed. Use the same API URL as the admin app "
-                "(e.g. https://whole-curax-project.vercel.app).",
-                True,
-            )
         try:
             err = json.loads(text) if text else {}
             if isinstance(err, dict):
-                msg = (err.get("message") or "").strip()
-                if err.get("path") and msg.lower() == "not found":
-                    return "Link API not found on server — redeploy the latest backend.", True
+                msg = (err.get("message") or err.get("error") or "").strip()
+                if isinstance(msg, dict):
+                    msg = (msg.get("message") or "").strip()
+                if msg and "application not found" in msg.lower():
+                    return (
+                        "Desktop was pointing at an old server. Restart the app — it now uses Vercel "
+                        f"({self._DEFAULT_BACKEND_URL}).",
+                        False,
+                    )
+                if err.get("path") and str(err.get("message", "")).lower() == "not found":
+                    return "Link API not found on server — redeploy backend.", True
                 if msg:
                     return msg, False
         except Exception:
             pass
+        if text.lower().startswith("<!"):
+            return f"Bad API host. Use {self._DEFAULT_BACKEND_URL}", False
         if http_code == 404:
             return "Invalid or expired code. Create a new code in the app.", False
         return text[:200] if text else f"Link failed ({http_code}).", False
 
     def link_admin_desktop_by_link_code(self, code: str):
-        """Redeem code from admin app → load full hub on this PC (single API call)."""
+        """Redeem code from admin app → load full hub on this PC (POST /desktop/link-to-admin)."""
         code = (code or "").strip().upper()
         if not code:
             return False, "Enter the code from your phone."
-        base = (self.get_central_api_base_url() or "").strip().rstrip("/")
+        base = self.get_central_api_base_url()
         if not base:
             return False, "Backend URL not configured."
         import urllib.request
         import urllib.error
 
-        post_paths = (
-            "/desktop/link-to-admin",
-            "/api/desktop_link_to_admin",
-        )
+        paths = ("/desktop/link-to-admin", "/api/desktop_link_to_admin")
         last_msg = "Could not link desktop."
-        for path in post_paths:
+        for i, path in enumerate(paths):
             try:
                 req = urllib.request.Request(
                     base + path,
@@ -1216,14 +1321,14 @@ class AppController(QObject):
                 return self.apply_admin_hub_link_session(payload)
             except urllib.error.HTTPError as e:
                 body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-                msg, missing_route = self._parse_link_error_body(body, e.code)
+                msg, try_next = self._parse_link_error_body(body, e.code)
                 last_msg = msg
-                if missing_route and path != post_paths[-1]:
+                if try_next and i + 1 < len(paths):
                     continue
                 return False, last_msg
             except Exception as e:
                 last_msg = str(e) or last_msg
-                if path != post_paths[-1]:
+                if i + 1 < len(paths):
                     continue
                 return False, last_msg
         return False, last_msg

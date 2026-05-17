@@ -111,22 +111,67 @@ class AdminLogsFragment : Fragment() {
         bindLogs()
     }
 
-    /** Logs = all alerts admin receives (API + local), sorted newest first; each row includes user when from API. */
     private fun bindLogs() {
-        if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
-            AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
-        }
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val alertDb = AlertDb(requireContext())
-        val apiAlerts = AdminDemoData.getApiAlerts()
-        val localAlerts = alertDb.getAllAlerts()
-        val combined = (apiAlerts + localAlerts).distinctBy { it.id }.sortedByDescending { it.receivedAt }
-        val entries = combined.map { alert ->
-            alertToLogEntry(alert, dateFormat, timeFormat)
+        val entries = if (CareUi.isAdminCareMode(requireContext())) {
+            careModeDoseLogEntries()
+        } else {
+            if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
+                AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
+            }
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val alertDb = AlertDb(requireContext())
+            val apiAlerts = AdminDemoData.getApiAlerts()
+            val localAlerts = alertDb.getAllAlerts()
+            (apiAlerts + localAlerts).distinctBy { it.id }.sortedByDescending { it.receivedAt }.map { alert ->
+                alertToLogEntry(alert, dateFormat, timeFormat)
+            }
         }
         updatePager(entries.size)
         logAdapter.entries = getPagedEntries(entries)
+    }
+
+    /** Care mode Logs = linked user's dose history only (not admin hub alerts). */
+    private fun careModeDoseLogEntries(): List<LogEntry> {
+        val userLabel = Prefs(requireContext()).actAsUserName.trim().ifEmpty { "User" }
+        val rows = DoseTrackingLocalStore.readLog(requireContext())
+            .sortedByDescending { it["timestamp"]?.toString().orEmpty() }
+        return rows.map { doseRowToLogEntry(it, userLabel) }
+    }
+
+    private fun doseRowToLogEntry(row: Map<String, Any?>, userLabel: String): LogEntry {
+        val ts = row["timestamp"]?.toString().orEmpty()
+        val date = if (ts.length >= 10) ts.take(10) else "—"
+        val time = when {
+            ts.length >= 19 -> ts.substring(11, 16)
+            ts.length > 11 -> ts.drop(11).take(5)
+            else -> "—"
+        }
+        val medicine = row["medicine"]?.toString()?.trim().orEmpty().ifEmpty { "—" }
+        val box = row["box"]?.toString()?.trim().orEmpty()
+        val medDisplay = if (box.isNotEmpty() && !medicine.equals("—", ignoreCase = true)) {
+            "$medicine ($box)"
+        } else if (box.isNotEmpty()) {
+            box
+        } else {
+            medicine
+        }
+        val kind = row["kind"]?.toString().orEmpty()
+        val status = when {
+            kind.contains("taken", ignoreCase = true) -> "Taken"
+            kind.contains("missed", ignoreCase = true) -> "Missed"
+            kind.contains("between", ignoreCase = true) -> "Between"
+            kind.isNotEmpty() -> kind.replaceFirstChar { c -> c.uppercaseChar() }
+            else -> "Log"
+        }
+        return LogEntry(
+            date = date,
+            time = time,
+            medicineName = medDisplay,
+            status = status,
+            source = "User",
+            userName = userLabel,
+        )
     }
 
     private fun setupPager() {
@@ -146,6 +191,9 @@ class AdminLogsFragment : Fragment() {
     }
 
     private fun getTotalCount(): Int {
+        if (CareUi.isAdminCareMode(requireContext())) {
+            return DoseTrackingLocalStore.readLog(requireContext()).size
+        }
         val alertDb = AlertDb(requireContext())
         val apiAlerts = AdminDemoData.getApiAlerts()
         val localAlerts = alertDb.getAllAlerts()
@@ -198,15 +246,19 @@ class AdminLogsFragment : Fragment() {
     }
 
     private fun printLogsReport() {
-        if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
-            AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
+        val entries: List<LogEntry> = if (CareUi.isAdminCareMode(requireContext())) {
+            careModeDoseLogEntries()
+        } else {
+            if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
+                AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
+            }
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+            val apiAlerts = AdminDemoData.getApiAlerts()
+            val localAlerts = AlertDb(requireContext()).getAllAlerts()
+            (apiAlerts + localAlerts).distinctBy { it.id }.sortedByDescending { it.receivedAt }
+                .map { alertToLogEntry(it, dateFormat, timeFormat) }
         }
-        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val apiAlerts = AdminDemoData.getApiAlerts()
-        val localAlerts = AlertDb(requireContext()).getAllAlerts()
-        val combined = (apiAlerts + localAlerts).distinctBy { it.id }.sortedByDescending { it.receivedAt }
-        val entries: List<LogEntry> = combined.map { alertToLogEntry(it, dateFormat, timeFormat) }
 
         val title = "Curax Logs / Alert History"
         val html = buildString {
