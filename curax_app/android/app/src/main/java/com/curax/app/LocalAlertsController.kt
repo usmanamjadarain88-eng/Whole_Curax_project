@@ -98,7 +98,11 @@ object LocalAlertsController {
     /** Reschedule from current in-memory + local plan cache. No-op if not standalone user. */
     fun reschedule(context: Context) {
         val app = context.applicationContext
-        if (!StandaloneUi.isUserStandalone(app)) return
+        if (!StandaloneUi.isUserStandalone(app)) {
+            cancelAll(app)
+            return
+        }
+        MissedDoseEscalationController.cancelAll(app)
         cancelAll(app)
         val am = app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val ids = JSONArray()
@@ -220,6 +224,12 @@ object LocalAlertsController {
                     },
                 )
             }
+            fun escalationFields(hmsDisplay: String, day: String): JSONObject.() -> Unit = {
+                put("box_id", box)
+                put("medicine_name", name)
+                put("schedule_time", hmsDisplay.take(5))
+                put("dose_date", day)
+            }
             if (missed15) {
                 scheduleIfOk(
                     "med_${box}_${dayKey}_${tag}_post15",
@@ -228,6 +238,7 @@ object LocalAlertsController {
                         put("type", "missed_dose_15")
                         put("title", app.getString(R.string.local_alert_missed_title))
                         put("message", medLabel(app.getString(R.string.local_alert_phase_15_after), name, box, hms))
+                        escalationFields(hms, dayKey).invoke(this)
                     },
                 )
             }
@@ -237,8 +248,7 @@ object LocalAlertsController {
                     base + 30L * 60_000L,
                     JSONObject().apply {
                         put("type", "missed_dose_30")
-                        put("title", app.getString(R.string.local_alert_missed_title))
-                        put("message", medLabel(app.getString(R.string.local_alert_phase_30_after), name, box, hms))
+                        escalationFields(hms, dayKey).invoke(this)
                     },
                 )
             }

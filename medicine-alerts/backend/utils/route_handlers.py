@@ -1502,6 +1502,37 @@ def user_standalone_sync(body, query, headers):
     return (200, {"ok": True})
 
 
+def user_missed_dose_escalate(body, query, headers):
+    """POST { bot_id, api_key, phase: 15|30, box_id, medicine_name?, schedule_time?, dose_date? }
+    Instant missed-dose escalation from user device (no cron delay)."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    phase = (data.get("phase") or "").strip()
+    box_id = (data.get("box_id") or "").strip()
+    medicine_name = (data.get("medicine_name") or "").strip()
+    schedule_time = (data.get("schedule_time") or "").strip()
+    dose_date = (data.get("dose_date") or "").strip()
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required"})
+    if phase not in ("15", "30"):
+        return (400, {"message": "phase must be 15 or 30"})
+    if not box_id:
+        return (400, {"message": "box_id required"})
+    from alert_scheduler import BackendAlertScheduler
+    scheduler = BackendAlertScheduler(get_db)
+    ok, detail = scheduler.deliver_device_escalation(
+        bot_id, api_key, phase, box_id, medicine_name, schedule_time, dose_date
+    )
+    if ok:
+        return (200, {"ok": True})
+    if detail == "user_not_found":
+        return (404, {"message": "User not found"})
+    if detail in ("skipped", "invalid_phase", "box_id_required"):
+        return (200, {"ok": False, "skipped": True, "reason": detail})
+    return (500, {"message": detail or "escalation failed"})
+
+
 def user_plans_get(body, query, headers):
     """GET /user/plans?bot_id=&api_key= — list Health Hub planned items for this user."""
     bot_id = (query.get("bot_id") or "").strip()
@@ -1759,13 +1790,19 @@ def desktop_link_to_admin(body, query, headers):
     if raw is None:
         return (500, {"message": "Could not load admin hub"})
     hub = _normalize_user_data_response(raw)
-    return (200, {
+    sync_key = (info.get("sync_key") or "").strip()
+    bot = db.get_admin_bot_by_access_code(sync_key) if sync_key else None
+    out = {
         "admin_id": admin_id,
         "admin_name": info.get("admin_name") or "Admin",
         "connection_code": info.get("connection_code") or "",
         "hub": hub,
-        "sync_key": info.get("sync_key") or "",
-    })
+        "sync_key": sync_key,
+    }
+    if bot:
+        out["bot_id"] = bot.get("bot_id") or ""
+        out["api_key"] = bot.get("api_key") or ""
+    return (200, out)
 def put_admin_medical_reminders(body, query, headers):
     """PUT { "access_code": "...", "medical_reminders": { "appointments": [], "prescriptions": [], "lab_tests": [], "custom": [] } }.
     Updates the dashboard user's alert_settings.medical_reminders. Used by the app Reminders tab.

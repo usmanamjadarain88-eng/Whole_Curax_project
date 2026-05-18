@@ -68,6 +68,7 @@ class AppController(QObject):
         self.wrong_count = 0
         self.admin_logged_in = False
         self.logged_in_admin_name = None
+        self.admin_bot = {}
         self.admin_alerts = []
         self.act_as_user_id = ""
         self.act_as_user_name = ""
@@ -129,6 +130,7 @@ class AppController(QObject):
         self._databus_timer = None
         self._desktop_system_alert_lock = threading.Lock()
         self._desktop_system_alerts_sent = set()
+        self.refresh_admin_bot_from_db()
 
         self._central_refresh_timer = QTimer(self)
         self._central_refresh_timer.timeout.connect(self.fetch_from_central_and_apply)
@@ -144,6 +146,8 @@ class AppController(QObject):
 
     def _finish_startup(self):
         """Runs on main thread after background DB init. Starts databus, fetches data, schedules alerts."""
+        self.refresh_admin_bot_from_db()
+        threading.Thread(target=self._bootstrap_admin_session, daemon=True).start()
         self.load_data()
         self._start_databus_client()
         self._central_refresh_timer.start(30 * 1000)
@@ -316,13 +320,28 @@ class AppController(QObject):
         except Exception:
             return None
 
-    def _get_access_code(self):
-        """
-        Return current admin access code for this desktop session.
-        If local cached value is missing/stale, recover from backend using admin bot credentials.
-        """
-        # If there is no local admin configured at all, treat as "no access code".
-        # This avoids hitting the server with a stale code and showing 404 when the admin was deleted/reset.
+    def refresh_admin_bot_from_db(self):
+        """Load admin bot_id/api_key from local JSON (same credentials the mobile app uses for relay)."""
+        db = getattr(self, "_db", None)
+        bid = akey = ""
+        if db and hasattr(db, "get"):
+            bid = (db.get("admin_bot_id") or "").strip()
+            akey = (db.get("admin_api_key") or "").strip()
+        self.admin_bot = {"bot_id": bid, "api_key": akey}
+
+    def persist_admin_bot(self, bot_id: str, api_key: str):
+        bid = (bot_id or "").strip()
+        akey = (api_key or "").strip()
+        if not bid or not akey:
+            return
+        db = getattr(self, "_db", None)
+        if db and hasattr(db, "set"):
+            db.set("admin_bot_id", bid)
+            db.set("admin_api_key", akey)
+        self.admin_bot = {"bot_id": bid, "api_key": akey}
+
+    def ensure_admin_access_code(self) -> str:
+        """Return admin access_code; recover via save-credentials when missing (Android parity)."""
         if getattr(self, "_db", None) and hasattr(self._db, "has_admin_credentials"):
             try:
                 if not self._db.has_admin_credentials():
@@ -331,8 +350,22 @@ class AppController(QObject):
                 pass
         code = (self._db.get("admin_access_code") or "").strip() if getattr(self, "_db", None) else ""
         if code:
-            return code
-        return (self._recover_admin_access_code() or "").strip()
+            return code.upper()
+        self.refresh_admin_bot_from_db()
+        recovered = (self._recover_admin_access_code() or "").strip()
+        return recovered.upper() if recovered else ""
+
+    def _bootstrap_admin_session(self):
+        try:
+            code = self.ensure_admin_access_code()
+            if code:
+                self._log(f"[Desktop] admin access code ready ({code[:4]}…)")
+                _emit_safe(self.fetch_from_central_and_apply)
+        except Exception as e:
+            self._log(f"[Desktop] bootstrap admin session: {e}")
+
+    def _get_access_code(self):
+        return self.ensure_admin_access_code()
 
     def get_admin_codes_from_backend(self):
         """Fetch admin_access_code and connection_code from GET /admin/codes for current admin. Returns (access_code, connection_code) or (None, None)."""
@@ -1178,10 +1211,13 @@ class AppController(QObject):
             pass
 
     def load_admin_bot_config(self):
-        pass
+        self.refresh_admin_bot_from_db()
 
     def save_admin_bot_config(self):
-        pass
+        bid = (self.admin_bot or {}).get("bot_id") or ""
+        akey = (self.admin_bot or {}).get("api_key") or ""
+        if bid and akey:
+            self.persist_admin_bot(bid, akey)
 
     def require_admin(self):
         if not self._db.has_admin_credentials():
@@ -1244,11 +1280,15 @@ class AppController(QObject):
         admin_id_str = str(data.get("admin_id") or "").strip()
         connection_code = (data.get("connection_code") or "").strip()
         sync_key = (data.get("sync_key") or "").strip().upper()
+        bot_id = (data.get("bot_id") or "").strip()
+        api_key = (data.get("api_key") or "").strip()
         db = getattr(self, "_db", None)
         if db and hasattr(db, "set") and sync_key:
             db.set("admin_access_code", sync_key)
             if connection_code:
                 db.set("admin_connection_code", connection_code)
+        if bot_id and api_key:
+            self.persist_admin_bot(bot_id, api_key)
         if db and hasattr(db, "clear_legacy_user_desktop_modes"):
             db.clear_legacy_user_desktop_modes()
         if db and hasattr(db, "set_admin_identity_from_link"):
@@ -1480,22 +1520,15 @@ class AppController(QObject):
     def send_mobile_alert(self, alert_type, message, priority="NORMAL"):
         return self._send_bot_alert(self.mobile_bot, alert_type, message)
 
-    def clear_desktop_unlock_alert_dedupe(self):
-        """Allow one system_unlocked alert on the next unlock (after lock)."""
-        with self._desktop_system_alert_lock:
-            self._desktop_system_alerts_sent.discard("system_unlocked")
-
     def send_admin_alert(self, alert_type, message, priority="NORMAL", on_success=None):
-        """Tell backend of admin-only events (system_started, system_unlocked, admin_login, dose_taken).
-        Uses access_code if this desktop has admin credentials; else uses linked user's bot_id/api_key (notify-event-by-user) so admin receives alerts from each user's desktop.
-        on_success: optional callable() invoked on main thread after HTTP 200."""
+        """Tell backend of admin-only events. Desktop session sends system_started once only."""
         base = self.get_central_api_base_url()
         if not base:
             return False
         base = base.rstrip("/")
         event_key = str(alert_type or "").strip().lower()
-        system_once = event_key in ("system_started", "system_unlocked")
-        if system_once:
+        session_once = event_key == "system_started"
+        if session_once:
             with self._desktop_system_alert_lock:
                 if event_key in self._desktop_system_alerts_sent:
                     return False
@@ -1507,7 +1540,7 @@ class AppController(QObject):
             def _send():
                 ok = False
                 payload = {"event_type": str(alert_type), "message": str(message or "")}
-                access_code = (self._get_access_code() or "").strip()
+                access_code = (self.ensure_admin_access_code() or "").strip()
                 if access_code:
                     payload["access_code"] = access_code
                     url = base + "/notify-event"
@@ -1549,7 +1582,7 @@ class AppController(QObject):
                     if getattr(self, "_log", None):
                         self._log(f"[AdminAlert] notify failed: {e}")
                     ok = False
-                if ok and system_once:
+                if ok and session_once:
                     with self._desktop_system_alert_lock:
                         self._desktop_system_alerts_sent.add(event_key)
                 if ok and on_success:

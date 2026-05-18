@@ -611,6 +611,9 @@ object UserDataBusClient {
         AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
+        if (AppRole.isUser(ctx) && !StandaloneUi.isUserStandalone(ctx)) {
+            MissedDoseEscalationController.reschedule(ctx)
+        }
     }
 
     private fun scheduleReconnect() {

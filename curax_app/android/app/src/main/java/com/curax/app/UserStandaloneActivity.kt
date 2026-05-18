@@ -169,13 +169,18 @@ class UserStandaloneActivity : AppCompatActivity() {
     private lateinit var loadingOverlay: View
     /** Debounced: [LocalAlertsController.reschedule] is heavy (many alarms); run off the UI thread so the Health Hub ECG does not freeze after resume. */
     private val standaloneHeavyResumeRunnable = Runnable {
-        if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@Runnable
+        if (isFinishing) return@Runnable
         val app = applicationContext
         Thread {
             try {
-                LocalAlertsController.reschedule(app)
+                if (StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) {
+                    LocalAlertsController.reschedule(app)
+                } else if (AppRole.isUser(app)) {
+                    MissedDoseEscalationController.reschedule(app)
+                }
             } catch (_: Exception) {
             }
+            if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@Thread
             mainHandler.post {
                 if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@post
                 try {

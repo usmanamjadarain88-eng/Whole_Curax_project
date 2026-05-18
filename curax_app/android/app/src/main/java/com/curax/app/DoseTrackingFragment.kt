@@ -477,6 +477,9 @@ class DoseTrackingFragment : Fragment() {
                 DoseTrackingLocalStore.markTakenForSlot(requireContext(), m.box, dayKey, slot)
                 selectedMedicine = AdminDemoData.medicines.find { it.box.equals(m.box, ignoreCase = true) }
                 StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
+                if (!StandaloneUi.isUserStandalone(requireContext())) {
+                    MissedDoseEscalationController.reschedule(requireContext())
+                }
                 requireContext().sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
                 StandaloneUserMutationSink.notifyLocalChange(
                     requireActivity(),

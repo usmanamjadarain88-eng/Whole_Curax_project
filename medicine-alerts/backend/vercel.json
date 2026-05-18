@@ -163,6 +163,10 @@
       "destination": "/api/user_standalone_sync"
     },
     {
+      "source": "/user/missed-dose-escalate",
+      "destination": "/api/user_missed_dose_escalate"
+    },
+    {
       "source": "/user/databus-room",
       "destination": "/api/user_databus_room"
     },

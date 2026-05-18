@@ -1,6 +1,7 @@
 """Shared HTTP helpers for admin desktop tabs (same APIs as Android admin app)."""
 import json
 import urllib.parse
+import urllib.error
 import urllib.request
 
 
@@ -26,12 +27,17 @@ def admin_access_code(controller) -> str:
     if db and hasattr(db, "get"):
         code = (db.get("admin_access_code") or "").strip()
         if code:
-            return code
+            return code.upper()
     return ""
 
 
 def admin_access_code_resolved(controller) -> str:
-    """Resolve access code including backend recovery — background threads only."""
+    """Same as Android Prefs.adminAccessCode — recover via bot if needed."""
+    if hasattr(controller, "ensure_admin_access_code"):
+        try:
+            return (controller.ensure_admin_access_code() or "").strip()
+        except Exception:
+            pass
     code = admin_access_code(controller)
     if code:
         return code
@@ -66,11 +72,36 @@ def post_json(url: str, payload: dict, timeout: int = 25):
         return json.loads(raw) if raw.strip() else {}
 
 
+def normalize_linked_user_row(u):
+    """Match Android AdminUsersFragment field names."""
+    if not isinstance(u, dict):
+        return None
+    uid = (u.get("id") or u.get("user_id") or "").strip()
+    name_raw = (u.get("name") or u.get("full_name") or "").strip()
+    email = (u.get("email") or "").strip()
+    if not name_raw or name_raw.lower() == "null":
+        if "@" in email:
+            name_raw = email.split("@")[0].strip()
+        else:
+            name_raw = "User"
+    raw_dm = (u.get("user_display_mode") or u.get("app_mode") or u.get("mode") or "").strip().lower()
+    display_mode = raw_dm if raw_dm in ("standalone", "default") else "default"
+    return {
+        "user_id": uid,
+        "name": name_raw,
+        "email": email,
+        "display_mode": display_mode,
+        "desktop_linked": bool((u.get("bot_id") or "").strip()),
+    }
+
+
 def linked_users(controller, dose_preview: bool = False, resolve_code: bool = True):
     code = admin_access_code_resolved(controller) if resolve_code else admin_access_code(controller)
     base = api_base(controller)
-    if not code or not base:
-        return None, "Link from the admin app first (lock screen → Link with code)."
+    if not base:
+        return None, "Backend URL not configured (check backend_url.txt)."
+    if not code:
+        return None, "No admin access code. In the admin app: Link this PC (one-time code), or Settings → save admin."
     enc = urllib.parse.quote(code, safe="")
     suffix = "&dose_preview=1" if dose_preview else ""
     url = f"{base}/admin/linked-users?access_code={enc}{suffix}"
@@ -80,6 +111,14 @@ def linked_users(controller, dose_preview: bool = False, resolve_code: bool = Tr
         if not isinstance(users, list):
             users = []
         return users, None
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read().decode("utf-8", errors="replace")
+            data = json.loads(body) if body.strip() else {}
+            msg = (data.get("message") or body or str(e)).strip()
+        except Exception:
+            msg = str(e)
+        return None, f"Server {e.code}: {msg}"
     except Exception as e:
         return None, str(e)
 

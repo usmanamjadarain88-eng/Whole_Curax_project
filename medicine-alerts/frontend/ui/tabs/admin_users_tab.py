@@ -1,4 +1,4 @@
-"""Admin Users — linked roster + Care mode."""
+"""Admin Users — linked roster + Care mode (same API/fields as Android AdminUsersFragment)."""
 try:
     from PyQt6.QtWidgets import (
         QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QPushButton,
@@ -10,11 +10,11 @@ except ImportError:
         QMessageBox,
     )
 
-from ui.tabs.admin_api import linked_users
+from ui.tabs.admin_api import linked_users, normalize_linked_user_row
 from ui.tabs.admin_async import run_bg
 from ui.tabs.admin_ui_common import (
-    AdminPageShell, table_item, resize_table_rows, prepare_table,
-    TABLE_STYLE, table_card, muted_label, BTN_PRIMARY, BTN_DANGER,
+    AdminPageShell, table_item, resize_table_rows,
+    table_card, muted_label, BTN_PRIMARY, BTN_DANGER,
 )
 
 
@@ -48,11 +48,12 @@ class AdminUsersTab(QWidget):
         ul.addWidget(foot)
         lo.addWidget(users_card, 1)
 
-        if hasattr(controller, "medicine_updated"):
-            controller.medicine_updated.connect(self.refresh)
         if hasattr(controller, "central_fetch_done"):
-            controller.central_fetch_done.connect(lambda _p=None: self.refresh())
+            controller.central_fetch_done.connect(self._on_data_synced)
         self._fetch_gen = 0
+        self.refresh()
+
+    def _on_data_synced(self, _payload=None):
         self.refresh()
 
     def showEvent(self, event):
@@ -65,6 +66,8 @@ class AdminUsersTab(QWidget):
         self._status.setText("Loading…")
 
         def work():
+            if hasattr(self.controller, "ensure_admin_access_code"):
+                self.controller.ensure_admin_access_code()
             return linked_users(self.controller)
 
         def done(result):
@@ -89,19 +92,25 @@ class AdminUsersTab(QWidget):
         run_bg(work, done)
 
     def _apply_user_row(self, i, u):
-        if not isinstance(u, dict):
+        row = normalize_linked_user_row(u)
+        if not row:
             return
-        uid = (u.get("user_id") or u.get("id") or "").strip()
-        name = (u.get("name") or u.get("full_name") or "User").strip()
+        uid = row["user_id"]
+        name = row["name"]
+        email = row["email"]
+        mode = row["display_mode"]
+        relay = "Ready" if row["desktop_linked"] else "Pending"
         self._table.insertRow(i)
         self._table.setItem(i, 0, table_item(name))
-        self._table.setItem(i, 1, table_item(u.get("email") or ""))
-        self._table.setItem(i, 2, table_item(u.get("app_mode") or u.get("mode") or "default"))
-        self._table.setItem(i, 3, table_item("Ready" if (u.get("bot_id") or "").strip() else "Pending"))
+        self._table.setItem(i, 1, table_item(email))
+        self._table.setItem(i, 2, table_item(mode))
+        self._table.setItem(i, 3, table_item(relay))
         cw, rw = QWidget(), QWidget()
         care = QPushButton("Care")
         care.setStyleSheet(BTN_PRIMARY)
-        care.clicked.connect(lambda _=False, id=uid, n=name, m=u.get("app_mode") or "default": self._open_care(id, n, m))
+        care.clicked.connect(
+            lambda _=False, id=uid, n=name, m=mode: self._open_care(id, n, m)
+        )
         rm = QPushButton("Remove")
         rm.setStyleSheet(BTN_DANGER)
         rm.clicked.connect(lambda _=False, id=uid, n=name: self._remove_user(id, n))
@@ -113,6 +122,9 @@ class AdminUsersTab(QWidget):
         self._table.setCellWidget(i, 5, rw)
 
     def _open_care(self, user_id, name, mode):
+        if not user_id:
+            QMessageBox.warning(self, "Users", "Missing user id from server.")
+            return
         fn = getattr(self.controller, "enter_care_mode", None)
         if fn and fn(user_id, name, mode)[0]:
             if self.main_window and hasattr(self.main_window, "show_care_mode_ui"):

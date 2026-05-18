@@ -111,7 +111,7 @@ class BackendAlertScheduler:
             "dose_logs": dose_logs,
         }
 
-    def _load_user_context(self, db, admin_ctx, user_id, user_bot_id, user_api_key, user_name):
+    def _load_user_context(self, db, admin_ctx, user_id, user_bot_id, user_api_key, user_name, user_display_mode=""):
         """Build context for one connected user: that user's medicines/boxes/dose_logs, same alert_settings/gmail/admin_bot. Admin receives all alerts from all users."""
         medicines_raw = db.list_medicines(user_id) or []
         settings_blob = db.get_alert_settings(user_id) or {}
@@ -162,7 +162,157 @@ class BackendAlertScheduler:
             "user_api_key": (user_api_key or "").strip(),
             "user_name": (user_name or "").strip(),
             "message_prefix": prefix,
+            "user_display_mode": (user_display_mode or "").strip().lower(),
         }
+
+    # ---- Missed-dose escalation (device + cron) ----
+
+    def _is_standalone_ctx(self, ctx):
+        return (ctx.get("user_display_mode") or "").strip().lower() == "standalone"
+
+    def _family_email_from(self, esc):
+        return (esc.get("family_email") or "").strip()
+
+    def _send_family_email_only(self, ctx, subject, body, esc):
+        family = self._family_email_from(esc)
+        if not family:
+            return False
+        gmail = ctx.get("gmail_config") or {}
+        if gmail.get("gmail_alerts_enabled") is False:
+            return False
+        sender = (gmail.get("sender_email") or "").strip()
+        password = (gmail.get("sender_password") or "").strip()
+        if not sender or not password:
+            return False
+        self._send_email_to(sender, password, subject, body, [family])
+        return True
+
+    def _build_escalation_copy(self, phase, ctx, name, box_id, schedule_time=""):
+        user_name = (ctx.get("user_name") or "").strip()
+        prefix = f"[{user_name}] " if user_name else ""
+        sched = (schedule_time or "").strip()
+        sched_bit = f" (scheduled {sched})" if sched else ""
+        if str(phase) == "15":
+            subject = f"URGENT: {name} ({box_id}) — 15 min overdue"
+            body = (
+                f"{prefix}URGENT: {name} from box {box_id}{sched_bit} is 15 minutes overdue. "
+                "Immediate action required."
+            )
+            alert_type = "urgent"
+        else:
+            subject = f"MISSED DOSE: {name} ({box_id}) — mark window closed"
+            body = (
+                f"{prefix}MISSED: {name} from box {box_id}{sched_bit} was not taken within "
+                "the 30-minute window."
+            )
+            alert_type = "family"
+        return alert_type, subject, body
+
+    def _dose_already_taken(self, ctx, box_id, today_str):
+        box_id = (box_id or "").strip().upper()
+        for e in ctx.get("dose_logs") or []:
+            if not isinstance(e, dict):
+                continue
+            if (e.get("box_id") or "").strip().upper() != box_id:
+                continue
+            taken_at = str(e.get("taken_at") or "")
+            if not taken_at.startswith(today_str):
+                continue
+            src = (e.get("source") or "").lower()
+            if src in ("missed", "missed_auto"):
+                continue
+            return True
+        return False
+
+    def _deliver_escalation(self, ctx, phase, name, box_id, today_str, schedule_time="", record_state=None):
+        esc = (ctx.get("alert_settings") or {}).get("missed_dose_escalation", {})
+        phase_s = str(phase)
+        if phase_s == "15" and not esc.get("15_min_urgent", True):
+            return False
+        if phase_s == "30" and not esc.get("30_min_family", True):
+            return False
+        if self._dose_already_taken(ctx, box_id, today_str):
+            return False
+
+        db = self._get_db()
+        uid = ctx.get("duid")
+        if db and uid and hasattr(db, "try_record_missed_escalation"):
+            if not db.try_record_missed_escalation(uid, box_id, today_str, phase_s):
+                if record_state is not None:
+                    record_state.add((box_id, today_str, f"{phase_s}min"))
+                return False
+
+        alert_type, subject, body = self._build_escalation_copy(phase_s, ctx, name, box_id, schedule_time)
+        standalone = self._is_standalone_ctx(ctx)
+
+        if phase_s == "15":
+            if not standalone:
+                self._send_user_alerts(ctx, alert_type, body)
+            if standalone:
+                self._send_family_email_only(ctx, subject, body, esc)
+            else:
+                self._send_admin_alert(ctx, alert_type, body)
+                if db and uid and ctx.get("admin_id"):
+                    try:
+                        db.create_alert(uid, ctx["admin_id"], alert_type, body)
+                    except Exception:
+                        pass
+                self._send_family_email_only(ctx, subject, body, esc)
+        else:
+            if not standalone:
+                self._send_admin_alert(ctx, alert_type, body)
+                if db and uid and ctx.get("admin_id"):
+                    try:
+                        db.create_alert(uid, ctx["admin_id"], alert_type, body)
+                    except Exception:
+                        pass
+            self._send_family_email_only(ctx, subject, body, esc)
+
+        if record_state is not None:
+            record_state.add((box_id, today_str, f"{phase_s}min"))
+        return True
+
+    def deliver_device_escalation(self, bot_id, api_key, phase, box_id, medicine_name, schedule_time, dose_date):
+        """Instant escalation from user device alarm (POST /user/missed-dose-escalate)."""
+        bot_id = (bot_id or "").strip()
+        api_key = (api_key or "").strip()
+        phase_s = str(phase).strip()
+        if phase_s not in ("15", "30"):
+            return False, "invalid_phase"
+        box_id = (box_id or "").strip().upper()
+        if not box_id:
+            return False, "box_id_required"
+        dose_date = (dose_date or "").strip()[:10]
+        if not dose_date:
+            dose_date = datetime.datetime.now().strftime("%Y-%m-%d")
+        db = self._get_db()
+        if not db:
+            return False, "no_db"
+        info = db.get_user_and_admin_bot_by_user_bot(bot_id, api_key)
+        if not info:
+            return False, "user_not_found"
+        admin_id = info["admin_id"]
+        user_id = info["user_id"]
+        duid = db.get_dashboard_user_id(admin_id)
+        if not duid:
+            return False, "no_dashboard_user"
+        admin_ctx = self._load_admin_context(db, {"id": admin_id, "bot_id": info.get("admin_bot_id", ""), "api_key": info.get("admin_api_key", "")})
+        if not admin_ctx:
+            return False, "admin_context_failed"
+        display_mode = db.get_user_display_mode_for_user_id(user_id) if hasattr(db, "get_user_display_mode_for_user_id") else ""
+        ctx = self._load_user_context(
+            db,
+            admin_ctx,
+            user_id,
+            bot_id,
+            api_key,
+            info.get("user_name") or "User",
+            display_mode,
+        )
+        name = (medicine_name or "").strip() or (ctx.get("boxes", {}).get(box_id) or {}).get("name") or "Medicine"
+        sched = (schedule_time or "").strip() or (ctx.get("boxes", {}).get(box_id) or {}).get("exact_time") or ""
+        ok = self._deliver_escalation(ctx, phase_s, name, box_id, dose_date, sched, record_state=None)
+        return (True, "ok") if ok else (False, "skipped")
 
     # ---- Alert delivery ----
 
@@ -419,41 +569,24 @@ class BackendAlertScheduler:
             if minutes_late < 5 or minutes_late > 180:
                 continue
 
-            # 5 min after
+            # 5 min after — user reminder only (no admin, no email)
             if esc.get("5_min_reminder", True) and (box_id, today_str, "5min") not in state["sent_escalation"]:
                 if 5 <= minutes_late < 15:
                     state["sent_escalation"].add((box_id, today_str, "5min"))
-                    subject = f"MISSED REMINDER: {name} from box {box_id}"
                     body = f"Missed reminder: {name} from box {box_id} is 5 minutes late. Please take now if not taken."
-                    email_enabled = ctx["alert_settings"].get("email_alerts", {}).get("enabled", False)
-                    if email_enabled:
-                        self._send_gmail(ctx["gmail_config"], subject, body)
                     self._send_user_alerts(ctx, "missed_reminder", body)
 
-            # 15 min after: urgent (admin + user)
+            # 15 min after: urgent — default=user+admin app+family email; standalone=family email only
             if esc.get("15_min_urgent", True) and (box_id, today_str, "15min") not in state["sent_escalation"]:
                 if 15 <= minutes_late < 30:
-                    state["sent_escalation"].add((box_id, today_str, "15min"))
-                    subject = f"URGENT: {name} from box {box_id} missed by 15 min"
-                    body = f"URGENT: {name} from box {box_id} is 15 minutes overdue. Immediate action required."
-                    self._notify_user_and_admin(ctx, "urgent", subject, body, send_email=True)
+                    sched = medicine.get("exact_time", "") or f"{h:02d}:{m:02d}"
+                    self._deliver_escalation(ctx, "15", name, box_id, today_str, sched, state["sent_escalation"])
 
-            # 30 min after: family escalation
+            # 30 min after: no user alert — default=admin app+family email; standalone=family email only
             if esc.get("30_min_family", True) and (box_id, today_str, "30min") not in state["sent_escalation"]:
                 if 30 <= minutes_late < 60:
-                    state["sent_escalation"].add((box_id, today_str, "30min"))
-                    family_email = (esc.get("family_email") or "").strip()
-                    subject = f"FAMILY ESCALATION: {name} from box {box_id} missed by 30 min"
-                    body = f"Family escalation: {name} from box {box_id} is 30 minutes overdue. Please check patient immediately."
-                    self._notify_user_and_admin(ctx, "family", subject, body, send_email=True)
-                    if family_email:
-                        sender_email = (ctx["gmail_config"].get("sender_email") or "").strip()
-                        sender_password = (ctx["gmail_config"].get("sender_password") or "").strip()
-                        if sender_email and sender_password:
-                            try:
-                                self._send_email_to(sender_email, sender_password, subject, body, [family_email])
-                            except Exception:
-                                pass
+                    sched = medicine.get("exact_time", "") or f"{h:02d}:{m:02d}"
+                    self._deliver_escalation(ctx, "30", name, box_id, today_str, sched, state["sent_escalation"])
 
             # 60+ min after: log as missed in dose_log
             if esc.get("1_hour_log", True) and (box_id, today_str, "1h") not in state["sent_escalation"]:
@@ -705,7 +838,9 @@ class BackendAlertScheduler:
                     name = (user.get("name") or "").strip() or "User"
                     if not uid:
                         continue
-                    user_ctx = self._load_user_context(db, ctx, uid, bid, akey, name)
+                    user_ctx = self._load_user_context(
+                        db, ctx, uid, bid, akey, name, user.get("user_display_mode") or ""
+                    )
                     if not user_ctx["boxes"]:
                         continue
                     state = self._state(admin_id, uid)

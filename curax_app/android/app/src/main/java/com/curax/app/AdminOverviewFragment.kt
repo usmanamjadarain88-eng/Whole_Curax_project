@@ -1042,6 +1042,9 @@ class AdminOverviewFragment : Fragment() {
                     }
                 }
                 LocalAlertsController.reschedule(ctx.applicationContext)
+                if (AppRole.isUser(ctx) && !StandaloneUi.isUserStandalone(ctx)) {
+                    MissedDoseEscalationController.reschedule(ctx.applicationContext)
+                }
             }
             .create()
         dlg.setOnShowListener {
@@ -2204,6 +2207,9 @@ class AdminOverviewFragment : Fragment() {
                     StandaloneOfflineMirror.persistMergedSnapshot(ctx.applicationContext)
                     view?.let { HealthHubPlanInsights.bind(it, ctx.applicationContext) }
                     LocalAlertsController.reschedule(ctx.applicationContext)
+                if (AppRole.isUser(ctx) && !StandaloneUi.isUserStandalone(ctx)) {
+                    MissedDoseEscalationController.reschedule(ctx.applicationContext)
+                }
                 }
             }.start()
         }

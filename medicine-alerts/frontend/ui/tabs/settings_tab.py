@@ -1191,6 +1191,8 @@ class SettingsTab(QWidget):
             db.set("admin_access_code", access_code)
         if connection_code:
             db.set("admin_connection_code", connection_code)
+        if hasattr(self.controller, "persist_admin_bot"):
+            self.controller.persist_admin_bot(bot_id, api_key)
         if db.set_admin_credentials(name, str(aid or admin_id_str), email, phone, password):
             try:
                 self.controller.admin_status_changed.emit()

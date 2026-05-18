@@ -2591,8 +2591,8 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setStyleSheet(
-            "QTabWidget::pane { border: none; border-top: 3px solid #000000; background: #F1F5F9; margin-top: 0; }"
-            "QTabBar { background: #ffffff; border: none; border-bottom: 3px solid #000000; }"
+            "QTabWidget::pane { border: none; border-top: 2px solid #000000; background: #F1F5F9; margin-top: 0; }"
+            "QTabBar { background: #ffffff; border: none; border-bottom: 2px solid #000000; }"
             "QTabBar::tab {"
             "  min-width: 100px; padding: 12px 22px; margin: 0;"
             "  font-size: 10pt; font-weight: 600; color: #64748B;"
@@ -2607,7 +2607,8 @@ class MainWindow(QMainWindow):
         # Same tab order/names as admin Android app: Dashboard · Users · Alerts · Reports · Connections · Settings
         self._tab_dashboard = AdminDashboardTab(controller, self, parent=self.tabs)
         self.tabs.addTab(self._tab_dashboard, "Dashboard")
-        self.tabs.addTab(AdminUsersTab(controller, self, parent=self.tabs), "Users")
+        self._tab_users = AdminUsersTab(controller, self, parent=self.tabs)
+        self.tabs.addTab(self._tab_users, "Users")
         self.tabs.addTab(AdminAlertsTab(controller, self, parent=self.tabs), "Alerts")
         self.tabs.addTab(AdminReportsTab(controller, self, parent=self.tabs), "Reports")
         self.tabs.addTab(AdminConnectionsTab(controller, self, parent=self.tabs), "Connections")
@@ -2738,9 +2739,7 @@ class MainWindow(QMainWindow):
         self._header_anim_timer.timeout.connect(self._animate_header_overlay)
         self._header_anim_timer.start(70)
         self._system_startup_alert_sent = False
-        # system_started: on app open (not on unlock)
-        QTimer.singleShot(2500, self._send_startup_alert_to_bot)
-        QTimer.singleShot(8000, self._send_startup_alert_to_bot)
+        QTimer.singleShot(3000, self._send_startup_alert_to_bot)
         if hasattr(self.controller, "central_fetch_done"):
             self.controller.central_fetch_done.connect(self._on_central_data_for_startup_alert)
         # Apply topbar scale after first layout so small window gets smaller toggle/status even before resize
@@ -2760,13 +2759,17 @@ class MainWindow(QMainWindow):
             has_admin, _ = self._get_desktop_role()
             if not has_admin:
                 return False
+            code = ""
+            if hasattr(self.controller, "ensure_admin_access_code"):
+                code = (self.controller.ensure_admin_access_code() or "").strip()
+            if code:
+                return True
             db = getattr(self.controller, "_db", None)
             if db and hasattr(db, "get") and (db.get("admin_access_code") or "").strip():
                 return True
-            if getattr(self.controller, "admin_bot", None):
-                ab = self.controller.admin_bot or {}
-                if (ab.get("bot_id") or "").strip() and (ab.get("api_key") or "").strip():
-                    return True
+            ab = getattr(self.controller, "admin_bot", None) or {}
+            if (ab.get("bot_id") or "").strip() and (ab.get("api_key") or "").strip():
+                return True
             return False
         except Exception:
             return False
@@ -2776,6 +2779,8 @@ class MainWindow(QMainWindow):
 
     def _on_central_data_for_startup_alert(self, _payload=None):
         try:
+            if hasattr(self.controller, "ensure_admin_access_code"):
+                self.controller.ensure_admin_access_code()
             db = self.controller.get_db()
             if db and hasattr(db, "get_admin_info"):
                 info = db.get_admin_info() or {}
@@ -2785,37 +2790,26 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self._update_admin_status_label()
+        if hasattr(self, "_tab_users") and hasattr(self._tab_users, "refresh"):
+            try:
+                self._tab_users.refresh()
+            except Exception:
+                pass
         if not getattr(self, "_system_startup_alert_sent", False):
             self._send_startup_alert_to_bot()
 
     def _send_startup_alert_to_bot(self):
-        """Once per app session when desktop opens — does not require unlock."""
+        """Single system_started alert per desktop session (start or unlock — never system_unlocked)."""
         try:
             if getattr(self, "_system_startup_alert_sent", False):
                 return
             if not self._desktop_has_admin_link():
                 return
             label = self._desktop_alert_user_label()
-            if self.controller.send_admin_alert(
+            self.controller.send_admin_alert(
                 "system_started",
                 f"{label}'s desktop: CuraX started",
                 on_success=self._mark_startup_alert_sent,
-            ):
-                pass
-        except Exception:
-            pass
-
-    def _send_unlocked_alert_to_bot(self):
-        """Once per unlock click — only when user unlocks the desktop."""
-        try:
-            if not getattr(self.controller, "authenticated", False):
-                return
-            if not self._desktop_has_admin_link():
-                return
-            label = self._desktop_alert_user_label()
-            self.controller.send_admin_alert(
-                "system_unlocked",
-                f"{label}'s desktop: system unlocked",
             )
         except Exception:
             pass
@@ -2952,12 +2946,10 @@ class MainWindow(QMainWindow):
         self._update_status_text()
         self._apply_locked_state()
         if authenticated:
-            self._send_unlocked_alert_to_bot()
+            if hasattr(self.controller, "ensure_admin_access_code"):
+                self.controller.ensure_admin_access_code()
+            self._send_startup_alert_to_bot()
             self._update_admin_status_label()
-        else:
-            fn = getattr(self.controller, "clear_desktop_unlock_alert_dedupe", None)
-            if fn:
-                fn()
         if authenticated and hasattr(self, "com_frame") and self.com_frame.isVisible():
             self.com_frame.setVisible(False)
         self.tools_section_title.setVisible(authenticated)

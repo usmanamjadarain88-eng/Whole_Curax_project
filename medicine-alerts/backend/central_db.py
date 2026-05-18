@@ -2202,6 +2202,51 @@ class CentralDB:
         finally:
             cur.close()
 
+    def _ensure_missed_escalation_sent_table(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """CREATE TABLE IF NOT EXISTS missed_escalation_sent (
+                    user_id UUID NOT NULL,
+                    box_id VARCHAR(16) NOT NULL,
+                    dose_date DATE NOT NULL,
+                    phase VARCHAR(4) NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    PRIMARY KEY (user_id, box_id, dose_date, phase)
+                )"""
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close()
+
+    def try_record_missed_escalation(self, user_id, box_id, dose_date, phase):
+        """Return True when this user/box/date/phase is new; False if already sent."""
+        if not user_id or not box_id or not dose_date or not phase:
+            return False
+        self._ensure_missed_escalation_sent_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """INSERT INTO missed_escalation_sent (user_id, box_id, dose_date, phase)
+                   VALUES (%s::uuid, %s, %s::date, %s)
+                   ON CONFLICT DO NOTHING
+                   RETURNING 1""",
+                (user_id, (box_id or "").strip().upper(), dose_date, str(phase)),
+            )
+            row = cur.fetchone()
+            conn.commit()
+            return row is not None
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB try_record_missed_escalation: {e}")
+            return False
+        finally:
+            cur.close()
+
     def create_alert(self, user_id, admin_id, type_, message):
         if not user_id or not admin_id:
             return None
