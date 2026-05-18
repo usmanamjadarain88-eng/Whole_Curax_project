@@ -177,14 +177,28 @@ object AdminDemoData {
             val createdAt = o.optString("created_at", "")
             val receivedAt = parseIsoToMillis(createdAt)
             val userName = o.optString("user_name", "").trim().ifEmpty { "User" }
+            val serverId = o.optString("id", "").trim().takeIf { it.isNotEmpty() }
             val id = when {
                 o.has("local_id") && !o.isNull("local_id") -> o.getLong("local_id")
+                serverId != null -> {
+                    val idStr = serverId + type + message + createdAt
+                    (-idStr.hashCode().toLong()).let { if (it >= 0) -it - 1 else it }
+                }
                 else -> {
-                    val idStr = o.optString("id", "") + type + message + createdAt
+                    val idStr = type + message + createdAt
                     (-idStr.hashCode().toLong()).let { if (it >= 0) -it - 1 else it }
                 }
             }
-            list.add(AlertItem(id = id, type = type, message = message, receivedAt = receivedAt, userName = userName))
+            list.add(
+                AlertItem(
+                    id = id,
+                    type = type,
+                    message = message,
+                    receivedAt = receivedAt,
+                    userName = userName,
+                    serverId = serverId,
+                ),
+            )
         }
         return list
     }

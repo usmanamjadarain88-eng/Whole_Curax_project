@@ -455,6 +455,7 @@
     <string name="reliability_caution_force_stop">Do not Force Stop CuraX in Android Settings.</string>
     <string name="reliability_caution_battery">Allow notifications and unrestricted battery / background for CuraX.</string>
     <string name="reliability_caution_family_email">Admin email is optional; your dose reminders still work without a family email.</string>
+    <string name="admin_alerts_delete_server_failed">Could not delete alerts on the server. Check connection and try again.</string>
     <string name="help_user_default_overview_title">Smart System mode (linked to admin)</string>
     <string name="help_user_default_overview_body">Your medicines and dose times sync from your care team. Routine reminders arrive by relay and push (FCM) when the app is closed. Tap Connect for alerts once in the menu (☰) — that grants permissions and keeps the relay linked; after that, reconnect is automatic.</string>
     <string name="help_user_default_connect_title">Connect for alerts (once)</string>
@@ -499,6 +500,7 @@
     <string name="splash_continue_user">Continue as a User</string>
     <string name="splash_continue_admin">Continue as an Admin</string>
     <string name="admin_header_sign_in">Administrator sign in</string>
+    <string name="admin_sign_in_portal_subtitle">Health Hub portal for caregivers and clinic admins</string>
     <string name="admin_sign_in_short_hint">We email you a code each time you sign in.</string>
     <string name="admin_sign_in_button">Sign in</string>
     <string name="admin_footer_no_account">Don\'t have an account?</string>

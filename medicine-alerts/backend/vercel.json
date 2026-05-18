@@ -179,6 +179,10 @@
       "destination": "/api/admin_clear_user_dose_logs"
     },
     {
+      "source": "/admin/delete-alerts",
+      "destination": "/api/admin_delete_alerts"
+    },
+    {
       "source": "/admin/notify",
       "destination": "/api/admin_notify"
     },

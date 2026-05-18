@@ -2218,6 +2218,32 @@ def list_alerts(body, query, headers):
     return (200, db.list_alerts(user_id=user_id, status=status))
 
 
+def admin_delete_alerts(body, query, headers):
+    """POST { access_code, alert_ids: [uuid, ...] } — remove alerts for this admin (mobile bulk delete)."""
+    data = body if isinstance(body, dict) else {}
+    access_code = (data.get("access_code") or "").strip()
+    raw_ids = data.get("alert_ids")
+    alert_ids = []
+    if isinstance(raw_ids, list):
+        alert_ids = [str(x).strip() for x in raw_ids if str(x).strip()]
+    elif isinstance(raw_ids, str) and raw_ids.strip():
+        alert_ids = [raw_ids.strip()]
+    if not access_code or not alert_ids:
+        return (400, {"message": "access_code and alert_ids required"})
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    admin = db.get_admin_by_access_code(access_code)
+    if not admin:
+        return (404, {"message": "Admin not found"})
+    admin_id = admin.get("id")
+    deleted = db.delete_alerts_for_admin(admin_id, alert_ids)
+    if deleted <= 0:
+        return (404, {"message": "No matching alerts deleted"})
+    notify_databus(access_code)
+    return (200, {"ok": True, "deleted": deleted})
+
+
 # ---- Alert settings ----
 def get_alert_settings(body, query, headers):
     user_id = query.get("user_id")

@@ -2271,6 +2271,39 @@ class CentralDB:
         finally:
             cur.close()
 
+    def delete_alerts_for_admin(self, admin_id, alert_ids):
+        """Delete alerts by Postgres id for this admin. Returns number of rows removed."""
+        if not admin_id or not alert_ids:
+            return 0
+        cleaned = []
+        for raw in alert_ids:
+            s = str(raw or "").strip()
+            if not s:
+                continue
+            try:
+                uuid.UUID(s)
+                cleaned.append(s)
+            except (ValueError, TypeError):
+                continue
+        if not cleaned:
+            return 0
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "DELETE FROM alerts WHERE admin_id = %s::uuid AND id = ANY(%s::uuid[])",
+                (admin_id, cleaned),
+            )
+            deleted = cur.rowcount or 0
+            conn.commit()
+            return deleted
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB delete_alerts_for_admin: {e}")
+            return 0
+        finally:
+            cur.close()
+
     def list_alerts(self, user_id=None, admin_id=None, status=None, since=None, limit=100):
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()

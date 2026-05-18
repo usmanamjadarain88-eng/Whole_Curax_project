@@ -10,7 +10,9 @@ data class AlertItem(
     val type: String,
     val message: String,
     val receivedAt: Long,
-    val userName: String = ""
+    val userName: String = "",
+    /** Postgres alerts.id when this row came from GET /admin/data (for server delete). */
+    val serverId: String? = null,
 )
 
 class AlertDb(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_VERSION) {
