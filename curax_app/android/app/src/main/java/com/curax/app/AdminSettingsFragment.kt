@@ -100,10 +100,6 @@ class AdminSettingsFragment : Fragment() {
                 disableInputs(view, userEditableIds)
             } else {
                 view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.visibility = View.GONE
-                view.findViewById<MaterialButton>(R.id.btn_save_gmail)?.apply {
-                    visibility = View.VISIBLE
-                    setOnClickListener { saveLinkedUserGmailSettings() }
-                }
                 val linkedPlanPersist = CompoundButton.OnCheckedChangeListener { _, _ ->
                     persistLinkedPlanAlertsFromUi()
                 }
@@ -123,10 +119,14 @@ class AdminSettingsFragment : Fragment() {
             view.findViewById<MaterialButton>(R.id.btn_save_alert_settings)?.setOnClickListener {
                 saveSettingsToApi(showSuccess = "Alert settings saved")
             }
-            view.findViewById<MaterialButton>(R.id.btn_save_gmail)?.setOnClickListener {
-                saveSettingsToApi(showSuccess = getString(R.string.system_gmail_saved))
-            }
         }
+        applyMobileEmailPresentation(view)
+    }
+
+    /** Missed-dose admin email uses server Curax mail (SIGNUP_SMTP); hide legacy Gmail UI on mobile. */
+    private fun applyMobileEmailPresentation(root: View) {
+        root.findViewById<View>(R.id.card_gmail_section)?.visibility = View.GONE
+        root.findViewById<MaterialButton>(R.id.btn_save_gmail)?.visibility = View.GONE
     }
 
     /** Admin Care: medicine settings editable; Gmail + device PIN read-only; no Health Hub on standalone users. */
@@ -555,7 +555,6 @@ class AdminSettingsFragment : Fragment() {
         AdminDemoData.replaceAlertSettings(payload)
 
         val alertSettings = payload["alert_settings"] as? Map<String, Any?> ?: emptyMap()
-        val gmailConfig = payload["gmail_config"] as? Map<String, Any?> ?: emptyMap()
 
         Thread {
             try {
@@ -563,7 +562,6 @@ class AdminSettingsFragment : Fragment() {
                     put("access_code", accessCode)
                     if (prefs.actAsUserId.isNotEmpty()) put("act_as_user_id", prefs.actAsUserId)
                     put("alert_settings", mapToJsonObject(alertSettings))
-                    put("gmail_config", mapToJsonObject(gmailConfig))
                 }
                 val body = bodyObj.toString().toRequestBody("application/json".toMediaType())
 
@@ -653,16 +651,7 @@ class AdminSettingsFragment : Fragment() {
             "plan_alerts" to planAlerts,
         )
 
-        val gmailConfig = if (isAdminCare()) {
-            (AdminDemoData.getAlertSettings()["gmail_config"] as? Map<String, Any?>) ?: emptyMap()
-        } else {
-            mergeGmailConfigForSave()
-        }
-
-        return mapOf(
-            "alert_settings" to alertSettings,
-            "gmail_config" to gmailConfig,
-        )
+        return mapOf("alert_settings" to alertSettings)
     }
 
     /** Keeps server/desktop SMTP fields; mobile only edits recipients + toggle. */

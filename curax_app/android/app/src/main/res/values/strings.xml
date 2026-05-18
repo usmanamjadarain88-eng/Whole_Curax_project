@@ -131,6 +131,8 @@
     <string name="local_alert_phase_5_after">5 min after (reminder)</string>
     <string name="local_alert_phase_15_after">15 min after (urgent)</string>
     <string name="local_alert_phase_30_after">30 min after (notify family)</string>
+    <string name="admin_family_alert_email_label">Admin alert email</string>
+    <string name="admin_family_alert_email_hint">Curax system mail sends +15 urgent and +30 missed alerts here</string>
     <string name="local_alert_phase_missed_logged">After dose window (logged missed)</string>
     <string name="local_alert_plan_in_5_min">starts in 5 minutes</string>
     <string name="local_alert_plan_in_30_min">starts in 30 minutes</string>

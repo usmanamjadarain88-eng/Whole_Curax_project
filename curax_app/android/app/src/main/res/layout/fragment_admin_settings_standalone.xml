@@ -429,7 +429,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp"
-                            android:text="Family / Admin email"
+                            android:text="@string/admin_family_alert_email_label"
                             android:textColor="@color/text_secondary"
                             android:textSize="12sp" />
 
@@ -437,7 +437,7 @@
                             android:id="@+id/et_missed_family_email"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:hint="admin@example.com"
+                            android:hint="@string/admin_family_alert_email_hint"
                             android:inputType="textEmailAddress"
                             android:textColor="@color/text_primary"
                             android:textColorHint="@color/text_secondary" />

@@ -2125,6 +2125,22 @@ def put_admin_alert_settings(body, query, headers):
     if not ok:
         return (500, {"message": "Failed to save settings"})
 
+    # Mobile admin Care may save under act_as user; missed-dose + family_email belong on admin account.
+    if isinstance(incoming_alert, dict) and act_as:
+        esc = incoming_alert.get("missed_dose_escalation")
+        if isinstance(esc, dict):
+            admin_duid = db.get_dashboard_user_id(admin_id)
+            if admin_duid and str(admin_duid) != str(duid):
+                admin_blob = db.get_alert_settings(admin_duid) or {}
+                if not isinstance(admin_blob, dict):
+                    admin_blob = {}
+                admin_inner = admin_blob.get("alert_settings")
+                if not isinstance(admin_inner, dict):
+                    admin_inner = {}
+                    admin_blob["alert_settings"] = admin_inner
+                admin_inner["missed_dose_escalation"] = esc
+                db.upsert_alert_settings(admin_duid, admin_blob)
+
     notify_databus(access_code)
     trigger_alert_checks_for_admin(admin_id)
     return (200, {"message": "ok", "settings": current})

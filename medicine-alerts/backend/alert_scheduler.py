@@ -68,7 +68,6 @@ class BackendAlertScheduler:
         gmail_config = settings_blob.get("gmail_config") if isinstance(settings_blob.get("gmail_config"), dict) else {}
         medical_reminders = settings_blob.get("medical_reminders") if isinstance(settings_blob.get("medical_reminders"), dict) else {}
 
-        # Admin bot config synced from desktop (admin must configure on desktop)
         admin_bot_config = settings_blob.get("admin_bot_config") if isinstance(settings_blob.get("admin_bot_config"), dict) else {}
 
         boxes = {}
@@ -94,7 +93,6 @@ class BackendAlertScheduler:
         users = db.get_all_users_by_admin_id(admin_id) or []
         dose_logs = db.list_dose_logs(duid, limit=200) if hasattr(db, "list_dose_logs") else []
 
-        # Desktop-synced mobile_bot_config for user alerts
         mobile_bot_config = settings_blob.get("mobile_bot_config") if isinstance(settings_blob.get("mobile_bot_config"), dict) else {}
 
         return {
@@ -170,22 +168,36 @@ class BackendAlertScheduler:
     def _is_standalone_ctx(self, ctx):
         return (ctx.get("user_display_mode") or "").strip().lower() == "standalone"
 
+    def _admin_escalation_settings(self, ctx):
+        """Missed-dose rules + family_email always from admin account (mobile admin Settings), not per-user blob."""
+        db = self._get_db()
+        admin_id = ctx.get("admin_id")
+        if db and admin_id:
+            try:
+                duid = db.get_dashboard_user_id(admin_id)
+            except Exception:
+                duid = None
+            if duid:
+                blob = db.get_alert_settings(duid) or {}
+                inner = blob.get("alert_settings") if isinstance(blob.get("alert_settings"), dict) else {}
+                esc = inner.get("missed_dose_escalation")
+                if isinstance(esc, dict):
+                    return esc
+        inner = ctx.get("alert_settings") if isinstance(ctx.get("alert_settings"), dict) else {}
+        esc = inner.get("missed_dose_escalation")
+        return esc if isinstance(esc, dict) else {}
+
     def _family_email_from(self, esc):
         return (esc.get("family_email") or "").strip()
 
     def _send_family_email_only(self, ctx, subject, body, esc):
+        """Missed-dose admin email: server SIGNUP_SMTP_* sender, family_email recipient only."""
         family = self._family_email_from(esc)
         if not family:
             return False
-        gmail = ctx.get("gmail_config") or {}
-        if gmail.get("gmail_alerts_enabled") is False:
-            return False
-        sender = (gmail.get("sender_email") or "").strip()
-        password = (gmail.get("sender_password") or "").strip()
-        if not sender or not password:
-            return False
-        self._send_email_to(sender, password, subject, body, [family])
-        return True
+        from utils.system_smtp import send_system_notification_email
+
+        return send_system_notification_email(family, subject, body)
 
     def _build_escalation_copy(self, phase, ctx, name, box_id, schedule_time=""):
         user_name = (ctx.get("user_name") or "").strip()
@@ -225,7 +237,7 @@ class BackendAlertScheduler:
         return False
 
     def _deliver_escalation(self, ctx, phase, name, box_id, today_str, schedule_time="", record_state=None):
-        esc = (ctx.get("alert_settings") or {}).get("missed_dose_escalation", {})
+        esc = self._admin_escalation_settings(ctx)
         phase_s = str(phase)
         if phase_s == "15" and not esc.get("15_min_urgent", True):
             return False
