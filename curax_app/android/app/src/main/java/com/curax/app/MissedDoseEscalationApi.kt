@@ -46,7 +46,7 @@ object MissedDoseEscalationApi {
                     put("box_id", box)
                     put("medicine_name", medicineName.trim())
                     put("schedule_time", scheduleTime.trim())
-                    put("dose_date", doseDate.trim())
+                    put("dose_date", doseDateForApi(doseDate))
                 }
                 val req = Request.Builder()
                     .url("$base/user/missed-dose-escalate")
@@ -56,5 +56,14 @@ object MissedDoseEscalationApi {
             } catch (_: Exception) {
             }
         }.start()
+    }
+
+    /** Local day keys use yyyyMMdd; server expects yyyy-MM-dd. */
+    private fun doseDateForApi(dayKey: String): String {
+        val d = dayKey.trim()
+        if (d.length == 8 && d.all { it.isDigit() }) {
+            return "${d.take(4)}-${d.substring(4, 6)}-${d.takeLast(2)}"
+        }
+        return d.take(10)
     }
 }

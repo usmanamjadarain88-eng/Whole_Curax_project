@@ -505,7 +505,7 @@ export default function DashboardScreen() {
   return (
     <View style={[styles.container, isAdmin && styles.containerAdmin]}>
       <View style={styles.header}>
-        <Text style={styles.logo}>Curax</Text>
+        <Text style={styles.logo}>CuraX</Text>
         <Text style={styles.roleBadge}>{isAdmin ? 'Admin' : 'User'}</Text>
       </View>
 

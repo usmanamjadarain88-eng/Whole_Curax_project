@@ -1,7 +1,7 @@
 import threading
 from aiohttp import web
 """
-Curax Relay Server - runs on your PC.
+CuraX Relay Server - runs on your PC.
 Desktop app sends alerts to TCP 5050; Android app / web page connects via WebSocket 5051.
 Serves a simple web app on port 8080 - open on your phone in browser (no APK needed).
 """

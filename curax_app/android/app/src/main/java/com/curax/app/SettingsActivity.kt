@@ -65,6 +65,9 @@ class SettingsActivity : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.btnExportHistory).setOnClickListener { exportChatHistory() }
         findViewById<MaterialButton>(R.id.btnAppInfo).setOnClickListener { showAppInfo() }
+        findViewById<MaterialButton>(R.id.btnCautions).setOnClickListener {
+            ReliabilityCautionsUi.launch(this)
+        }
         findViewById<MaterialButton>(R.id.btnHelp).setOnClickListener {
             startActivity(Intent(this, HelpActivity::class.java))
         }
@@ -123,7 +126,7 @@ class SettingsActivity : AppCompatActivity() {
             btnLinkToAdmin.visibility = android.view.View.GONE
             val btnUserDesktopLink = findViewById<MaterialButton>(R.id.btnUserDesktopLinkCode)
             if (StandaloneUi.isUserStandalone(this)) {
-                // Standalone mode only: on-device alert prefs (default Curax user app has no desktop linking).
+                // Standalone mode only: on-device alert prefs (default CuraX user app has no desktop linking).
                 btnUserDesktopLink.visibility = View.VISIBLE
                 btnUserDesktopLink.setText(R.string.standalone_alert_settings)
                 btnUserDesktopLink.setOnClickListener {
@@ -289,7 +292,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val format = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val lines = buildString {
-            append("Curax Chat History")
+            append("CuraX Chat History")
             append("\n\n")
             alerts.forEach { alert ->
                 append("[")

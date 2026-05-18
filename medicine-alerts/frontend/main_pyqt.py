@@ -42,7 +42,7 @@ from ui.main_window import MainWindow
 def resolve_storage_path() -> str:
     """Path to the single JSON file (curax_desktop.json). Matches db.AlertDB JSON storage."""
     if getattr(sys, "frozen", False):
-        app_dir = os.path.join(os.path.expanduser("~"), "AppData", "Local", "CuraxAlerts")
+        app_dir = os.path.join(os.path.expanduser("~"), "AppData", "Local", "CuraXAlerts")
         os.makedirs(app_dir, exist_ok=True)
         return os.path.join(app_dir, "curax_desktop.json")
     return os.path.join(PYQT_ROOT, "curax_desktop.json")

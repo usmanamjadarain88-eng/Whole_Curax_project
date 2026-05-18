@@ -123,10 +123,30 @@ class AdminSettingsFragment : Fragment() {
         applyMobileEmailPresentation(view)
     }
 
-    /** Missed-dose admin email uses server Curax mail (SIGNUP_SMTP); hide legacy Gmail UI on mobile. */
+    /**
+     * User System View: Enable Gmail alerts + recipient + Save (system SMTP on server).
+     * Admin Care: hide — admin must not edit the user's email block (missed-dose uses family_email in medicine settings).
+     * Hub admin (not care): hide — not used on admin phone.
+     */
     private fun applyMobileEmailPresentation(root: View) {
-        root.findViewById<View>(R.id.card_gmail_section)?.visibility = View.GONE
-        root.findViewById<MaterialButton>(R.id.btn_save_gmail)?.visibility = View.GONE
+        val card = root.findViewById<View>(R.id.card_gmail_section)
+        val saveGmail = root.findViewById<MaterialButton>(R.id.btn_save_gmail)
+        if (isAdminCare() || !isUserApp()) {
+            card?.visibility = View.GONE
+            saveGmail?.visibility = View.GONE
+            return
+        }
+        card?.visibility = View.VISIBLE
+        root.findViewById<View>(R.id.group_gmail_admin_readonly)?.visibility = View.GONE
+        root.findViewById<View>(R.id.group_gmail_user_editable)?.visibility = View.VISIBLE
+        saveGmail?.visibility = View.VISIBLE
+        saveGmail?.setOnClickListener {
+            if (StandaloneUi.isUserStandalone(requireContext())) {
+                saveStandaloneSystemSettings()
+            } else {
+                saveLinkedUserGmailSettings()
+            }
+        }
     }
 
     /** Admin Care: medicine settings editable; Gmail + device PIN read-only; no Health Hub on standalone users. */
@@ -651,7 +671,14 @@ class AdminSettingsFragment : Fragment() {
             "plan_alerts" to planAlerts,
         )
 
-        return mapOf("alert_settings" to alertSettings)
+        return if (isUserApp()) {
+            mapOf(
+                "alert_settings" to alertSettings,
+                "gmail_config" to mergeGmailConfigForSave(),
+            )
+        } else {
+            mapOf("alert_settings" to alertSettings)
+        }
     }
 
     /** Keeps server/desktop SMTP fields; mobile only edits recipients + toggle. */

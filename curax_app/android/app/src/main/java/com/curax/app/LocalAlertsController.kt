@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -46,6 +47,10 @@ object LocalAlertsController {
     private const val DAILY_SCAN_HOUR = 8
     private const val DAILY_SCAN_MINUTE = 0
 
+    private const val TAG = "LocalAlertsController"
+
+    private fun pendingRequestCode(alarmId: String): Int = kotlin.math.abs(alarmId.hashCode())
+
     private fun statePrefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -59,6 +64,7 @@ object LocalAlertsController {
 
     fun cancelAll(context: Context) {
         val app = context.applicationContext
+        MissedDoseEscalationWatchdog.cancel(app)
         val am = app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val sp = statePrefs(app)
         val idSet = LinkedHashSet<String>()
@@ -76,7 +82,7 @@ object LocalAlertsController {
         for (id in idSet) {
             val pi = PendingIntent.getBroadcast(
                 app,
-                0,
+                pendingRequestCode(id),
                 alarmIntent(app, id),
                 PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -139,11 +145,11 @@ object LocalAlertsController {
             horizonEnd: Long = horizonMedMs,
         ) {
             if (count >= MAX_ALARMS) return
-            if (trigger < now + 15_000L || trigger > horizonEnd) return
+            if (trigger <= now || trigger > horizonEnd) return
             statePrefs(app).edit().putString("p_$alarmId", payload.toString()).apply()
             val pi = PendingIntent.getBroadcast(
                 app,
-                0,
+                pendingRequestCode(alarmId),
                 alarmIntent(app, alarmId),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -154,15 +160,19 @@ object LocalAlertsController {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, show), pi)
-                } else {
-                    @Suppress("DEPRECATION")
-                    am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi)
+                when {
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                        am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, show), pi)
+                    }
+                    else -> {
+                        @Suppress("DEPRECATION")
+                        am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi)
+                    }
                 }
                 ids.put(alarmId)
                 count++
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to schedule alarm id=$alarmId at $trigger", e)
             }
         }
 
@@ -469,6 +479,10 @@ object LocalAlertsController {
 
     fun clearPayload(context: Context, alarmId: String) {
         statePrefs(context.applicationContext).edit().remove("p_$alarmId").apply()
+    }
+
+    fun putPayload(context: Context, alarmId: String, payload: JSONObject) {
+        statePrefs(context.applicationContext).edit().putString("p_$alarmId", payload.toString()).apply()
     }
 
     private fun sectionMap(settings: Map<String, Any?>, key: String): Map<String, Any?> {

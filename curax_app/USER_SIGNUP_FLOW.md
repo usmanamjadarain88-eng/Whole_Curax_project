@@ -1,6 +1,6 @@
-# Curax — User signup / activation flow (saved spec)
+# CuraX — User signup / activation flow (saved spec)
 
-This document captures the intended **production-style** user onboarding flows discussed for Curax. Use it when implementing Android screens + `medicine-alerts` backend.
+This document captures the intended **production-style** user onboarding flows discussed for CuraX. Use it when implementing Android screens + `medicine-alerts` backend.
 
 ---
 
@@ -87,7 +87,7 @@ This document captures the intended **production-style** user onboarding flows d
 
 ---
 
-## Relation to current Curax build
+## Relation to current CuraX build
 
 - Today: local signup + PIN without central `status` column — this file is the **target** model when central user table + APIs exist.
 - When implementing: add migration for `status`, TTL job (cron / worker) for `PENDING*` cleanup, and gate `LaunchActivity` / API client by status → correct screen.

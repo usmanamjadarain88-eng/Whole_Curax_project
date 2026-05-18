@@ -427,7 +427,7 @@ class AdminReportsFragment : Fragment() {
             val time = dateFormat.format(Date(alert.receivedAt))
             "[$time] ${alert.type}: ${alert.message}"
         }
-        val title = if (reportUserName.isNotEmpty()) "Curax Report: $reportUserName" else "Curax Admin Report"
+        val title = if (reportUserName.isNotEmpty()) "CuraX Report: $reportUserName" else "CuraX Admin Report"
         return """
             $title
             Generated: ${dateFormat.format(Date())}

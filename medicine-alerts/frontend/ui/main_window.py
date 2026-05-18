@@ -3114,7 +3114,7 @@ class MainWindow(QMainWindow):
                     if hasattr(self, "unlock_with_password_btn") and dbu and getattr(dbu, "has_desktop_app_unlock_pin", lambda: False)():
                         self.unlock_with_password_btn.setText("Unlock with desktop PIN")
                         self.unlock_with_password_btn.setToolTip(
-                            "PIN for this computer only. Not the same as your Curax mobile app PIN."
+                            "PIN for this computer only. Not the same as your CuraX mobile app PIN."
                         )
                     elif hasattr(self, "unlock_with_password_btn"):
                         self.unlock_with_password_btn.setText("Unlock with password")

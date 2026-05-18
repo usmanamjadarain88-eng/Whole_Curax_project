@@ -29,7 +29,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="?attr/actionBarSize"
                     android:background="@android:color/transparent"
-                    app:title="Curax"
+                    app:title="CuraX"
                     app:titleTextColor="@android:color/white" />
             </com.google.android.material.appbar.AppBarLayout>
 
@@ -792,6 +792,34 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardUserSidebarCompleteSetup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="14dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/summary_card"
+            app:cardCornerRadius="14dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/summary_stroke"
+            app:strokeWidth="@dimen/panel_stroke_width">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSidebarCompleteSetup"
+                style="@style/Widget.MaterialComponents.Button"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="12dp"
+                android:minHeight="48dp"
+                android:text="@string/device_complete_setup"
+                android:textAllCaps="false"
+                android:textColor="@android:color/white"
+                app:backgroundTint="@color/button_primary_bg"
+                app:cornerRadius="18dp" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardUserSidebarConnection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -817,7 +845,7 @@
                 android:paddingBottom="8dp"
                 android:text="@string/user_sidebar_connect_for_alerts"
                 android:textAllCaps="false"
-                android:textColor="@android:color/white"
+                android:textColor="@color/connect_button_text"
                 app:cornerRadius="18dp" />
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>

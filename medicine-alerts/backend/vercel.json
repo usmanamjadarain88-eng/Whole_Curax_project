@@ -31,10 +31,6 @@
       "destination": "/api/admin_mobile_sign_in_verify"
     },
     {
-      "source": "/signup/sign-in-verify",
-      "destination": "/api/signup_sign_in_verify"
-    },
-    {
       "source": "/admin/email-signup/start",
       "destination": "/api/admin_email_signup_start"
     },

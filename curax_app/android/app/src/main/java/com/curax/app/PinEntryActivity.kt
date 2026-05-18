@@ -4,9 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.AppCompatButton
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -28,15 +26,8 @@ class PinEntryActivity : AppCompatActivity() {
         val store = LocalUserStore(this)
         val prefs = Prefs(this)
         val etPin = findViewById<TextInputEditText>(R.id.etPinEntry)
-        val btnUnlock = findViewById<AppCompatButton>(R.id.btnUnlockWithPin)
+        val btnUnlock = findViewById<MaterialButton>(R.id.btnUnlockWithPin)
         val btnFingerprint = findViewById<MaterialButton>(R.id.btnFingerprint)
-        val tvPinRole = findViewById<TextView>(R.id.tvPinRole)
-
-        tvPinRole.text = if (store.role == LocalUserStore.ROLE_ADMIN) {
-            "Admin Secure Access"
-        } else {
-            "User Secure Access"
-        }
 
         btnUnlock.setOnClickListener {
             val enteredPin = etPin.text?.toString()?.trim().orEmpty()

@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -47,20 +48,30 @@ object NotificationHelper {
     const val EXTRA_WAKE_SCREEN = "extra_wake_screen"
 
     fun createChannel(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val soundUri: Uri? = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            // IMPORTANCE_HIGH so lock screen pe show hota hai + screen wake
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val ch = NotificationChannel(CHANNEL_ID, "Curax Alerts", importance).apply {
-                setShowBadge(true)
-                enableVibration(true)
-                enableLights(true)
-                setSound(soundUri, null)
-                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+        ensureAlertChannel(context, resolveStandaloneAlertSoundUri(context))
+    }
+
+    /** Android 8+ ignores per-notification sound; channel must match the user's selected tone. */
+    private fun ensureAlertChannel(context: Context, soundUri: Uri?) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val importance = NotificationManager.IMPORTANCE_HIGH
+        val audioAttrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        val ch = NotificationChannel(CHANNEL_ID, "CuraX Alerts", importance).apply {
+            setShowBadge(true)
+            enableVibration(true)
+            enableLights(true)
+            lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            if (soundUri != null) {
+                setSound(soundUri, audioAttrs)
+            } else {
+                setSound(null, null)
             }
-            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
         }
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .createNotificationChannel(ch)
     }
 
     fun showAlertNotification(
@@ -72,7 +83,8 @@ object NotificationHelper {
         receivedAt: Long = System.currentTimeMillis(),
         userName: String = "",
     ) {
-        createChannel(context)
+        val soundUri = resolveStandaloneAlertSoundUri(context)
+        ensureAlertChannel(context, soundUri)
 
         val subUser = AlertDisplayRules.notificationSubtext(type, userName)
         val pi = AlertNavigation.pendingIntentFromNotification(
@@ -92,10 +104,9 @@ object NotificationHelper {
             type.equals("plan", ignoreCase = true) -> "Planned item"
             type.contains("medicine", ignoreCase = true) || type == "time" || type == "pre" -> "Medicine reminder"
             type.contains("missed", ignoreCase = true) -> "Missed dose"
-            else -> "Curax Alert"
+            else -> "CuraX Alert"
         }
 
-        val soundUri = resolveStandaloneAlertSoundUri(context)
         val vibrateOn = resolveStandaloneVibrate(context)
         val b = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)

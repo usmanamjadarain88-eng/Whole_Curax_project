@@ -428,6 +428,7 @@ class StandaloneAlertSoundPickerActivity : AppCompatActivity() {
                 prefs.standaloneLocalAlertSoundUri = row.uriStr
             }
         }
+        NotificationHelper.createChannel(applicationContext)
         selectedRowKey = null
         setResult(RESULT_OK)
         finish()

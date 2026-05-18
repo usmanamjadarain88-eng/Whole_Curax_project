@@ -57,6 +57,7 @@
     <color name="badge_end">#148760</color>
 
     <color name="connect_button_bg">#07563B</color>
+    <color name="connect_button_text">#FFFFFF</color>
     <!-- Sign up CTA: clearly grey when disabled -->
     <color name="sign_up_button_bg_disabled">#C5D4CE</color>
     <color name="sign_up_button_text_disabled">#7A8B84</color>

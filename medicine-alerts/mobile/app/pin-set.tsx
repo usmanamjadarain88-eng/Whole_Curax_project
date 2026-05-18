@@ -44,7 +44,7 @@ export default function PinSetScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>Curax</Text>
+      <Text style={styles.logo}>CuraX</Text>
       <Text style={styles.title}>
         {step === 'enter' ? 'Set PIN' : 'Confirm PIN'}
       </Text>

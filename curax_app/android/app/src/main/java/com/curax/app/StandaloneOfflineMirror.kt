@@ -129,6 +129,7 @@ object StandaloneOfflineMirror {
         for (a in items) {
             arr.put(
                 JSONObject().apply {
+                    put("local_id", a.id)
                     put("type", a.type)
                     put("message", a.message)
                     put("created_at", alertTimeFmt.format(Date(a.receivedAt)))

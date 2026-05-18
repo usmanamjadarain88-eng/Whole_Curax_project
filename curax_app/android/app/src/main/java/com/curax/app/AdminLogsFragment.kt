@@ -260,7 +260,7 @@ class AdminLogsFragment : Fragment() {
                 .map { alertToLogEntry(it, dateFormat, timeFormat) }
         }
 
-        val title = "Curax Logs / Alert History"
+        val title = "CuraX Logs / Alert History"
         val html = buildString {
             append("<html><body style='font-family:sans-serif;padding:24px'>")
             append("<h2>$title</h2>")
@@ -276,6 +276,6 @@ class AdminLogsFragment : Fragment() {
         val webView = WebView(requireContext())
         webView.loadDataWithBaseURL(null, html, "text/HTML", "UTF-8", null)
         val printManager = requireContext().getSystemService(Context.PRINT_SERVICE) as PrintManager
-        printManager.print("Curax Logs Report", webView.createPrintDocumentAdapter("Curax Logs Report"), PrintAttributes.Builder().build())
+        printManager.print("CuraX Logs Report", webView.createPrintDocumentAdapter("CuraX Logs Report"), PrintAttributes.Builder().build())
     }
 }

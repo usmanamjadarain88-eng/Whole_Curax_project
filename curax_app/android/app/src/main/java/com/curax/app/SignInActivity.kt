@@ -673,27 +673,6 @@ class SignInActivity : AppCompatActivity() {
                 }
                 startActivity(i)
             }
-            "signin_verify" -> {
-                jo.optString("dev_otp", "").trim().takeIf { it.isNotEmpty() }?.let { devOtp ->
-                    CuraxFeedback.warn(
-                        this,
-                        getString(R.string.admin_signup_otp_dev_preview, devOtp),
-                        long = true,
-                    )
-                } ?: run {
-                    if (jo.optBoolean("email_sent", true)) {
-                        CuraxFeedback.success(this, getString(R.string.admin_otp_sent_short))
-                    }
-                }
-                startActivity(
-                    Intent(this, SignUpActivity::class.java)
-                        .putExtra(SignUpActivity.EXTRA_START_AT_OTP, true)
-                        .putExtra(SignUpActivity.EXTRA_FROM_SIGNIN_ACTIVE_VERIFY, true)
-                        .putExtra(SignUpActivity.EXTRA_EMAIL, resolvedEmail)
-                        .putExtra(SignUpActivity.EXTRA_PASSWORD, password)
-                        .putExtra(SignUpActivity.EXTRA_DISPLAY_NAME, resolvedEmail),
-                )
-            }
             "pending_admin" -> {
                 val botId = jo.optString("bot_id", "").trim()
                 val apiKey = jo.optString("api_key", "").trim()

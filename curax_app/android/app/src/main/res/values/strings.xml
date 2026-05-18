@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Curax</string>
+    <string name="app_name">CuraX</string>
     <string name="settings">Connection Panel</string>
     <string name="settings_screen_title">Settings</string>
     <string name="settings_screen_user_title">User Settings</string>
@@ -8,7 +8,7 @@
     <string name="system_gmail_section_title">Email alerts</string>
     <string name="system_gmail_alerts_switch">Enable Gmail alerts</string>
     <string name="system_gmail_recipient_hint">Recipient email</string>
-    <string name="system_gmail_curax_hint">Choose where to receive alerts — sending stays on the server.</string>
+    <string name="system_gmail_curax_hint">Turn on and enter your email. CuraX sends alerts from the system mail server to this address.</string>
     <string name="system_gmail_save">Save email alerts</string>
     <string name="system_gmail_saved">Email alert settings saved</string>
     <string name="care_unlock_pin_section_title">App unlock PIN</string>
@@ -132,7 +132,7 @@
     <string name="local_alert_phase_15_after">15 min after (urgent)</string>
     <string name="local_alert_phase_30_after">30 min after (notify family)</string>
     <string name="admin_family_alert_email_label">Admin alert email</string>
-    <string name="admin_family_alert_email_hint">Curax system mail sends +15 urgent and +30 missed alerts here</string>
+    <string name="admin_family_alert_email_hint">CuraX system mail sends +15 urgent and +30 missed alerts here</string>
     <string name="local_alert_phase_missed_logged">After dose window (logged missed)</string>
     <string name="local_alert_plan_in_5_min">starts in 5 minutes</string>
     <string name="local_alert_plan_in_30_min">starts in 30 minutes</string>
@@ -161,7 +161,7 @@
     <string name="standalone_alert_confirm_delete_sound_message">Remove this sound from your list?</string>
     <string name="standalone_alert_hide_tone_message">Hide this tone from this list? (The file stays on your phone; use + to pick it again if you want.)</string>
     <string name="standalone_alert_hide_tone_confirm">Hide from list</string>
-    <string name="standalone_alert_remove_builtin_tone_message">Remove this tone from your list? It stays hidden until you reinstall Curax (then phone tones show again).</string>
+    <string name="standalone_alert_remove_builtin_tone_message">Remove this tone from your list? It stays hidden until you reinstall CuraX (then phone tones show again).</string>
     <string name="standalone_alert_remove_builtin_tone_confirm">Remove</string>
     <string name="standalone_alert_tone_removed_from_list">Removed from list</string>
     <string name="standalone_alert_tone_saved_to_list">Saved to your list</string>
@@ -220,7 +220,7 @@
     <string name="user_temp_hardware_pending">Hardware link not active yet — settings are device-only for now.</string>
     <string name="user_temp_invalid_range">Enter valid min and max (min must be less than max).</string>
     <string name="ble_picker_title">Choose ESP32 (Bluetooth)</string>
-    <string name="ble_picker_hint">Tap your Curax box when it appears. Uses Nordic UART service (same as many ESP32 BLE examples).</string>
+    <string name="ble_picker_hint">Tap your CuraX box when it appears. Uses Nordic UART service (same as many ESP32 BLE examples).</string>
     <string name="ble_picker_empty">No devices found yet — ensure ESP32 is powered and BLE is on.</string>
     <string name="ble_picker_unknown_device">Unknown device</string>
     <string name="ble_picker_bt_off">Turn Bluetooth on to scan.</string>
@@ -235,8 +235,8 @@
     <string name="user_sidebar_esp32_connect">Connect</string>
     <string name="user_temp_ble_sent">Sent to ESP32 over Bluetooth.</string>
     <string name="user_sidebar_detail_admin_linked">Your data is tied to this admin. Medicines, reminders, and settings sync from their workspace.\n\n• Live updates need Realtime (DataBus) online.\n\n• Admin: %1$s</string>
-    <string name="user_sidebar_detail_admin_not_linked">You are not linked to an admin yet. Without a link, Curax cannot load your care plan from the server.\n\n• Complete sign-up or sign-in and enter the admin connection code when asked.\n\n• Ask your clinic for their Curax connection code.</string>
-    <string name="user_sidebar_detail_health_ok">Everything needed for Curax is up.\n\n• API &amp; account: configured.\n\n• DataBus (Realtime): receiving live medicine and settings updates.\n\n• Alert relay: connected so push/relay alerts can arrive.</string>
+    <string name="user_sidebar_detail_admin_not_linked">You are not linked to an admin yet. Without a link, CuraX cannot load your care plan from the server.\n\n• Complete sign-up or sign-in and enter the admin connection code when asked.\n\n• Ask your clinic for their CuraX connection code.</string>
+    <string name="user_sidebar_detail_health_ok">Everything needed for CuraX is up.\n\n• API &amp; account: configured.\n\n• DataBus (Realtime): receiving live medicine and settings updates.\n\n• Alert relay: connected so push/relay alerts can arrive.</string>
     <string name="user_sidebar_detail_health_partial">One path is up, the other is not — you may miss updates or alerts until both are green.\n\n• Realtime (DataBus): live WebSocket sync for medicines and admin edits.\n\n• Alert relay: the Connect button at the bottom — starts the relay service for FCM/relay delivery.\n\n• Fix: open this drawer, check Realtime and Alerts rows, then tap Connect if the relay is off.</string>
     <string name="user_sidebar_detail_health_issues">Multiple checks failed — you may see stale data or no alerts.\n\n• Confirm server URL, bot id, and API key in User Settings.\n\n• Ensure you are linked to an admin.\n\n• Tap Connect for the relay; wait for Realtime to show Connected.</string>
     <string name="user_sidebar_detail_health_config">Server URL or your device credentials are missing.\n\n• Open User Settings (toolbar menu) and set the central server URL if required.\n\n• Sign in again if your session was cleared.</string>
@@ -261,7 +261,7 @@
     <string name="api_key">API Key (for desktop)</string>
     <string name="copy">Copy</string>
     <string name="no_alerts">No alerts yet. Connect desktop software to receive alerts.</string>
-    <string name="no_alerts_onboarding">Curax keeps your medicine alerts organized and secure.&#10;Connect with desktop relay to start real-time reminders.</string>
+    <string name="no_alerts_onboarding">CuraX keeps your medicine alerts organized and secure.&#10;Connect with desktop relay to start real-time reminders.</string>
     <string name="connected">Connected</string>
     <string name="disconnected">Disconnected</string>
     <string name="drawer_open">Open menu</string>
@@ -374,7 +374,7 @@
     <string name="unselect_all">Unselect all</string>
     <string name="selected_count">%1$d selected</string>
     <string name="export_chat_history">Export chat history</string>
-    <string name="export_subject">Curax chat history</string>
+    <string name="export_subject">CuraX chat history</string>
     <string name="no_alerts_to_export">No alerts to export</string>
     <string name="help">Help</string>
     <string name="auto_lock_title">Auto-lock</string>
@@ -410,8 +410,9 @@
     <string name="unlock_title">App Locked</string>
     <string name="unlock_subtitle">Enter PIN or use fingerprint to continue</string>
     <string name="use_fingerprint">Use fingerprint</string>
+    <string name="pin_entry_fingerprint_hint">Use fingerprint if available on this device</string>
     <string name="biometric_title">Fingerprint Unlock</string>
-    <string name="biometric_subtitle">Touch sensor to unlock Curax</string>
+    <string name="biometric_subtitle">Touch sensor to unlock CuraX</string>
     <string name="biometric_not_available">Fingerprint is not available on this device.</string>
     <string name="pin_incorrect">Incorrect PIN. Try again.</string>
     <string name="pin_validation">PIN must be 4 to 8 digits.</string>
@@ -429,25 +430,47 @@
     <string name="help_section_relay_title">Desktop Relay URL</string>
     <string name="help_section_relay_body">Use this fixed URL in desktop software Server URL field:&#10;https://curax-relay.onrender.com&#10;&#10;If relay URL changes in future, update it in desktop software settings.</string>
     <string name="help_section_alerts_title">Alert Delivery (FCM First)</string>
-    <string name="help_section_alerts_body">- Curax sends alerts primarily using FCM push, even when app is closed.&#10;- Keep internet enabled on phone for delivery.&#10;- If phone screen is off, alert can still arrive as notification.&#10;- Tap any alert to open full details.&#10;- Swipe or multi-select checkboxes to delete, and use Undo if needed.</string>
+    <string name="help_section_alerts_body">- CuraX sends alerts primarily using FCM push, even when app is closed.&#10;- Keep internet enabled on phone for delivery.&#10;- If phone screen is off, alert can still arrive as notification.&#10;- Tap any alert to open full details.&#10;- Swipe or multi-select checkboxes to delete, and use Undo if needed.</string>
     <string name="help_section_security_title">PIN And Fingerprint</string>
     <string name="help_section_security_body">- Open Settings -&gt; Set PIN to secure app.&#10;- Unlock screen supports PIN and fingerprint.&#10;- If fingerprint is not enrolled, phone security settings will open.</string>
     <string name="help_section_tips_title">Reliability Checklist</string>
-    <string name="help_section_tips_body">- Open phone Settings and disable Battery Optimization for Curax.&#10;- Enable Auto-start/Background activity permission for Curax (on supported phones).&#10;- Keep lock-screen notifications allowed for Curax.&#10;- Allow mobile data and background data for Curax.&#10;- Turn off Data Saver for Curax (or allow unrestricted data).&#10;- Do not Force Stop the app from phone settings.&#10;- After reinstall or app data clear, open app and tap Connect again to register a new FCM token.&#10;- Keep Google Play Services enabled and updated.&#10;- Use Export chat history from Settings when needed.</string>
+    <string name="help_section_tips_body">- Open phone Settings and disable Battery Optimization for CuraX.&#10;- Enable Auto-start/Background activity permission for CuraX (on supported phones).&#10;- Keep lock-screen notifications allowed for CuraX.&#10;- Allow mobile data and background data for CuraX.&#10;- Turn off Data Saver for CuraX (or allow unrestricted data).&#10;- Do not Force Stop the app from phone settings.&#10;- After reinstall or app data clear, open app and tap Connect again to register a new FCM token.&#10;- Keep Google Play Services enabled and updated.&#10;- Use Export chat history from Settings when needed.</string>
     <string name="help_admin_overview_title">Health Hub admin on this phone</string>
-    <string name="help_admin_overview_body">This Curax app mode is for administrators who run a Health Hub: you invite or approve users, see hub alerts, review reports, and can open someone\'s schedule when they need help (Care mode). It is not the same as the standard patient or user home — the bottom tabs and drawer are built around roster management and oversight.</string>
+    <string name="help_admin_overview_body">This CuraX app mode is for administrators who run a Health Hub: you invite or approve users, see hub alerts, review reports, and can open someone\'s schedule when they need help (Care mode). It is not the same as the standard patient or user home — the bottom tabs and drawer are built around roster management and oversight.</string>
     <string name="help_admin_tabs_title">Bottom tabs (what to open where)</string>
     <string name="help_admin_tabs_body">• Dashboard — snapshot counts, charts, recent activity, and shortcuts into other tabs.&#10;• Users — everyone linked to your hub, their mode (default vs standalone), relay or desktop readiness, Care mode, and refresh.&#10;• Alerts — filterable list of alerts for your workspace.&#10;• Reports — exports (for example CSV or PDF) and analytics views.&#10;• Connections — pending link requests, refresh, and your invite or connection code to share so people can join your hub.</string>
     <string name="help_admin_drawer_title">Menu (☰) and relay</string>
-    <string name="help_admin_drawer_body">Open the navigation drawer from the toolbar menu for relay connection status, shortcuts, and the same roster context as the Users tab. Connect the relay when you use a desktop bridge so alerts and sync stay consistent across devices.</string>
+    <string name="help_admin_drawer_body">Open the menu (☰) for hub shortcuts and the Connection panel. Tap Connect once — Android permissions and relay auto-reconnect are saved. After that, alerts keep flowing when the app is closed (stay online; do not Force Stop CuraX).</string>
     <string name="help_admin_settings_title">Settings (toolbar ⋮)</string>
-    <string name="help_admin_settings_body">From the three-dot menu, then Settings, you can set or change PIN and auto-lock; export chat or alert history; open My app info (Bot ID, API key, FCM token for support); view My connection code (the code people enter when linking their mobile app to your hub); create a Desktop linking code (one-time code for your own Curax desktop program on a PC — see the next card); and reopen this Help.</string>
+    <string name="help_admin_settings_body">From the three-dot menu, then Settings, you can set or change PIN and auto-lock; export chat or alert history; open My app info (Bot ID, API key, FCM token for support); view My connection code (the code people enter when linking their mobile app to your hub); create a Desktop linking code (one-time code for your own CuraX desktop program on a PC — see the next card); and reopen this Help.</string>
     <string name="help_admin_desktop_title">Desktop linking code (admin only)</string>
-    <string name="help_admin_desktop_body">• One-time code links your Curax desktop (PC) to this admin login.\n• Enter it in the desktop app where it connects to your hub.\n• For your own large-screen workflow — not for inviting mobile users.\n• Patients use your invite or connection code from Connections or sign-up.\n• Codes expire quickly and work once.</string>
+    <string name="help_admin_desktop_body">• One-time code links your CuraX desktop (PC) to this admin login.\n• Enter it in the desktop app where it connects to your hub.\n• For your own large-screen workflow — not for inviting mobile users.\n• Patients use your invite or connection code from Connections or sign-up.\n• Codes expire quickly and work once.</string>
     <string name="help_admin_alerts_title">Alerts and notifications</string>
-    <string name="help_admin_alerts_body">New hub alerts are delivered with FCM push when Google Play Services and notification permission allow it, even if the app is in the background. Keep battery optimizations off for Curax for reliable delivery. Open an alert from the list or from a notification to see details; use filters and bulk actions where the Alerts screen provides them.</string>
+    <string name="help_admin_alerts_body">New hub alerts are delivered with FCM push when Google Play Services and notification permission allow it, even if the app is in the background. Keep battery optimizations off for CuraX for reliable delivery. Open an alert from the list or from a notification to see details; use filters and bulk actions where the Alerts screen provides them.</string>
     <string name="help_admin_reliability_title">Reliability checklist</string>
-    <string name="help_admin_reliability_body">- Disable battery optimization for Curax in Android settings.&#10;- Allow background data and lock-screen notifications.&#10;- After clearing app data or reinstalling, sign in again and reconnect relay if you use it.&#10;- Keep Play Services updated.&#10;- Use Export history before major changes if you need a local record.</string>
+    <string name="help_admin_reliability_body">- Disable battery optimization for CuraX in Android settings.&#10;- Allow background data and lock-screen notifications.&#10;- Do not Force Stop CuraX from phone settings.&#10;- Tap Connect once in the drawer — permissions and auto-reconnect are saved.&#10;- After clearing app data or reinstalling, sign in again and tap Connect once.&#10;- Keep Play Services updated.</string>
+    <string name="device_complete_setup">Complete setup</string>
+    <string name="device_setup_complete_toast">Setup complete — local alerts will work when the app is closed.</string>
+    <string name="reliability_caution_title">Cautions</string>
+    <string name="reliability_caution_force_stop">Do not Force Stop CuraX in Android Settings.</string>
+    <string name="reliability_caution_battery">Allow notifications and unrestricted battery / background for CuraX.</string>
+    <string name="reliability_caution_family_email">Admin email is optional; your dose reminders still work without a family email.</string>
+    <string name="help_user_default_overview_title">Smart System mode (linked to admin)</string>
+    <string name="help_user_default_overview_body">Your medicines and dose times sync from your care team. Routine reminders arrive by relay and push (FCM) when the app is closed. Tap Connect for alerts once in the menu (☰) — that grants permissions and keeps the relay linked; after that, reconnect is automatic.</string>
+    <string name="help_user_default_connect_title">Connect for alerts (once)</string>
+    <string name="help_user_default_connect_body">• Open the drawer and tap Connect for alerts.&#10;• Allow notifications, battery exemption, and background when Android asks.&#10;• Stay online — linked users need internet for sync and push.&#10;• You do not need to tap Connect every day; auto-connect restores the relay when you reopen CuraX.</string>
+    <string name="help_user_default_alerts_title">Dose reminders and missed-dose rules</string>
+    <string name="help_user_default_alerts_body">• Before and at dose time: notifications on this phone (via server/relay).&#10;• +15 min: urgent alert to you; admin may get app alert and email if family email is set.&#10;• +30 min: admin email only (no extra user popup).&#10;• Mark taken within ±30 minutes of the scheduled time on the Dose tab.</string>
+    <string name="help_user_default_reliability_title">Reliability checklist</string>
+    <string name="help_user_default_reliability_body">• Open ⋮ → Settings → Cautions for important reliability tips.&#10;• Do not Force Stop CuraX.&#10;• Disable battery optimization for CuraX.&#10;• Keep notification permission on.&#10;• If alerts stop after an update, open the app once so schedules refresh.</string>
+    <string name="help_user_standalone_overview_title">Personal Health mode (on-device alerts)</string>
+    <string name="help_user_standalone_overview_body">Medicine and plan reminders are scheduled on this phone — they work when the app is closed and do not need relay or FCM for daily dose times. Open the drawer and tap Complete setup once (notifications, battery, alarms). After that, the button hides and local schedules stay active.</string>
+    <string name="help_user_standalone_setup_title">Complete setup (once)</string>
+    <string name="help_user_standalone_setup_body">• In the drawer, tap Complete setup and allow each system prompt.&#10;• This is separate from Logout at the bottom.&#10;• Realtime (DataBus) still needs network to sync medicines from your admin; local alarms use the last cached schedule offline.</string>
+    <string name="help_user_standalone_alerts_title">Dose reminders and admin email</string>
+    <string name="help_user_standalone_alerts_body">• 30 / 15 min before, at time, and +5 min: sound and popup on this device.&#10;• +15 min: you get an alert; admin gets email only if family email is saved in Care → Settings.&#10;• +30 min: admin email only (no user popup).&#10;• Without a family email, your reminders continue — admin simply does not get email.</string>
+    <string name="help_user_standalone_reliability_title">Reliability checklist</string>
+    <string name="help_user_standalone_reliability_body">• Do not Force Stop CuraX.&#10;• Allow unrestricted battery / background for CuraX.&#10;• Complete setup once from the drawer.&#10;• After adding medicines, stay online briefly so schedules refresh.</string>
     <string name="security_priority">Your security, Our priority</string>
     <string name="my_connection_code">My connection code</string>
     <string name="my_connection_code_share_hint">Tap the copy icon to put the code on the clipboard, then paste it wherever you share with users.</string>
@@ -460,7 +483,7 @@
     <string name="invalid_connection_code">Invalid connection code</string>
     <string name="connection_code_not_available">Not available. Sign up as admin to get a connection code.</string>
     <string name="linked_to_admin_success">Linked to admin successfully</string>
-    <string name="opening_curax">Opening Curax plz wait</string>
+    <string name="opening_curax">Opening CuraX plz wait</string>
     <string name="admin_progress_signing_in">Signing in…</string>
     <string name="admin_progress_sending_code">Sending code…</string>
     <string name="admin_progress_verifying_account">Setting up your admin account…</string>
@@ -469,7 +492,7 @@
     <string name="admin_signup_otp_sent_now">Code sent to %1$s. Enter it on the next screen.</string>
     <string name="admin_signup_otp_sent_maybe_spam">If mail is configured, a code was sent to %1$s. Check spam and wait a minute before requesting again.</string>
     <string name="admin_signup_otp_dev_preview">Dev mode: your code is %1$s</string>
-    <string name="splash_processing">Opening Curax…</string>
+    <string name="splash_processing">Opening CuraX…</string>
     <string name="splash_title">CuraX Medicine System</string>
     <string name="splash_subtitle">Medicine reminders, dose tracking, and admin tools — pick your role to continue.</string>
     <string name="splash_subtitle_returning">Medicine reminders, dose tracking, and admin tools for your health hub.</string>
@@ -490,7 +513,7 @@
     <string name="admin_import_success_medicines">Imported %1$d medicines, reminders, and settings.</string>
     <string name="admin_import_success_no_medicines">You’re set. Open the Dashboard to add medicines and reminders.</string>
     <string name="admin_welcome_signed_in">Signed in. Set your PIN next, then manage users from Dashboard.</string>
-    <string name="admin_dashboard_toolbar_title">Curax · Admin</string>
+    <string name="admin_dashboard_toolbar_title">CuraX · Admin</string>
     <string name="admin_tab_overview">Dashboard</string>
     <string name="admin_tab_user_dashboard">Care dashboard</string>
     <string name="admin_tab_user_reminders">Reminders</string>
@@ -667,7 +690,7 @@
     <string name="forgot_password_title">Reset password</string>
     <string name="forgot_password_nav_back_cd">Back</string>
     <string name="forgot_password_step_email_title">Your email</string>
-    <string name="forgot_password_step_email_body">Enter the email for your Curax account. We\'ll send a code to confirm it\'s you.</string>
+    <string name="forgot_password_step_email_body">Enter the email for your CuraX account. We\'ll send a code to confirm it\'s you.</string>
     <string name="forgot_password_send_code">Send code</string>
     <string name="forgot_password_step_otp_title">Check your email</string>
     <string name="forgot_password_step_otp_body">Enter the 6-digit code we sent to %1$s.</string>
@@ -722,7 +745,7 @@
     <!-- Matches Firebase default_web_client_id for curax-bfacb; server accepts this + Android-linked client for token verify. -->
     <string name="google_web_client_id" translatable="false">428598576836-lgo255b9oqhejb3vf91tn8la5cor1lcl.apps.googleusercontent.com</string>
     <string name="social_profile_filled">We filled your name and email from your account. Choose a password and tap Sign up to continue.</string>
-    <string name="social_email_required_for_signup">We need an email from your account to create your Curax login. Allow email permission or use email sign-up.</string>
+    <string name="social_email_required_for_signup">We need an email from your account to create your CuraX login. Allow email permission or use email sign-up.</string>
     <string name="social_signup_auto_body">A secure password is filled for this email. Completing registration…</string>
     <string name="social_google_failed">Google sign-in could not finish: %1$s</string>
     <string name="social_facebook_failed">Facebook sign-in could not finish: %1$s</string>
@@ -820,7 +843,7 @@
     <string name="account_removed_by_admin">The admin has removed you from their account.</string>
     <string name="account_removed_sign_up_again">You can sign up again with a new connection code from your admin.</string>
     <string name="desktop_linking_code">Desktop linking code</string>
-    <string name="desktop_linking_code_instructions">• Same admin hub on PC as this app.\n• Tap Create code when you are at the computer.\n• Enter that code in the Curax desktop app.\n• Code expires in 5 minutes · one-time use.</string>
+    <string name="desktop_linking_code_instructions">• Same admin hub on PC as this app.\n• Tap Create code when you are at the computer.\n• Enter that code in the CuraX desktop app.\n• Code expires in 5 minutes · one-time use.</string>
     <string name="admin_desktop_link_result_simple">Your code is %1$s and will expire in %2$d minutes.</string>
     <string name="create_code">Create code</string>
     <string name="desktop_link_code_not_signed_in">Open the admin app while signed in, then try again.</string>

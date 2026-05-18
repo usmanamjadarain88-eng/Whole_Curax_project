@@ -68,7 +68,7 @@ export default function AdminSignUpScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>Curax</Text>
+      <Text style={styles.logo}>CuraX</Text>
       <Text style={styles.title}>Admin Registration</Text>
       <Text style={styles.subtext}>
         Only authenticated administrators can register. Please use your authorized email.

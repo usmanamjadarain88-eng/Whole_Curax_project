@@ -1,5 +1,5 @@
 """
-Send alert/notification email using server SIGNUP_SMTP_* (same Curax system mailbox as OTP).
+Send alert/notification email using server SIGNUP_SMTP_* (same CuraX system mailbox as OTP).
 Recipient is caller-defined (e.g. missed_dose_escalation.family_email).
 """
 from __future__ import annotations
@@ -39,7 +39,7 @@ def _smtp_settings():
         smtp_timeout = 25.0
     smtp_timeout = max(5.0, min(smtp_timeout, 120.0))
     from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
-    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
+    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "CuraX system").strip()
     reply_to = (os.environ.get("SIGNUP_EMAIL_REPLY_TO") or "").strip()
     return {
         "user": smtp_user,
@@ -61,7 +61,7 @@ def send_system_notification_email(to_addr: str, subject: str, body: str) -> boo
     to_addr = (to_addr or "").strip()
     if not _EMAIL_RE.match(to_addr):
         return False
-    subject = (subject or "Curax alert").strip()
+    subject = (subject or "CuraX alert").strip()
     body = (body or "").strip()
 
     body_html = plain_body_to_html_paragraphs(body)

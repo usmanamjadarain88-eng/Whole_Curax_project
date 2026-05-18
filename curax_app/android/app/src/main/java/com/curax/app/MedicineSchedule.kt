@@ -27,5 +27,20 @@ object MedicineSchedule {
     fun dedupeSorted(times: Collection<String>): List<String> =
         times.map { normalizeToHhMm(it) }.filter { it.isNotEmpty() }.distinct().sorted()
 
+    /** 24h "12:00" → "12:00 PM", "08:00" → "8:00 AM" (UI labels). */
+    fun formatDisplay12h(hhMm: String): String {
+        val n = normalizeToHhMm(hhMm)
+        if (n.length != 5) return hhMm.trim()
+        val h24 = n.substring(0, 2).toIntOrNull() ?: return hhMm
+        val min = n.substring(3, 5)
+        val ampm = if (h24 < 12) "AM" else "PM"
+        val h12 = when {
+            h24 == 0 -> 12
+            h24 > 12 -> h24 - 12
+            else -> h24
+        }
+        return String.format(Locale.US, "%d:%s %s", h12, min, ampm)
+    }
+
     const val MAX_SCHEDULE_SLOTS: Int = 4
 }

@@ -46,6 +46,7 @@ object ConnectRelaySetup {
         prefs.hasRequestedConnectWakePermissions = true
         promptBatteryOptimizationIfNeeded(activity)
         promptFullScreenIntentIfNeeded(activity)
+        DeviceAlertSetup.promptExactAlarmsIfNeeded(activity)
     }
 
     fun promptBatteryOptimizationIfNeeded(activity: Activity) {
@@ -74,7 +75,7 @@ object ConnectRelaySetup {
             )
             CuraxFeedback.warn(
                 activity,
-                "Enable Full-screen intent for Curax to wake screen",
+                "Enable Full-screen intent for CuraX to wake screen",
                 long = true,
             )
         } catch (_: Exception) {

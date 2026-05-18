@@ -83,14 +83,17 @@ class AlertConnectionService : Service() {
             }
             ACTION_DISCONNECT -> {
                 relayConnectedHint = false
-                lastServerUrl = null
-                lastBotId = null
-                lastApiKey = null
                 cancelReconnect()
                 disconnect()
                 releaseWakeLock()
                 unregisterScreenOnReceiver()
                 stopForeground(STOP_FOREGROUND_REMOVE)
+                // Keep credentials when auto-connect is on so reopen / RECONNECT can restore relay.
+                if (!Prefs(this).relayAutoConnectEnabled) {
+                    lastServerUrl = null
+                    lastBotId = null
+                    lastApiKey = null
+                }
                 stopSelf()
             }
             ACTION_RECONNECT_NOW -> {
@@ -296,7 +299,7 @@ class AlertConnectionService : Service() {
     private fun acquireWakeLock() {
         if (wakeLock?.isHeld == true) return
         val pm = getSystemService(POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Curax:AlertConnectionWakeLock").apply {
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CuraX:AlertConnectionWakeLock").apply {
             setReferenceCounted(false)
             acquire()
         }
@@ -312,7 +315,7 @@ class AlertConnectionService : Service() {
 
     private fun createNotification(connected: Boolean): Notification {
         createChannel()
-        val title = if (connected) "Curax - Linked" else "Curax - FCM active"
+        val title = if (connected) "CuraX - Linked" else "CuraX - FCM active"
         val intent = Intent(this, LaunchActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP }
         val pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -338,7 +341,7 @@ class AlertConnectionService : Service() {
             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             // Remove only the old legacy status channel; don't delete the active foreground channel.
             nm.deleteNotificationChannel("curax_alerts")
-            val ch = NotificationChannel(CHANNEL_ID, "Curax Status", NotificationManager.IMPORTANCE_MIN).apply {
+            val ch = NotificationChannel(CHANNEL_ID, "CuraX Status", NotificationManager.IMPORTANCE_MIN).apply {
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_SECRET
             }

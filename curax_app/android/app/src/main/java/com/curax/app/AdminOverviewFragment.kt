@@ -810,7 +810,10 @@ class AdminOverviewFragment : Fragment() {
 
         var singleTime = MedicineSchedule.normalizeToHhMm(existing?.exactTime ?: "08:00").ifEmpty { "08:00" }
         fun refreshSingleTimeLabel() {
-            tvSingle.text = getString(R.string.medicine_form_time_value, singleTime)
+            tvSingle.text = getString(
+                R.string.medicine_form_time_value,
+                MedicineSchedule.formatDisplay12h(singleTime),
+            )
         }
         refreshSingleTimeLabel()
 
@@ -828,7 +831,7 @@ class AdminOverviewFragment : Fragment() {
             val t0 = MedicineSchedule.normalizeToHhMm(initial).ifEmpty { "08:00" }
             row.tag = t0
             row.findViewById<TextView>(R.id.tvTimeLabel).text =
-                getString(R.string.medicine_form_time_row_label, t0)
+                getString(R.string.medicine_form_time_row_label, MedicineSchedule.formatDisplay12h(t0))
             row.findViewById<MaterialButton>(R.id.btnEditTime).setOnClickListener {
                 val cur = (row.tag as? String) ?: t0
                 val parts = cur.split(":")
@@ -841,7 +844,7 @@ class AdminOverviewFragment : Fragment() {
                     val nt = "${picker.hour.toString().padStart(2, '0')}:${picker.minute.toString().padStart(2, '0')}"
                     row.tag = nt
                     row.findViewById<TextView>(R.id.tvTimeLabel).text =
-                        getString(R.string.medicine_form_time_row_label, nt)
+                        getString(R.string.medicine_form_time_row_label, MedicineSchedule.formatDisplay12h(nt))
                 }
                 picker.show(parentFragmentManager, "med_editor_row_$pickerTag")
             }
@@ -1041,10 +1044,7 @@ class AdminOverviewFragment : Fragment() {
                         CuraxFeedback.success(this, getString(R.string.medicine_form_updated_ok))
                     }
                 }
-                LocalAlertsController.reschedule(ctx.applicationContext)
-                if (AppRole.isUser(ctx) && !StandaloneUi.isUserStandalone(ctx)) {
-                    MissedDoseEscalationController.reschedule(ctx.applicationContext)
-                }
+                UserAlarmScheduler.rescheduleAll(ctx.applicationContext)
             }
             .create()
         dlg.setOnShowListener {
@@ -2158,8 +2158,8 @@ class AdminOverviewFragment : Fragment() {
         wv.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 val mgr = requireActivity().getSystemService(Context.PRINT_SERVICE) as PrintManager
-                val adapter = view.createPrintDocumentAdapter("CuraxAlertsReport")
-                mgr.print("Curax — Alerts report", adapter, PrintAttributes.Builder().build())
+                val adapter = view.createPrintDocumentAdapter("CuraXAlertsReport")
+                mgr.print("CuraX — Alerts report", adapter, PrintAttributes.Builder().build())
             }
         }
         wv.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
@@ -2206,10 +2206,7 @@ class AdminOverviewFragment : Fragment() {
                     view?.findViewById<TextView>(R.id.tv_standalone_summary_total)?.text = list.size.toString()
                     StandaloneOfflineMirror.persistMergedSnapshot(ctx.applicationContext)
                     view?.let { HealthHubPlanInsights.bind(it, ctx.applicationContext) }
-                    LocalAlertsController.reschedule(ctx.applicationContext)
-                if (AppRole.isUser(ctx) && !StandaloneUi.isUserStandalone(ctx)) {
-                    MissedDoseEscalationController.reschedule(ctx.applicationContext)
-                }
+                    UserAlarmScheduler.rescheduleAll(ctx.applicationContext)
                 }
             }.start()
         }

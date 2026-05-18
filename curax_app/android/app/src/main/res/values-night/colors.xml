@@ -25,6 +25,7 @@
     <color name="badge_end">#8B6531</color>
 
     <color name="connect_button_bg">#2E7A5A</color>
+    <color name="connect_button_text">#FFFFFF</color>
     <color name="delete_button">#D05B48</color>
     <color name="button_primary_bg">#2E7A5A</color>
     <color name="button_primary_text">#FFFFFF</color>

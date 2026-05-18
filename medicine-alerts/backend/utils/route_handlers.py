@@ -34,7 +34,7 @@ def _verify_google_signin_id_token(id_token_jwt: str, expected_audience: str) ->
         id_token_jwt.strip(), safe=""
     )
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "CuraxSignup/1"})
+        req = urllib.request.Request(url, headers={"User-Agent": "CuraXSignup/1"})
         with urllib.request.urlopen(req, timeout=12) as resp:
             raw = resp.read().decode()
         data = json.loads(raw)
@@ -99,7 +99,7 @@ def _verify_facebook_user_access_token(access_token: str) -> dict:
         {"input_token": token, "access_token": app_access}
     )
     try:
-        req = urllib.request.Request(dbg_url, headers={"User-Agent": "CuraxSignup/1"})
+        req = urllib.request.Request(dbg_url, headers={"User-Agent": "CuraXSignup/1"})
         with urllib.request.urlopen(req, timeout=12) as resp:
             raw = resp.read().decode()
         dbg = json.loads(raw)
@@ -114,7 +114,7 @@ def _verify_facebook_user_access_token(access_token: str) -> dict:
         {"fields": "email", "access_token": token}
     )
     try:
-        req2 = urllib.request.Request(me_url, headers={"User-Agent": "CuraxSignup/1"})
+        req2 = urllib.request.Request(me_url, headers={"User-Agent": "CuraXSignup/1"})
         with urllib.request.urlopen(req2, timeout=12) as resp2:
             raw2 = resp2.read().decode()
         me = json.loads(raw2)
@@ -242,48 +242,6 @@ def admin_mobile_sign_in_start(body, query, headers):
             out["detail"] = r["detail"]
         return (code, out)
     return (200, {k: v for k, v in r.items() if k != "ok"})
-
-
-def signup_sign_in_verify(body, query, headers):
-    """POST { email, otp } → active user session fields after sign-in email verify."""
-    data = body or {}
-    email = (data.get("email") or "").strip()
-    otp = (data.get("otp") or "").strip()
-    db = get_db()
-    if not db:
-        return (503, {"message": "Central DB not configured"})
-    try:
-        r = db.signup_sign_in_verify_otp(email, otp)
-    except Exception as e:
-        print(f"signup_sign_in_verify: {e}")
-        return (500, {"message": "database_error", "detail": str(e)[:300]})
-    if not r.get("ok"):
-        err = r.get("error") or "error"
-        code = 400
-        if err in ("signin_verify_not_configured", "database_error"):
-            code = 503
-        elif err in ("invalid_or_expired", "invalid_input"):
-            code = 401
-        elif err == "user_missing":
-            code = 404
-        out = {"message": err}
-        if r.get("detail"):
-            out["detail"] = r["detail"]
-        return (code, out)
-    phase = r.get("account_phase") or "active"
-    out = {"message": "ok", "account_phase": phase}
-    if r.get("email"):
-        out["email"] = r["email"]
-    for k in (
-        "bot_id",
-        "api_key",
-        "admin_id",
-        "admin_name",
-        "databus_access_code",
-        "connection_code",
-    ):
-        out[k] = r.get(k) or ""
-    return (200, out)
 
 
 def admin_mobile_sign_in_verify(body, query, headers):
@@ -508,10 +466,6 @@ def signup_sign_in(body, query, headers):
     out = {"message": "ok", "account_phase": phase}
     if r.get("email"):
         out["email"] = r["email"]
-    if phase == "signin_verify":
-        out["email_sent"] = bool(r.get("email_sent"))
-        if r.get("dev_otp"):
-            out["dev_otp"] = r["dev_otp"]
     if phase == "active":
         for k in (
             "bot_id",

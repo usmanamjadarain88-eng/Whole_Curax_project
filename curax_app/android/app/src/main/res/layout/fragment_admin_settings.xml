@@ -186,7 +186,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Email alerts: recipient + toggle; SMTP sender stays on Curax server / desktop -->
+        <!-- Email alerts: recipient + toggle; SMTP sender stays on CuraX server / desktop -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_gmail_section"
             android:layout_width="match_parent"

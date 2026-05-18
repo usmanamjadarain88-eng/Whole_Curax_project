@@ -62,7 +62,7 @@
             android:layout_marginTop="8dp"
             android:background="@color/summary_stroke" />
 
-        <!-- PIN first; below is standalone-only local alerts (hidden for default Curax user app). -->
+        <!-- PIN first; below is standalone-only local alerts (hidden for default CuraX user app). -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSetPin"
             style="@style/Widget.MaterialComponents.Button"
@@ -134,6 +134,19 @@
             android:layout_marginTop="10dp"
             android:text="@string/export_chat_history"
             android:textColor="@color/text_primary"
+            app:strokeColor="@color/summary_stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCautions"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/reliability_caution_title"
+            android:textColor="@color/text_primary"
+            app:icon="@drawable/ic_reliability_caution"
+            app:iconGravity="textStart"
+            app:iconPadding="10dp"
             app:strokeColor="@color/summary_stroke" />
 
         <com.google.android.material.button.MaterialButton

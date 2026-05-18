@@ -246,7 +246,17 @@ class MainActivity : AppCompatActivity() {
         if (prefs.linkedAdminId.isNotEmpty() && prefs.id.isNotEmpty()) {
             checkUserDeletedByAdmin()
         }
-        ConnectionManager.ensureRelayLiveOnAppOpen(this)
+        if (RelayAutoConnect.shouldAutoRestore(prefs)) {
+            try {
+                bindService(
+                    Intent(this, AlertConnectionService::class.java),
+                    serviceConnection,
+                    Context.BIND_AUTO_CREATE,
+                )
+            } catch (_: Exception) {
+            }
+            ConnectionManager.ensureRelayLiveOnAppOpen(this)
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -401,7 +411,7 @@ class MainActivity : AppCompatActivity() {
                         data = Uri.parse("package:$packageName")
                     }
                     startActivity(intent)
-                    CuraxFeedback.warn(this, "Enable Full-screen intent for Curax to wake screen", long = true)
+                    CuraxFeedback.warn(this, "Enable Full-screen intent for CuraX to wake screen", long = true)
                 } catch (_: Exception) {
                 }
             }
@@ -581,6 +591,13 @@ class MainActivity : AppCompatActivity() {
             )
         )
         btnConnect.text = if (connected) getString(R.string.disconnect) else getString(R.string.connect)
+        val bgRes = when {
+            connected -> R.drawable.bg_sidebar_connect_connected
+            else -> R.drawable.bg_sidebar_connect_disconnected
+        }
+        btnConnect.background = ContextCompat.getDrawable(this, bgRes)
+        btnConnect.backgroundTintList = null
+        btnConnect.setTextColor(ContextCompat.getColor(this, R.color.connect_button_text))
         if (connected) prefs.hasEverConnected = true
     }
 

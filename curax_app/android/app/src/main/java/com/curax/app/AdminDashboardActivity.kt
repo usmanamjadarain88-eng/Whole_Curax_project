@@ -204,7 +204,6 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
 
         fetchSidebarHealthOverview(force = true)
-
         btnAdminConnect.setOnClickListener {
             if (connectionService?.isConnected() == true) {
                 disconnectService()
@@ -226,12 +225,21 @@ class AdminDashboardActivity : AppCompatActivity() {
 
     private fun applySidebarLocalStats() {
         if (!this::tvSidebarStatRelay.isInitialized) return
-        val relayOn = connectionService?.isConnected() == true
-        tvSidebarStatRelay.text = if (relayOn) getString(R.string.admin_hub_relay_on) else getString(R.string.admin_hub_relay_off)
+        val relayOn = RelayAutoConnect.isRelayLive(this, connectionService)
+        val relayRestoring = RelayAutoConnect.shouldAutoRestore(prefs) && !relayOn
+        tvSidebarStatRelay.text = when {
+            relayOn -> getString(R.string.admin_hub_relay_on)
+            relayRestoring -> getString(R.string.connecting)
+            else -> getString(R.string.admin_hub_relay_off)
+        }
         tvSidebarStatRelay.setTextColor(
             ContextCompat.getColor(
                 this,
-                if (relayOn) android.R.color.holo_green_dark else android.R.color.holo_red_dark,
+                when {
+                    relayOn -> android.R.color.holo_green_dark
+                    relayRestoring -> android.R.color.holo_orange_dark
+                    else -> android.R.color.holo_red_dark
+                },
             ),
         )
         tvSidebarStatAlerts.text = AdminDemoData.totalAdminAlertsVisibleCount(
@@ -298,7 +306,33 @@ class AdminDashboardActivity : AppCompatActivity() {
         updateReturnToAdminBar()
         applySidebarLocalStats()
         fetchAdminSnapshotFromServer()
-        ConnectionManager.ensureRelayLiveOnAppOpen(this)
+        restoreRelayOnHomeOpen()
+    }
+
+    private fun restoreRelayOnHomeOpen() {
+        RelayAutoConnect.restoreOnAppOpen(
+            activity = this,
+            prefs = prefs,
+            connectionService = connectionService,
+            serviceConnection = serviceConnection,
+            onConnecting = {
+                tvAdminConnectionStatus.text = getString(R.string.connecting)
+                tvAdminConnectionStatus.setTextColor(
+                    ContextCompat.getColor(this, android.R.color.holo_orange_dark),
+                )
+            },
+            onConnected = { updateConnectionUi(it) },
+        )
+        if (RelayAutoConnect.shouldAutoRestore(prefs) &&
+            !RelayAutoConnect.isRelayLive(this, connectionService)
+        ) {
+            val id = prefs.id.trim()
+            val apiKey = prefs.apiKey.trim()
+            if (id.isNotEmpty() && apiKey.isNotEmpty()) {
+                connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+            }
+        }
+        applySidebarLocalStats()
     }
 
     override fun onRequestPermissionsResult(
@@ -654,7 +688,8 @@ class AdminDashboardActivity : AppCompatActivity() {
                     val vp = viewPager
                     val n = vp?.adapter?.itemCount ?: 0
                     if (n > 0) vp?.setCurrentItem(n - 1, true)
-                } else {
+                }
+                else {
                     startActivity(Intent(this, SettingsActivity::class.java))
                 }
                 true
@@ -685,7 +720,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                         data = Uri.parse("package:$packageName")
                     }
                     startActivity(intent)
-                    CuraxFeedback.warn(this, "Enable Full-screen intent for Curax to wake screen", long = true)
+                    CuraxFeedback.warn(this, "Enable Full-screen intent for CuraX to wake screen", long = true)
                 } catch (_: Exception) {
                 }
             }

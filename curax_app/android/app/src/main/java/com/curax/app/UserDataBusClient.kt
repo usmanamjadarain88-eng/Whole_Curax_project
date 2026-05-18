@@ -608,7 +608,7 @@ object UserDataBusClient {
         } else {
             DoseTrackingLocalStore.mergeFromPayloadArray(ctx, doseLogsFromServer)
         }
-        AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
+        AdminDemoData.applyApiAlertsFromSync(ctx, data.optJSONArray("alerts"))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
         if (AppRole.isUser(ctx) && !StandaloneUi.isUserStandalone(ctx)) {

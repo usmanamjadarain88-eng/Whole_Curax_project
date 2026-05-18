@@ -39,6 +39,7 @@ object UserLogoutHelper {
         prefs.cachedUserDataSnapshotJson = ""
         prefs.hasEverConnected = false
         prefs.relayAutoConnectEnabled = false
+        prefs.standaloneDeviceSetupCompleted = false
         prefs.userProfilePictureDataUrl = ""
         prefs.esp32CachedDevicePin = ""
         LocalAlertsController.cancelAll(app)

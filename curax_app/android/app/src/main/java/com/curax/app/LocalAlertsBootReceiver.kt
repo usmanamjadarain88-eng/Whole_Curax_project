@@ -4,12 +4,19 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-/** Re-applies standalone local alarm schedules after reboot. */
+/**
+ * After reboot or app update: restore cached data, re-register user alarms, reconnect relay.
+ */
 class LocalAlertsBootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
-        val app = context.applicationContext
-        if (!StandaloneUi.isUserStandalone(app)) return
-        LocalAlertsController.reschedule(app)
+        when (intent?.action) {
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            "android.intent.action.QUICKBOOT_POWERON",
+            "com.htc.intent.action.QUICKBOOT_POWERON",
+            -> Unit
+            else -> return
+        }
+        MobileReliabilityCoordinator.onDeviceWake(context.applicationContext)
     }
 }

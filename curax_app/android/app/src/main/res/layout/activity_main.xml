@@ -220,7 +220,7 @@
                             android:paddingBottom="8dp"
                             android:text="@string/connect"
                             android:textAllCaps="false"
-                            android:textColor="@android:color/white"
+                            android:textColor="@color/connect_button_text"
                             app:backgroundTint="@color/connect_button_bg"
                             app:cornerRadius="18dp" />
                     </LinearLayout>

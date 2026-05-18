@@ -30,7 +30,7 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     Use *your* mailbox to send (Gmail + app password is typical):
       SIGNUP_SMTP_USER, SIGNUP_SMTP_PASSWORD — login for SMTP (your email + app password).
 
-    Recipients see the friendly sender name (default **Curax system**), not your personal
+    Recipients see the friendly sender name (default **CuraX system**), not your personal
     address as the headline — From display name is SIGNUP_EMAIL_FROM_NAME; the technical
     From address still defaults to SIGNUP_SMTP_USER (required by Gmail SMTP).
 
@@ -63,7 +63,7 @@ def _send_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
         smtp_timeout = 25.0
     smtp_timeout = max(5.0, min(smtp_timeout, 120.0))
     from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
-    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
+    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "CuraX system").strip()
     subject = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT") or "Verification code").strip()
     subj_prefix = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT_PREFIX") or "").strip()
     if subj_prefix:
@@ -170,7 +170,7 @@ def _send_admin_mobile_otp_email(to_addr: str, otp_plain: str, admin_name: str =
         smtp_timeout = 25.0
     smtp_timeout = max(5.0, min(smtp_timeout, 120.0))
     from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
-    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
+    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "CuraX system").strip()
     subject = (os.environ.get("ADMIN_MOBILE_OTP_EMAIL_SUBJECT") or "Verify admin sign-in").strip()
     subj_prefix = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT_PREFIX") or "").strip()
     if subj_prefix:
@@ -187,7 +187,7 @@ def _send_admin_mobile_otp_email(to_addr: str, otp_plain: str, admin_name: str =
     who = (admin_name or "").strip()
     who_line = f" ({who})" if who else ""
     text_body = (
-        f"You are trying to sign in to the Curax admin mobile app{who_line}.\n\n"
+        f"You are trying to sign in to the CuraX admin mobile app{who_line}.\n\n"
         f"Your verification code is: {otp_plain}. This code expires in 15 minutes.\n"
         "If you did not try to sign in as an administrator, ignore this email and "
         "consider changing your desktop admin password under Settings.\n\n"
@@ -196,7 +196,7 @@ def _send_admin_mobile_otp_email(to_addr: str, otp_plain: str, admin_name: str =
     sent_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     headline = "Administrator sign-in"
     subhead = (
-        "Someone entered your admin email and password in the <strong>Curax admin</strong> "
+        "Someone entered your admin email and password in the <strong>CuraX admin</strong> "
         "mobile app. Use the code below only if this was you. Code expires in "
         '<strong style="color:#374151;">15 minutes</strong>.'
     )
@@ -281,7 +281,7 @@ def _send_admin_email_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
         smtp_timeout = 25.0
     smtp_timeout = max(5.0, min(smtp_timeout, 120.0))
     from_addr = (os.environ.get("SIGNUP_EMAIL_FROM") or smtp_user).strip()
-    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "Curax system").strip()
+    from_name = (os.environ.get("SIGNUP_EMAIL_FROM_NAME") or "CuraX system").strip()
     subject = (os.environ.get("ADMIN_EMAIL_SIGNUP_OTP_SUBJECT") or "Confirm administrator account").strip()
     subj_prefix = (os.environ.get("SIGNUP_OTP_EMAIL_SUBJECT_PREFIX") or "").strip()
     if subj_prefix:
@@ -296,7 +296,7 @@ def _send_admin_email_signup_otp_email(to_addr: str, otp_plain: str) -> bool:
     otp_esc = html_mod.escape((otp_plain or "").strip())
     name_esc = html_mod.escape(from_name)
     text_body = (
-        "You are registering a new Curax administrator account on mobile.\n\n"
+        "You are registering a new CuraX administrator account on mobile.\n\n"
         f"Your verification code is: {otp_plain}. This code expires in 15 minutes.\n"
         "If you did not start this registration, ignore this email.\n\n"
         f"— {from_name}\n"
@@ -4055,7 +4055,8 @@ class CentralDB:
     def signup_sign_in(self, email, password):
         """POST email+password: pending signup session, or active user row (bot credentials).
 
-        Returns dict with ok=True and account_phase in pending_email | pending_admin | active,
+        Returns dict with ok=True and account_phase in pending_email | pending_admin | active
+        (active includes bot_id, api_key, admin fields),
         or ok=False with error invalid_email | password_too_short | invalid_password |
         unknown_email | password_not_set | invalid_state.
         """
@@ -4166,20 +4167,11 @@ class CentralDB:
         if st in ("PENDING_EMAIL", "PENDING_ADMIN", "PENDING"):
             return {"ok": False, "error": "account_incomplete", "account_status": st}
 
-        user_id = str(urow.get("id") or "").strip()
-        if not user_id:
-            return {"ok": False, "error": "database_error"}
-        otp_out = self._issue_signin_verify_otp(email_n, user_id)
-        if not otp_out.get("ok"):
-            return otp_out
-        out = {
-            "ok": True,
-            "account_phase": "signin_verify",
-            "email_sent": bool(otp_out.get("email_sent")),
-        }
-        if otp_out.get("dev_otp"):
-            out["dev_otp"] = otp_out["dev_otp"]
-        return out
+        payload = self._active_user_signin_payload(email_n)
+        if not payload.get("ok"):
+            return payload
+        payload["account_phase"] = "active"
+        return payload
 
     def signup_sign_in_oauth_email(self, verified_email: str):
         """Same outcomes as [signup_sign_in] but identity is already proved by Google/Facebook server-side."""

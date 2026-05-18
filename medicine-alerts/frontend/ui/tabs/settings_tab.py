@@ -1032,7 +1032,7 @@ class SettingsTab(QWidget):
         dlg.setModal(True)
         lo = QVBoxLayout(dlg)
         info = QLabel(
-            "Enter 4–8 digits. This PIN is stored only on this computer — it is not your Curax mobile app PIN and is not uploaded to the server."
+            "Enter 4–8 digits. This PIN is stored only on this computer — it is not your CuraX mobile app PIN and is not uploaded to the server."
         )
         info.setWordWrap(True)
         info.setStyleSheet(f"color: {TEXT_SECONDARY};")

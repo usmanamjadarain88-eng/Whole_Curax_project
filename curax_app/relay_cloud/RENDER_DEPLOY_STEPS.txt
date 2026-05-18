@@ -23,7 +23,7 @@ OPTION A - New GitHub repo with only the relay (simplest)
 3. Run:
    git init
    git add server.py requirements.txt Procfile
-   git commit -m "Curax cloud relay"
+   git commit -m "CuraX cloud relay"
    git branch -M main
    git remote add origin https://github.com/YOUR_USERNAME/curax-relay.git
    git push -u origin main

@@ -308,7 +308,7 @@ object AdminDataBusClient {
             list.add(m)
         }
         AdminDemoData.replaceMedicines(context, AdminDemoData.fromApiMedicines(list))
-        AdminDemoData.replaceApiAlerts(AdminDemoData.fromApiAlerts(data.optJSONArray("alerts")))
+        AdminDemoData.applyApiAlertsFromSync(context, data.optJSONArray("alerts"))
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
         val actAs = prefs.actAsUserId.trim()

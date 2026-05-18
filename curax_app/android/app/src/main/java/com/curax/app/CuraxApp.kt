@@ -63,6 +63,8 @@ class CuraxApp : Application() {
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
         })
 
+        Thread { MobileReliabilityCoordinator.onAppStart(this) }.start()
+
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
                 Log.w("CuraxApp", "FCM token failed", task.exception)

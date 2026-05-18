@@ -1,5 +1,5 @@
 -- =============================================================================
--- Central DB schema (PostgreSQL) — single source of truth for Curax / medicine-alerts.
+-- Central DB schema (PostgreSQL) — single source of truth for CuraX / medicine-alerts.
 -- Safe to re-run on an existing database (uses IF NOT EXISTS / idempotent ALTERs).
 --
 --   psql "$DATABASE_URL" -f central_schema.sql
@@ -124,7 +124,7 @@ COMMENT ON COLUMN users.password_reset_otp_expires_at IS
 COMMENT ON COLUMN users.username IS
     'Display handle from signup: trimmed first_name + last_name; filled at link-admin.';
 COMMENT ON COLUMN users.user_display_mode IS
-    'Curax user app mode: default or standalone; optional.';
+    'CuraX user app mode: default or standalone; optional.';
 
 DO $$
 BEGIN

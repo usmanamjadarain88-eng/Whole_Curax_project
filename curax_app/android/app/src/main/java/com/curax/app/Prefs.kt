@@ -79,6 +79,11 @@ class Prefs(context: Context) {
         get() = prefs.getBoolean(KEY_RELAY_AUTO_CONNECT_ENABLED, false)
         set(value) = prefs.edit().putBoolean(KEY_RELAY_AUTO_CONNECT_ENABLED, value).apply()
 
+    /** Personal Health (standalone): sidebar Complete setup finished once. */
+    var standaloneDeviceSetupCompleted: Boolean
+        get() = prefs.getBoolean(KEY_STANDALONE_DEVICE_SETUP_COMPLETED, false)
+        set(value) = prefs.edit().putBoolean(KEY_STANDALONE_DEVICE_SETUP_COMPLETED, value).apply()
+
     /** Base URL for API (get-role, connect-to-admin). Uses default when not set. */
     var centralApiUrl: String
         get() = prefs.getString(KEY_CENTRAL_API_URL, "")?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_CENTRAL_API_URL
@@ -572,6 +577,7 @@ class Prefs(context: Context) {
         private const val KEY_STANDALONE_LOCAL_ALERT_VIBRATE = "standalone_local_alert_vibrate"
         private const val KEY_STANDALONE_LOCAL_ALERT_SNOOZE_MIN = "standalone_local_alert_snooze_min"
         private const val KEY_HAS_REQUESTED_CONNECT_WAKE_PERMISSIONS = "has_requested_connect_wake_permissions"
+        private const val KEY_STANDALONE_DEVICE_SETUP_COMPLETED = "standalone_device_setup_completed"
         private const val KEY_ESP32_BLE_ADDR = "esp32_ble_device_address"
         private const val KEY_ESP32_BLE_NAME = "esp32_ble_device_name"
         private const val KEY_ESP32_CACHED_PIN = "esp32_cached_device_pin"

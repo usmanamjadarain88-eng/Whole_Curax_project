@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
@@ -206,6 +205,9 @@ object MissedDoseEscalationController {
         val cal = Calendar.getInstance(TimeZone.getDefault()).apply {
             add(Calendar.DAY_OF_YEAR, dayOffset)
         }
-        return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+        val y = cal.get(Calendar.YEAR)
+        val mo = cal.get(Calendar.MONTH) + 1
+        val d = cal.get(Calendar.DAY_OF_MONTH)
+        return String.format(Locale.US, "%04d%02d%02d", y, mo, d)
     }
 }

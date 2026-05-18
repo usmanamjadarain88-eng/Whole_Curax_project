@@ -123,6 +123,42 @@ object AdminDemoData {
         apiAlertsStore.addAll(items)
     }
 
+    /** On-device medicine / stock / plan reminders fired by [LocalAlertsController]. */
+    fun isDeviceLocalStandaloneAlertType(type: String): Boolean {
+        val t = type.trim().lowercase()
+        return t.startsWith("medicine_") ||
+            t.startsWith("missed_dose") ||
+            t.startsWith("stock_") ||
+            t.startsWith("expiry_") ||
+            t == "reminder" ||
+            t.startsWith("plan_")
+    }
+
+    /**
+     * Standalone: keep device-local alert rows when cloud GET /user/data has none or only server rows.
+     * User deletes only via Alerts tab multi-select delete.
+     */
+    fun mergeApiAlertsForStandalone(incoming: List<AlertItem>) {
+        if (incoming.isEmpty()) return
+        val preserved = apiAlertsStore.filter { isDeviceLocalStandaloneAlertType(it.type) }
+        val merged = (incoming + preserved)
+            .distinctBy { it.id }
+            .sortedByDescending { it.receivedAt }
+            .take(MAX_STANDALONE_LOCAL_ALERT_ROWS)
+        replaceApiAlerts(merged)
+    }
+
+    fun applyApiAlertsFromSync(context: Context, alertsJson: org.json.JSONArray?) {
+        val incoming = fromApiAlerts(alertsJson)
+        val app = context.applicationContext
+        if (StandaloneUi.isUserStandalone(app) && AppRole.isUser(app)) {
+            if (incoming.isEmpty()) return
+            mergeApiAlertsForStandalone(incoming)
+        } else {
+            replaceApiAlerts(incoming)
+        }
+    }
+
     fun removeApiAlertsByIds(ids: Set<Long>): Int {
         if (ids.isEmpty()) return 0
         val before = apiAlertsStore.size
@@ -141,8 +177,13 @@ object AdminDemoData {
             val createdAt = o.optString("created_at", "")
             val receivedAt = parseIsoToMillis(createdAt)
             val userName = o.optString("user_name", "").trim().ifEmpty { "User" }
-            val idStr = o.optString("id", "") + type + message + createdAt
-            val id = (-idStr.hashCode().toLong()).let { if (it >= 0) -it - 1 else it }
+            val id = when {
+                o.has("local_id") && !o.isNull("local_id") -> o.getLong("local_id")
+                else -> {
+                    val idStr = o.optString("id", "") + type + message + createdAt
+                    (-idStr.hashCode().toLong()).let { if (it >= 0) -it - 1 else it }
+                }
+            }
             list.add(AlertItem(id = id, type = type, message = message, receivedAt = receivedAt, userName = userName))
         }
         return list
@@ -254,7 +295,8 @@ object AdminDemoData {
 
         fun usesMultipleTimesPerDay(): Boolean = effectiveScheduleTimes().size > 1
 
-        fun displayScheduleLabel(): String = effectiveScheduleTimes().joinToString(" · ")
+        fun displayScheduleLabel(): String =
+            effectiveScheduleTimes().joinToString(" · ") { MedicineSchedule.formatDisplay12h(it) }
 
         /** Units (tablets) taken on one successful mark for the active scheduled time. */
         fun dosePerAdministration(): Int = dosePerDay.coerceAtLeast(1)
@@ -358,7 +400,7 @@ object AdminDemoData {
                 AlertItem(-9_000_000_000_002L, "dose_missed", "Missed dose reminder: Amoxil from box B2", now - day / 2, "You"),
                 AlertItem(-9_000_000_000_003L, "refill_reminder", "Refill soon: Vitamin D from box B3", now - day, "You"),
                 AlertItem(-9_000_000_000_004L, "dose_taken", "Dose marked taken: Metformin from box A1", now - day - hour * 3, "You"),
-                AlertItem(-9_000_000_000_005L, "sync", "Sync completed with desktop Curax", now - day * 2, "System"),
+                AlertItem(-9_000_000_000_005L, "sync", "Sync completed with desktop CuraX", now - day * 2, "System"),
                 AlertItem(-9_000_000_000_006L, "dose_missed", "Missed dose reminder: Ibuprofen from box B4", now - day * 2 - hour * 5, "You"),
             ),
         )
@@ -488,7 +530,7 @@ object AdminDemoData {
             "- ${it.name} | stock ${it.stock} | daily total ${it.totalDoseUnitsPerDay()} units | each time ${it.dosePerAdministration()} | times ${it.displayScheduleLabel()} | ${it.status} | ${it.box}"
         }
         return """
-            Curax Admin Report
+            CuraX Admin Report
 
             KPI
             - Total Medicines: ${totalMedicines()}

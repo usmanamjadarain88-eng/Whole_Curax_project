@@ -49,7 +49,7 @@ export default function SignUpScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.content}>
-        <Text style={styles.logo}>Curax</Text>
+        <Text style={styles.logo}>CuraX</Text>
 
         <TextInput
           style={styles.input}

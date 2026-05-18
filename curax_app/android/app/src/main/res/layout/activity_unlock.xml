@@ -25,7 +25,7 @@
             <ImageView
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:contentDescription="Curax logo"
+                android:contentDescription="CuraX logo"
                 android:scaleType="fitCenter"
                 android:src="@drawable/curax_logo" />
 
@@ -33,7 +33,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="10dp"
-                android:text="Curax"
+                android:text="CuraX"
                 android:textColor="@color/toolbar_start"
                 android:textSize="26sp"
                 android:textStyle="bold"

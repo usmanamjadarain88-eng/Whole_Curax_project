@@ -1,5 +1,5 @@
 """
-Shared HTML shell for outbound Curax emails (transactional OTP + scheduler alerts).
+Shared HTML shell for outbound CuraX emails (transactional OTP + scheduler alerts).
 Table-based layout for Gmail / mobile clients; gradient header with pill + brand title.
 """
 from __future__ import annotations
