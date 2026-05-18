@@ -49,7 +49,7 @@ SIMPLE = [
     ("user_display_mode", {"POST": "user_post_display_mode"}),
     ("user_profile_picture", {"POST": "user_post_profile_picture"}),
     ("user_standalone_sync", {"POST": "user_standalone_sync"}),
-    ("user_missed_dose_escalate", {"POST": "user_missed_dose_escalate"}),
+    ("user_missed_dose_escalate", {"GET": "user_missed_dose_escalate_get", "POST": "user_missed_dose_escalate"}),
     ("user_databus_room", {"GET": "user_databus_room"}),
     ("user_plans", {"GET": "user_plans_get", "POST": "user_plans_post", "PATCH": "user_plans_patch", "DELETE": "user_plans_delete"}),
     ("admin_sync", {"POST": "admin_sync"}),

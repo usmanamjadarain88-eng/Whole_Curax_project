@@ -48,6 +48,7 @@ _STATIC: List[Tuple[str, str, str]] = [
     ("POST", "/user/display-mode", "user_post_display_mode"),
     ("POST", "/user/profile-picture", "user_post_profile_picture"),
     ("POST", "/user/standalone-sync", "user_standalone_sync"),
+    ("GET", "/user/missed-dose-escalate", "user_missed_dose_escalate_get"),
     ("POST", "/user/missed-dose-escalate", "user_missed_dose_escalate"),
     ("GET", "/user/databus-room", "user_databus_room"),
     ("GET", "/user/plans", "user_plans_get"),
@@ -150,6 +151,7 @@ _NAME_TO_FN = {
     "user_post_profile_picture": rh.user_post_profile_picture,
     "user_standalone_sync": rh.user_standalone_sync,
     "user_missed_dose_escalate": rh.user_missed_dose_escalate,
+    "user_missed_dose_escalate_get": rh.user_missed_dose_escalate_get,
     "verify_credentials": rh.verify_credentials,
 }
 

@@ -1502,6 +1502,22 @@ def user_standalone_sync(body, query, headers):
     return (200, {"ok": True})
 
 
+def user_missed_dose_escalate_get(body, query, headers):
+    """GET — health/docs only; escalation is triggered via POST from the user app."""
+    return (
+        200,
+        {
+            "ok": True,
+            "endpoint": "/user/missed-dose-escalate",
+            "method": "POST",
+            "message": "Use POST (not GET). Called by the user app at +15 / +30 min after a scheduled dose.",
+            "required": ["bot_id", "api_key", "phase", "box_id"],
+            "phase": "15 (urgent) or 30 (missed)",
+            "optional": ["medicine_name", "schedule_time", "dose_date"],
+        },
+    )
+
+
 def user_missed_dose_escalate(body, query, headers):
     """POST { bot_id, api_key, phase: 15|30, box_id, medicine_name?, schedule_time?, dose_date? }
     Instant missed-dose escalation from user device (no cron delay)."""

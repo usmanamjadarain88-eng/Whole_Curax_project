@@ -1,4 +1,4 @@
 from utils.vercel_adapter import make_handler
-from utils.route_handlers import user_missed_dose_escalate
+from utils.route_handlers import user_missed_dose_escalate, user_missed_dose_escalate_get
 
-handler = make_handler(post_fn=user_missed_dose_escalate)
+handler = make_handler(get_fn=user_missed_dose_escalate_get, post_fn=user_missed_dose_escalate)
