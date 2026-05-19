@@ -5,8 +5,6 @@ import android.app.Application
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
-import com.google.firebase.messaging.FirebaseMessaging
-
 class CuraxApp : Application() {
 
     private var startedActivities = 0
@@ -64,16 +62,6 @@ class CuraxApp : Application() {
         })
 
         Thread { MobileReliabilityCoordinator.onAppStart(this) }.start()
-
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
-                Log.w("CuraxApp", "FCM token failed", task.exception)
-                return@addOnCompleteListener
-            }
-            val token = task.result ?: return@addOnCompleteListener
-            Prefs(this).fcmToken = token
-            Log.d("CuraxApp", "FCM token saved")
-        }
     }
 }
 

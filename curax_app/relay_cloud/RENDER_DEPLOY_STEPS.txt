@@ -2,6 +2,12 @@
 RENDER DEPLOY - STEP BY STEP (use this folder: relay_cloud)
 ================================================================================
 
+WHAT THIS SERVICE IS:
+  WebSocket-only alert relay (like a socket). No FCM, no Firebase env vars.
+  - Phone app keeps wss open with { "bot_id", "api_key" }.
+  - Backend sends { "action":"alert", "bot_id", "api_key", "type", "message" }.
+  - Relay forwards to that phone → popup in admin/user app.
+
 FOLDER TO USE:  curax_app\relay_cloud
 FILES IN IT (all 3 are needed):
   - server.py
@@ -47,8 +53,36 @@ OPTION A - New GitHub repo with only the relay (simplest)
    (or whatever name you gave; it appears at the top of the service page.)
 
 6. Use that URL in:
-   - Android app: Server URL field
-   - Desktop app: Mobile Alert Bot → Server URL
+   - Android app: Server URL field (e.g. wss://curax-relay.onrender.com)
+   - Backend Vercel env: RELAY_URL=wss://curax-relay.onrender.com
+
+--------------------------------------------------------------------------------
+AUTO-DEPLOY AFTER YOU CHANGE server.py / requirements.txt / Procfile
+--------------------------------------------------------------------------------
+
+On Render (recommended):
+  1. Dashboard → your Web Service (curax-relay) → Settings.
+  2. Build & Deploy → Auto-Deploy: ON.
+  3. Branch: main (or your default branch).
+  4. Every git push to that branch rebuilds and redeploys automatically.
+
+Workflow when you edit files in C:\Work\curax_app\relay_cloud:
+  A) If Render is connected to a repo that contains ONLY relay_cloud (Option A):
+     - Copy updated server.py, requirements.txt, Procfile into that repo folder.
+     - git add -A && git commit -m "relay update" && git push
+     - Render deploys in ~2–5 minutes (watch Logs tab).
+
+  B) If Render uses the big monorepo (Option B):
+     - Commit from repo root; Root Directory stays curax_app/relay_cloud.
+     - git push → Render auto-deploys only that subfolder.
+
+No Firebase env vars needed. Only:
+  - Build Command:  pip install -r requirements.txt
+  - Start Command:  python server.py   (or Procfile: web: python server.py)
+
+Test after deploy:
+  - Browser: https://YOUR-SERVICE.onrender.com/status  → {"relay":"ok","delivery":"websocket"}
+  - Phone app Connect once with Bot ID + API Key → relay Logs show "linked …"
 
 --------------------------------------------------------------------------------
 OPTION B - You already have the full project on GitHub

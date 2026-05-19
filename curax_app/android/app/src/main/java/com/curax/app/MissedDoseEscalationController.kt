@@ -71,11 +71,11 @@ object MissedDoseEscalationController {
         statePrefs(context.applicationContext).edit().remove("p_$alarmId").apply()
     }
 
-    /** No-op unless user is linked and in default (non-standalone) display mode. */
+    /** Legacy +15/+30-only scheduler; superseded by [LocalAlertsController] when [LocalAlertsUi] applies. */
     fun reschedule(context: Context) {
         val app = context.applicationContext
         if (!AppRole.isUser(app)) return
-        if (StandaloneUi.isUserStandalone(app)) return
+        if (LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) return
         val prefs = Prefs(app)
         if (prefs.id.trim().isEmpty() || prefs.apiKey.trim().isEmpty()) return
 

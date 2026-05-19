@@ -21,7 +21,8 @@ import java.util.TimeZone
  * Medicines use System View [AdminDemoData.getAlertSettings] medicine + missed toggles.
  * Health Hub plans use optional 30 / 15 min before + exact ([plan_alerts] in Settings → System).
  * Primary on-device scheduler for medicine times, plans, medical reminders, and stock/expiry scans
- * for standalone users. Does not use FCM or the data bus — routine reminders are not duplicated via cloud push.
+ * for standalone and default-mode linked users ([LocalAlertsUi]). Relay is separate (admin channel).
+ * for routine dose reminders.
  *
  * When each alarm fires, [LocalAlertReceiver] posts the notification + in-app alert — that is the intended
  * time-based “popup” experience for dose reminders and missed-dose escalation phases.
@@ -101,10 +102,10 @@ object LocalAlertsController {
         sp.edit().putString(KEY_IDS, "[]").apply()
     }
 
-    /** Reschedule from current in-memory + local plan cache. No-op if not standalone user. */
+    /** Reschedule from cached medicines / plans. No-op when user is not on local-alarm mode. */
     fun reschedule(context: Context) {
         val app = context.applicationContext
-        if (!StandaloneUi.isUserStandalone(app)) {
+        if (!LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) {
             cancelAll(app)
             return
         }
@@ -190,6 +191,12 @@ object LocalAlertsController {
             slotTag: String,
         ) {
             val tag = slotTag.replace(Regex("[^A-Za-z0-9]"), "").ifEmpty { "t" }
+            fun medFields(): JSONObject.() -> Unit = {
+                put("box_id", box)
+                put("medicine_name", name)
+                put("schedule_time", hms.take(5))
+                put("dose_date", dayKey)
+            }
             if (med30) {
                 scheduleIfOk(
                     "med_${box}_${dayKey}_${tag}_pre30",
@@ -198,6 +205,7 @@ object LocalAlertsController {
                         put("type", "medicine_pre_30")
                         put("title", app.getString(R.string.local_alert_med_title))
                         put("message", medLabel(app.getString(R.string.local_alert_phase_30_before), name, box, hms))
+                        medFields().invoke(this)
                     },
                 )
             }
@@ -209,6 +217,7 @@ object LocalAlertsController {
                         put("type", "medicine_pre_15")
                         put("title", app.getString(R.string.local_alert_med_title))
                         put("message", medLabel(app.getString(R.string.local_alert_phase_15_before), name, box, hms))
+                        medFields().invoke(this)
                     },
                 )
             }
@@ -220,8 +229,15 @@ object LocalAlertsController {
                         put("type", "medicine_time")
                         put("title", app.getString(R.string.local_alert_med_title))
                         put("message", medLabel(app.getString(R.string.local_alert_phase_exact), name, box, hms))
+                        medFields().invoke(this)
                     },
                 )
+            }
+            fun escalationFields(hmsDisplay: String, day: String): JSONObject.() -> Unit = {
+                put("box_id", box)
+                put("medicine_name", name)
+                put("schedule_time", hmsDisplay.take(5))
+                put("dose_date", day)
             }
             if (missed5) {
                 scheduleIfOk(
@@ -231,14 +247,9 @@ object LocalAlertsController {
                         put("type", "missed_dose_5")
                         put("title", app.getString(R.string.local_alert_missed_title))
                         put("message", medLabel(app.getString(R.string.local_alert_phase_5_after), name, box, hms))
+                        escalationFields(hms, dayKey).invoke(this)
                     },
                 )
-            }
-            fun escalationFields(hmsDisplay: String, day: String): JSONObject.() -> Unit = {
-                put("box_id", box)
-                put("medicine_name", name)
-                put("schedule_time", hmsDisplay.take(5))
-                put("dose_date", day)
             }
             if (missed15) {
                 scheduleIfOk(
@@ -273,6 +284,7 @@ object LocalAlertsController {
                             put("type", "missed_dose_60")
                             put("title", app.getString(R.string.local_alert_missed_title))
                             put("message", medLabel(app.getString(R.string.local_alert_phase_missed_logged), name, box, hms))
+                            medFields().invoke(this)
                         },
                     )
                 }
@@ -387,6 +399,8 @@ object LocalAlertsController {
      */
     fun runDailyStockExpiryScan(context: Context) {
         val app = context.applicationContext
+        LocalAlertRelayDedupe.pruneOldDays(app)
+        val notifyAdmin = LocalAlertsUi.shouldNotifyAdminViaRelay(app)
         val settings = AdminDemoData.getAlertSettings()
         val sa = sectionMap(settings, "stock_alerts")
         val ea = sectionMap(settings, "expiry_alerts")
@@ -411,23 +425,31 @@ object LocalAlertsController {
                 val dayTag = dayKeyFromOffset(0)
                 if (emptyOn && m.stock == 0) {
                     val seed = "stock_empty_${m.box}_$dayTag"
+                    val msg = app.getString(R.string.local_alert_stock_empty, m.name, m.box)
                     NotificationHelper.showAlertNotification(
                         app,
                         (seed.hashCode() and 0x7fff_0000) xor 0x1200,
                         -(100L + (seed.hashCode() and 0xfffffff)),
                         "medicine_stock",
-                        app.getString(R.string.local_alert_stock_empty, m.name, m.box),
+                        msg,
                     )
+                    if (notifyAdmin && LocalAlertRelayDedupe.tryClaim(app, seed)) {
+                        UserRelayNotifyApi.notifyAdmin(app, "stock", msg)
+                    }
                 }
                 if (criticalOn && m.stock > 0 && m.stock <= threshold) {
                     val seed = "stock_low_${m.box}_$dayTag"
+                    val msg = app.getString(R.string.local_alert_stock_low, m.name, m.box, m.stock)
                     NotificationHelper.showAlertNotification(
                         app,
                         (seed.hashCode() and 0x7fff_0000) xor 0x1300,
                         -(101L + (seed.hashCode() and 0xfffffff)),
                         "medicine_stock",
-                        app.getString(R.string.local_alert_stock_low, m.name, m.box, m.stock),
+                        msg,
                     )
+                    if (notifyAdmin && LocalAlertRelayDedupe.tryClaim(app, seed)) {
+                        UserRelayNotifyApi.notifyAdmin(app, "stock", msg)
+                    }
                 }
             }
         }
@@ -457,13 +479,17 @@ object LocalAlertsController {
                     (e1 && daysUntil == 1)
                 if (!hit) continue
                 val seed = "exp_${m.box}_${daysUntil}_${dayKeyFromOffset(0)}"
+                val msg = app.getString(R.string.local_alert_expiry_days, m.name, m.box, daysUntil, expStr.take(10))
                 NotificationHelper.showAlertNotification(
                     app,
                     (seed.hashCode() and 0x7fff_0000) xor (daysUntil shl 8),
                     -(200L + (seed.hashCode() and 0xfffffff)),
                     "medicine_expiry",
-                    app.getString(R.string.local_alert_expiry_days, m.name, m.box, daysUntil, expStr.take(10)),
+                    msg,
                 )
+                if (notifyAdmin && LocalAlertRelayDedupe.tryClaim(app, seed)) {
+                    UserRelayNotifyApi.notifyAdmin(app, "expiry", msg)
+                }
             }
         }
     }

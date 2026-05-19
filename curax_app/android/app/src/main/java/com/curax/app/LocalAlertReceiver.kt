@@ -31,8 +31,10 @@ class LocalAlertReceiver : BroadcastReceiver() {
             }
 
             val standalone = StandaloneUi.isUserStandalone(app)
+            val localAlarms = LocalAlertsUi.usesOnDeviceMedicineAlarms(app)
             val payload = when {
-                standalone -> LocalAlertsController.getPayload(app, id)
+                localAlarms -> LocalAlertsController.getPayload(app, id)
+                    ?: MissedDoseEscalationController.getPayload(app, id)
                 else -> MissedDoseEscalationController.getPayload(app, id)
             } ?: run {
                 Log.w(TAG, "Missing payload for alarm id=$id")
@@ -40,6 +42,16 @@ class LocalAlertReceiver : BroadcastReceiver() {
             }
 
             val type = payload.optString("type", "local")
+            val box = payload.optString("box_id")
+            val dayKey = payload.optString("dose_date")
+            val slot = payload.optString("schedule_time")
+
+            if (DoseSlotAlertGuard.shouldSkip(app, payload)) {
+                AlertFlowLog.record(app, type, box, slot, dayKey, "skipped", "dose already marked")
+                if (localAlarms) LocalAlertsController.clearPayload(app, id)
+                else MissedDoseEscalationController.clearPayload(app, id)
+                return
+            }
 
             if (type == MissedDoseEscalationWatchdog.TYPE) {
                 MissedDoseEscalationWatchdog.runCheck(app)
@@ -48,7 +60,7 @@ class LocalAlertReceiver : BroadcastReceiver() {
             }
 
             if (type == LocalAlertsController.TYPE_STOCK_EXPIRY_SCAN) {
-                if (!standalone) return
+                if (!localAlarms) return
                 LocalAlertsController.runDailyStockExpiryScan(app)
                 LocalAlertsController.clearPayload(app, id)
                 MobileReliabilityCoordinator.onAppStart(app)
@@ -73,6 +85,7 @@ class LocalAlertReceiver : BroadcastReceiver() {
                 val nid = (id.hashCode() and 0x7fff_0000) xor (System.currentTimeMillis() % 0xffff).toInt()
                 val combined = if (title.isNotBlank() && title != message) "$title — $message" else message
                 val receivedAt = System.currentTimeMillis()
+                AlertFlowLog.record(app, type, box, slot, dayKey, "local_notification", combined.take(80))
                 NotificationHelper.showAlertNotification(
                     app,
                     notificationId = nid,
@@ -86,15 +99,48 @@ class LocalAlertReceiver : BroadcastReceiver() {
                     StandaloneOfflineMirror.persistMergedSnapshot(app)
                     StandaloneAlertSoundPlayer.play(app)
                     app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                } else if (localAlarms) {
+                    try {
+                        AlertDb(app).insertAlert(type, combined, receivedAt = receivedAt)
+                    } catch (_: Exception) {
+                    }
+                    app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                }
+            }
+
+            val medicineEmailKinds = mapOf(
+                "medicine_pre_30" to "pre30",
+                "medicine_pre_15" to "pre15",
+                "medicine_time" to "exact",
+                "missed_dose_5" to "post5",
+                "missed_dose_15" to "post15",
+            )
+            medicineEmailKinds[type]?.let { kind ->
+                if (MedicineEmailDedupe.tryClaim(app, box, dayKey, slot, kind)) {
+                    AlertFlowLog.record(app, type, box, slot, dayKey, "user_email_post", kind)
+                    UserMedicineEmailApi.postReminder(
+                        app,
+                        kind = kind,
+                        boxId = box,
+                        medicineName = payload.optString("medicine_name"),
+                        scheduleTime = slot,
+                        doseDate = dayKey,
+                    )
+                }
+            }
+
+            if (type == "missed_dose_60") {
+                val msg = payload.optString("message", "")
+                if (msg.isNotBlank()) {
+                    AlertFlowLog.record(app, type, box, slot, dayKey, "admin_relay_post", "missed logged")
+                    UserRelayNotifyApi.notifyAdmin(app, "missed_dose", msg)
                 }
             }
 
             if (type in escalationTypes) {
                 val phase = if (type.contains("15")) 15 else 30
-                val box = payload.optString("box_id")
-                val dayKey = payload.optString("dose_date")
-                val slot = payload.optString("schedule_time")
                 if (MissedDoseEscalationDedupe.tryClaim(app, box, dayKey, slot, phase)) {
+                    AlertFlowLog.record(app, type, box, slot, dayKey, "admin_escalation_post", "+$phase")
                     MissedDoseEscalationApi.postEscalation(
                         app,
                         phase = phase,
@@ -106,7 +152,7 @@ class LocalAlertReceiver : BroadcastReceiver() {
                 }
             }
 
-            if (standalone) {
+            if (localAlarms) {
                 LocalAlertsController.clearPayload(app, id)
             } else {
                 MissedDoseEscalationController.clearPayload(app, id)

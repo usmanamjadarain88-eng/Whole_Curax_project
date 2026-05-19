@@ -18,7 +18,6 @@ import androidx.core.widget.doOnTextChanged
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.google.firebase.messaging.FirebaseMessaging
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -236,50 +235,46 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         btnLinkAdmin.isEnabled = false
         btnLinkAdmin.alpha = 1f
         btnLinkAdmin.text = getString(R.string.please_wait)
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
-            Thread {
-                try {
-                    val displayName = SignUpFlowState.nameForLink.trim().ifBlank { email }
-                    val json = JSONObject().apply {
-                        put("email", email)
-                        put("admin_id", adminId)
-                        put("bot_id", botId)
-                        put("api_key", apiKey)
-                        put("name", displayName)
-                        if (fcmToken.isNotEmpty()) put("fcm_token", fcmToken)
-                    }
-                    val (code, jo) = postJson("/signup/request-admin-link", json)
-                    val connectLabel = getString(R.string.connect)
-                    runOnUiThread {
-                        if (isFinishing) return@runOnUiThread
-                        btnLinkAdmin.text = connectLabel
-                        syncConnectButtonState()
-                        if (code == 200 && jo != null) {
-                            val adminShown = jo.optString("admin_name").trim().ifBlank { adminLabel }
-                            openFullAppAfterAdminRequestSent(adminShown, fcmToken)
-                        } else {
-                            CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
-                        }
-                    }
-                } catch (_: Exception) {
-                    runOnUiThread {
-                        if (!isFinishing) {
-                            btnLinkAdmin.text = getString(R.string.connect)
-                            syncConnectButtonState()
-                            CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
-                        }
+        Thread {
+            try {
+                val displayName = SignUpFlowState.nameForLink.trim().ifBlank { email }
+                val json = JSONObject().apply {
+                    put("email", email)
+                    put("admin_id", adminId)
+                    put("bot_id", botId)
+                    put("api_key", apiKey)
+                    put("name", displayName)
+                }
+                val (code, jo) = postJson("/signup/request-admin-link", json)
+                val connectLabel = getString(R.string.connect)
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    btnLinkAdmin.text = connectLabel
+                    syncConnectButtonState()
+                    if (code == 200 && jo != null) {
+                        val adminShown = jo.optString("admin_name").trim().ifBlank { adminLabel }
+                        openFullAppAfterAdminRequestSent(adminShown)
+                    } else {
+                        CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                     }
                 }
-            }.start()
-        }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    if (!isFinishing) {
+                        btnLinkAdmin.text = getString(R.string.connect)
+                        syncConnectButtonState()
+                        CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
+                    }
+                }
+            }
+        }.start()
     }
 
     /**
      * User keeps full app access in standalone mode; admin acceptance is applied later via
      * [AwaitingAdminLinkCoordinator].
      */
-    private fun openFullAppAfterAdminRequestSent(chosenAdminDisplayName: String, fcmToken: String) {
+    private fun openFullAppAfterAdminRequestSent(chosenAdminDisplayName: String) {
         val email = SignUpFlowState.email
         val password = SignUpFlowState.password
         val botId = SignUpFlowState.botId
@@ -293,7 +288,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                 emailForWip = email,
                 passwordForWip = password,
                 nameForLinkForWip = nameForLink,
-                fcmToken = fcmToken.trim(),
+                fcmToken = "",
             )
         ) {
             CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
@@ -343,46 +338,41 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         btnLinkAdmin.isEnabled = false
         btnLinkAdmin.alpha = 1f
         btnLinkAdmin.text = getString(R.string.please_wait)
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
-            Thread {
-                try {
-                    val displayName = SignUpFlowState.nameForLink.trim().ifBlank { email }
-                    val json = JSONObject().apply {
-                        put("email", email)
-                        put("connection_code", connectionCode)
-                        put("bot_id", botId)
-                        put("api_key", apiKey)
-                        put("name", displayName)
-                        if (fcmToken.isNotEmpty()) put("fcm_token", fcmToken)
-                    }
-                    val (code, jo) = postJson("/signup/link-admin", json)
-                    runOnUiThread {
-                        btnLinkAdmin.text = connectLabel
-                        if (code == 200 && jo != null) {
-                            prefs.awaitingAdminLinkApproval = false
-                            prefs.awaitingAdminChosenDisplayName = ""
-                            applyPrefsAfterLink(jo, connectionCode, fcmToken, base, email, password, botId, apiKey)
-                        } else {
-                            CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
-                            syncConnectButtonState()
-                        }
-                    }
-                } catch (_: Exception) {
-                    runOnUiThread {
-                        btnLinkAdmin.text = connectLabel
+        Thread {
+            try {
+                val displayName = SignUpFlowState.nameForLink.trim().ifBlank { email }
+                val json = JSONObject().apply {
+                    put("email", email)
+                    put("connection_code", connectionCode)
+                    put("bot_id", botId)
+                    put("api_key", apiKey)
+                    put("name", displayName)
+                }
+                val (code, jo) = postJson("/signup/link-admin", json)
+                runOnUiThread {
+                    btnLinkAdmin.text = connectLabel
+                    if (code == 200 && jo != null) {
+                        prefs.awaitingAdminLinkApproval = false
+                        prefs.awaitingAdminChosenDisplayName = ""
+                        applyPrefsAfterLink(jo, connectionCode, base, email, password, botId, apiKey)
+                    } else {
+                        CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
                         syncConnectButtonState()
-                        CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
                     }
                 }
-            }.start()
-        }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    btnLinkAdmin.text = connectLabel
+                    syncConnectButtonState()
+                    CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
+                }
+            }
+        }.start()
     }
 
     private fun applyPrefsAfterLink(
         jo: JSONObject,
         connectionCode: String,
-        fcmToken: String,
         base: String,
         email: String,
         password: String,
@@ -394,7 +384,6 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             this,
             jo,
             connectionCode,
-            fcmToken,
             email,
             password,
             botId,
@@ -402,6 +391,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             http,
             nameForLinkFallback = nameFb,
             onUserDataApplied = {
+                RelayAutoConnect.enableForLinkedUser(this)
                 CuraxFeedback.successThen(this, R.string.linked_to_admin_success) {
                     if (!isFinishing) {
                         setResult(RESULT_OK)

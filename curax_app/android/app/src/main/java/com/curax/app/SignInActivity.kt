@@ -43,7 +43,6 @@ import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.api.ApiException
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
-import com.google.firebase.messaging.FirebaseMessaging
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -600,9 +599,7 @@ class SignInActivity : AppCompatActivity() {
         apiKey: String,
         pendingAdminName: String,
     ) {
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
-            runOnUiThread {
+        runOnUiThread {
                 if (!prefs.commitAwaitingAdminHomeSession(
                         chosenAdminDisplayName = pendingAdminName,
                         botId = botId,
@@ -610,7 +607,7 @@ class SignInActivity : AppCompatActivity() {
                         emailForWip = email,
                         passwordForWip = password,
                         nameForLinkForWip = email,
-                        fcmToken = fcmToken,
+                        fcmToken = "",
                     )
                 ) {
                     CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)
@@ -629,7 +626,6 @@ class SignInActivity : AppCompatActivity() {
                 ) {
                     navigateToUserHomeAfterAuth()
                 }
-            }
         }
     }
 

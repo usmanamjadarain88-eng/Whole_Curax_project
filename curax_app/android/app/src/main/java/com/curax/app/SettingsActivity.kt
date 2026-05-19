@@ -142,11 +142,9 @@ class SettingsActivity : AppCompatActivity() {
     private fun showAppInfo() {
         val botId = prefs.id.ifEmpty { "—" }
         val apiKey = prefs.apiKey.ifEmpty { "—" }
-        val fcm = prefs.fcmToken.ifEmpty { "—" }
         val msg = buildString {
             append("Bot ID: ").append(botId).append("\n\n")
-            append("API Key: ").append(apiKey).append("\n\n")
-            append("FCM Token:\n").append(fcm)
+            append("API Key: ").append(apiKey)
         }
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.my_app_info_title))

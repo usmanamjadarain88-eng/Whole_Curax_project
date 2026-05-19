@@ -19,7 +19,6 @@ object SignupAdminLinkHelper {
         activity: AppCompatActivity,
         jo: JSONObject,
         connectionCode: String,
-        fcmToken: String,
         email: String,
         password: String,
         botId: String,
@@ -50,8 +49,6 @@ object SignupAdminLinkHelper {
         prefs.linkedAdminName = adminName
         prefs.hasEverConnected = true
         prefs.userInitialAppModeSheetCompleted = false
-        if (fcmToken.isNotEmpty()) prefs.fcmToken = fcmToken
-
         val fromServer = jo.optString("user_first_name", "").trim()
         val hubFirst = fromServer.ifBlank { UserNameFormatter.firstNameForHub(nameForLinkFallback) }
         if (hubFirst.isNotEmpty()) prefs.userHubFirstName = hubFirst
@@ -77,32 +74,17 @@ object SignupAdminLinkHelper {
         prefs.clearSignupWipLink()
 
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
-        if (fcmToken.isNotEmpty() && adminId.isNotEmpty()) {
-            Thread {
-                try {
-                    val body = JSONObject().apply {
-                        put("bot_id", botId)
-                        put("api_key", apiKey)
-                        put("role", "user")
-                        put("admin_id", adminId)
-                        put("fcm_token", fcmToken)
-                    }
-                    val req = Request.Builder()
-                        .url("$base/save-credentials")
-                        .post(body.toString().toRequestBody(JSON_MEDIA))
-                        .build()
-                    http.newCall(req).execute().close()
-                } catch (_: Exception) {
-                }
-            }.start()
-        }
+        RelayAutoConnect.enableForLinkedUser(activity)
 
         UserDataBusClient.fetchAndApplyUserData(
             activity,
             base,
             botId,
             apiKey,
-            onSuccess = { onUserDataApplied() },
+            onSuccess = {
+                RelayAutoConnect.enableForLinkedUser(activity)
+                onUserDataApplied()
+            },
             onAuthRejected = { msg -> onAuthRejected(msg) },
         )
     }

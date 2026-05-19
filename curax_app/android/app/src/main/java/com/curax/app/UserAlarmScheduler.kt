@@ -22,10 +22,8 @@ object UserAlarmScheduler {
             return
         }
         restoreCacheIfNeeded(app)
-        if (StandaloneUi.isUserStandalone(app)) {
+        if (LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) {
             LocalAlertsController.reschedule(app)
-        } else if (hasLinkedCredentials(app)) {
-            MissedDoseEscalationController.reschedule(app)
         } else {
             LocalAlertsController.cancelAll(app)
             MissedDoseEscalationController.cancelAll(app)

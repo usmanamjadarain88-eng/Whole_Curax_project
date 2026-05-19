@@ -339,7 +339,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:padding="18dp"
-                android:text="No alerts yet for admin dashboard"
+                android:text="No alerts yet"
                 android:textColor="@color/text_secondary"
                 android:textSize="11sp" />
 

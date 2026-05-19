@@ -513,38 +513,31 @@ class AdminAlertsFragment : Fragment() {
         val removed = getFilteredAlerts().filter { it.id in ids }
         if (removed.isEmpty()) return
 
-        if (AppRole.isAdmin(requireContext())) {
-            val prefs = Prefs(requireContext())
-            val base = prefs.centralApiUrl.trim().removeSuffix("/")
-            val accessCode = prefs.adminAccessCode.trim()
-            val serverIds = removed.mapNotNull { it.serverId?.trim()?.takeIf { id -> id.isNotEmpty() } }.distinct()
-            if (base.isNotEmpty() && accessCode.isNotEmpty() && serverIds.isNotEmpty()) {
-                btnAdminSelectionDelete.isEnabled = false
-                Thread {
-                    val ok = try {
-                        AdminAlertsApi.deleteAlerts(base, accessCode, serverIds, http)
-                    } catch (_: Exception) {
-                        false
-                    }
-                    activity?.runOnUiThread {
-                        if (!isAdded) return@runOnUiThread
-                        btnAdminSelectionDelete.isEnabled = true
-                        if (!ok) {
-                            CuraxFeedback.warn(
-                                this,
-                                getString(R.string.admin_alerts_delete_server_failed),
-                                long = true,
-                            )
-                            return@runOnUiThread
-                        }
-                        applyLocalDelete(removed, ids)
-                    }
-                }.start()
-                return
-            }
-        }
-
+        // Optimistic UI: remove from list immediately; sync server in background.
         applyLocalDelete(removed, ids)
+
+        if (!AppRole.isAdmin(requireContext())) return
+        val prefs = Prefs(requireContext())
+        val base = prefs.centralApiUrl.trim().removeSuffix("/")
+        val accessCode = prefs.adminAccessCode.trim()
+        val serverIds = removed.mapNotNull { it.serverId?.trim()?.takeIf { id -> id.isNotEmpty() } }.distinct()
+        if (base.isEmpty() || accessCode.isEmpty() || serverIds.isEmpty()) return
+
+        Thread {
+            val ok = try {
+                AdminAlertsApi.deleteAlerts(base, accessCode, serverIds, http)
+            } catch (_: Exception) {
+                false
+            }
+            activity?.runOnUiThread {
+                if (!isAdded || ok) return@runOnUiThread
+                CuraxFeedback.warn(
+                    this,
+                    getString(R.string.admin_alerts_delete_server_failed),
+                    long = true,
+                )
+            }
+        }.start()
     }
 
     private fun applyLocalDelete(removed: List<AlertItem>, ids: Set<Long>) {
@@ -636,7 +629,7 @@ class AdminAlertsFragment : Fragment() {
         )
         if (listAll.isEmpty()) {
             tvEmpty.text = if (totalAvailable == 0) {
-                "No alerts yet for admin dashboard"
+                "No alerts yet"
             } else {
                 "No alerts match current filters"
             }

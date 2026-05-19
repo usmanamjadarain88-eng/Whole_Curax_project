@@ -59,7 +59,6 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.firebase.messaging.FirebaseMessaging
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
@@ -174,10 +173,8 @@ class UserStandaloneActivity : AppCompatActivity() {
         val app = applicationContext
         Thread {
             try {
-                if (StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) {
+                if (LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) {
                     LocalAlertsController.reschedule(app)
-                } else if (AppRole.isUser(app)) {
-                    MissedDoseEscalationController.reschedule(app)
                 }
             } catch (_: Exception) {
             }
@@ -454,7 +451,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                 disconnectService()
                 CuraxFeedback.info(this, "Disconnected")
             } else if (id.isNotEmpty() && apiKey.isNotEmpty()) {
-                CuraxFeedback.info(this, "Registering FCM and connecting to relay...")
+                CuraxFeedback.info(this, "Connecting to relay…")
                 if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
                     pendingRelayConnectAfterNotificationPermission = true
                     ConnectRelaySetup.requestNotificationPrompt(this)
@@ -1081,15 +1078,16 @@ class UserStandaloneActivity : AppCompatActivity() {
         val apiKey = prefs.apiKey.trim()
         if (id.isEmpty() || apiKey.isEmpty()) return
         prefs.relayAutoConnectEnabled = true
-        connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+        startConnectionService(prefs.serverUrl, id, apiKey)
     }
 
     /** After first Connect, every reopen restores relay (even if user tapped Disconnect earlier). */
     private fun restoreRelayOnHomeOpen() {
-        if (StandaloneUi.isUserStandalone(this)) {
+        if (StandaloneUi.isUserStandalone(this) && !RelayAutoConnect.userLinkedToAdmin(prefs)) {
             updateConnectionUi(false)
             return
         }
+        RelayAutoConnect.enableForLinkedUser(this)
         RelayAutoConnect.restoreOnAppOpen(
             activity = this,
             prefs = prefs,
@@ -1110,7 +1108,7 @@ class UserStandaloneActivity : AppCompatActivity() {
             val id = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
             if (id.isNotEmpty() && apiKey.isNotEmpty()) {
-                connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+                startConnectionService(prefs.serverUrl, id, apiKey)
             }
         }
     }
@@ -1130,50 +1128,6 @@ class UserStandaloneActivity : AppCompatActivity() {
     private fun startConnectionService(serverUrl: String, id: String, apiKey: String) {
         ConnectionManager.requestConnectRelay(this, serverUrl, id, apiKey)
         applyConnectionButtonConnectingUi()
-    }
-
-    private fun connectWithLatestFcmToken(serverUrl: String, id: String, apiKey: String) {
-        applyConnectionButtonConnectingUi()
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val token = task.result.orEmpty()
-                if (token.isNotEmpty()) {
-                    prefs.fcmToken = token
-                    saveFcmTokenToCentralApi(id, apiKey, token)
-                    startService(Intent(this, AlertConnectionService::class.java).apply {
-                        action = AlertConnectionService.ACTION_UPDATE_FCM
-                        putExtra(AlertConnectionService.EXTRA_BOT_ID, id)
-                        putExtra(AlertConnectionService.EXTRA_API_KEY, apiKey)
-                        putExtra(AlertConnectionService.EXTRA_FCM_TOKEN, token)
-                    })
-                }
-            }
-            startConnectionService(serverUrl, id, apiKey)
-            bindService(Intent(this, AlertConnectionService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
-        }
-    }
-
-    private fun saveFcmTokenToCentralApi(botId: String, apiKey: String, fcmToken: String) {
-        val base = prefs.centralApiUrl.trim().removeSuffix("/")
-        val adminId = prefs.linkedAdminId.trim()
-        if (base.isEmpty() || adminId.isEmpty()) return
-        Thread {
-            try {
-                val body = JSONObject().apply {
-                    put("bot_id", botId)
-                    put("api_key", apiKey)
-                    put("role", "user")
-                    put("admin_id", adminId)
-                    put("fcm_token", fcmToken)
-                }
-                val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).build()
-                val req = Request.Builder()
-                    .url("$base/save-credentials")
-                    .post(body.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-                client.newCall(req).execute().close()
-            } catch (_: Exception) { }
-        }.start()
     }
 
     private fun updateConnectionUi(connected: Boolean) {
@@ -1571,13 +1525,20 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         }
 
-        val alertsRelayReady = (relayOk || relayRestoring) &&
-            prefs.fcmToken.trim().isNotEmpty() &&
-            notificationsChannelReady()
+        val alertsRelayReady = (relayOk || relayRestoring) && notificationsChannelReady()
 
-        // Personal Health (standalone): on-device alerts; relay/FCM not required for dose/reminder notifications.
         if (StandaloneUi.isUserStandalone(this)) {
-            setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_local_standalone))
+            if (adminLinked && alertsRelayReady) {
+                setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
+            } else if (adminLinked) {
+                setSidebarLine(
+                    tvUserSidebarAlertsStatus,
+                    1,
+                    getString(R.string.connecting),
+                )
+            } else {
+                setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_local_standalone))
+            }
         } else if (alertsRelayReady) {
             setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
         } else {
@@ -1648,9 +1609,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         tvUserSidebarHealthDetail.setText(healthDetailRes)
 
         tvUserSidebarAlertsDetail.text = when {
-            StandaloneUi.isUserStandalone(this) ->
+            StandaloneUi.isUserStandalone(this) && !adminLinked ->
                 getString(R.string.user_sidebar_detail_alerts_local_standalone)
             alertsRelayReady -> getString(R.string.user_sidebar_detail_alerts_active)
+            adminLinked -> getString(R.string.user_sidebar_detail_health_partial)
             else -> getString(R.string.user_sidebar_detail_alerts_inactive)
         }
 

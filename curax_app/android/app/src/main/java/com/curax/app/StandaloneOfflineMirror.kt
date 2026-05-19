@@ -12,7 +12,7 @@ import java.util.Locale
  * so [UserDataBusClient.restoreCachedUserData] can hydrate medicines, API alerts, reminders, and
  * settings immediately on next cold start.
  *
- * Does not touch the data-bus WebSocket, HTTP fetch pipeline, or FCM — callers invoke this from UI
+ * Does not touch the data-bus WebSocket or alert relay — callers invoke this from UI
  * / fragment layers after local state is already updated.
  */
 object StandaloneOfflineMirror {

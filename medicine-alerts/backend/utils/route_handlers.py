@@ -161,15 +161,15 @@ def health(body, query, headers):
 
 # ---- Auth / credentials ----
 def save_credentials(body, query, headers):
-    """POST { bot_id, api_key, role?, access_code? (for admin), fcm_token? } ΓåÆ admins or users.
-    If role=admin and access_code is sent, update that admin's bot_id/api_key (so app links to desktop-created admin).
+    """POST { bot_id, api_key, role?, access_code?, timezone? } → admins or users.
+    Alerts use relay WebSocket (bot_id+api_key); fcm_token in body is ignored (legacy).
     """
     data = body
     bot_id = (data.get("bot_id") or "").strip()
     api_key = (data.get("api_key") or "").strip()
     role = (data.get("role") or "user").strip().lower()
     access_code = (data.get("access_code") or "").strip()
-    fcm_token = (data.get("fcm_token") or "").strip()
+    timezone = (data.get("timezone") or "").strip()
     name = (data.get("name") or "").strip()
     email = (data.get("email") or "").strip()
     desktop_password = (data.get("desktop_password") or "").strip()
@@ -193,7 +193,7 @@ def save_credentials(body, query, headers):
                     api_key,
                     name=name,
                     email=email,
-                    fcm_token=fcm_token or None,
+                    fcm_token=None,
                     desktop_password_plain=desktop_password or None,
                 )
                 if admin_id:
@@ -204,7 +204,7 @@ def save_credentials(body, query, headers):
                 api_key,
                 name=name,
                 email=email,
-                fcm_token=fcm_token or None,
+                fcm_token=None,
                 desktop_password_plain=desktop_password or None,
             )
             if admin_access_code:
@@ -215,7 +215,9 @@ def save_credentials(body, query, headers):
     admin_id = data.get("admin_id")
     if not admin_id:
         return (400, {"message": "admin_id required for role=user"})
-    user_id = db.upsert_user_from_bot(bot_id, api_key, admin_id, name=name, fcm_token=fcm_token or None)
+    user_id = db.upsert_user_from_bot(
+        bot_id, api_key, admin_id, name=name, fcm_token=None, timezone=timezone or None
+    )
     return (200, {"message": "ok", "user_id": user_id})
 
 
@@ -834,79 +836,68 @@ def maintenance_cleanup_pending(body, query, headers):
         return (503, {"message": "Central DB not configured"})
     out = db.maintenance_cleanup_pending(hours_sessions=hs, hours_users=hu)
     return (200, {"message": "ok", **out})
+def maintenance_run_alert_checks_cron(body, query, headers):
+    """GET — optional cron; timed checks off unless BACKEND_TIMED_ALERT_CHECKS=1."""
+    auth = (headers.get("authorization") or "").strip()
+    expected = (os.environ.get("CRON_SECRET") or os.environ.get("MAINTENANCE_API_KEY") or "").strip()
+    if not expected:
+        return (404, {"message": "Not found"})
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if token != expected:
+        return (401, {"message": "Unauthorized"})
+    timed = os.environ.get("BACKEND_TIMED_ALERT_CHECKS", "").strip().lower() in ("1", "true", "yes")
+    if not timed:
+        return (
+            200,
+            {
+                "message": "ok",
+                "trigger": "cron",
+                "skipped": True,
+                "reason": "Timed alerts run on mobile; use device POST /user/missed-dose-escalate and relay.",
+            },
+        )
+    from alert_scheduler import BackendAlertScheduler
+
+    BackendAlertScheduler(get_db).run_all_checks_once()
+    return (200, {"message": "ok", "trigger": "cron"})
+
+
 def maintenance_run_alert_checks(body, query, headers):
-    """POST — requires X-Maintenance-Key. Runs one alert sweep for all admins (Vercel Cron / serverless)."""
+    """POST — optional maintenance sweep (off by default)."""
     key = (headers.get("x-maintenance-key") or "").strip()
     expected = (os.environ.get("MAINTENANCE_API_KEY") or "").strip()
     if not expected or key != expected:
         return (404, {"message": "Not found"})
+    timed = os.environ.get("BACKEND_TIMED_ALERT_CHECKS", "").strip().lower() in ("1", "true", "yes")
+    if not timed:
+        return (
+            200,
+            {
+                "message": "ok",
+                "skipped": True,
+                "reason": "Timed alerts run on mobile; relay handles admin delivery.",
+            },
+        )
     from alert_scheduler import BackendAlertScheduler
-    s = BackendAlertScheduler(get_db)
-    s.run_all_checks_once()
+
+    BackendAlertScheduler(get_db).run_all_checks_once()
     return (200, {"message": "ok"})
 
 
 def _wake_relay_if_needed(relay_url):
-    """Hit relay HTTP /status to wake it (e.g. Render cold start). Ignore errors; WebSocket will retry."""
-    try:
-        import urllib.request as _urllib
-        http_url = relay_url.replace("wss://", "https://", 1).replace("ws://", "http://", 1).rstrip("/")
-        req = _urllib.Request(http_url + "/status", method="GET")
-        _urllib.urlopen(req, timeout=45)
-    except Exception:
-        pass
+    from utils.relay_delivery import wake_relay_if_needed
+
+    wake_relay_if_needed(relay_url)
 
 
-def _send_alert_via_relay(bot_id, api_key, alert_type, message, fcm_token=None, user_name=None):
-    """Send alert to relay so it reaches the user at any cost. FCM token from DB so push works even when phone is off.
-    Wakes relay if cold (Render), then retries WebSocket with long timeouts until relay is up; relay sends via FCM."""
-    import json
-    import asyncio
-    import time
-    import urllib.request
-    bot_id = (bot_id or "").strip()
-    api_key = (api_key or "").strip()
-    if not bot_id or not api_key:
-        return False, "Missing bot_id or api_key"
-    relay_url = os.environ.get("RELAY_URL", "wss://curax-relay.onrender.com").strip()
-    payload = {
-        "action": "alert",
-        "bot_id": bot_id,
-        "api_key": api_key,
-        "type": alert_type or "alert",
-        "message": message or "",
-    }
-    un = (user_name or "").strip()
-    if un:
-        payload["user_name"] = un
-    fcm = (fcm_token or "").strip() or None
-    if fcm:
-        payload["fcm_token"] = fcm
-    last_error = None
-    # Wake relay first (GET /status) so cold start begins; then retry WebSocket until relay is up
-    _wake_relay_if_needed(relay_url)
-    time.sleep(3)
-    # 5 attempts with backoff: 3s, +5s, +15s, +30s, +45s between attempts; 60s open_timeout each
-    delays = (0, 5, 15, 30, 45)
-    for attempt in range(5):
-        if attempt > 0:
-            time.sleep(delays[attempt])
-        try:
-            import websockets
-            async def _ws_send():
-                async with websockets.connect(relay_url, close_timeout=15, open_timeout=60) as ws:
-                    await ws.send(json.dumps(payload))
-            asyncio.run(_ws_send())
-            return True, None
-        except Exception as e:
-            last_error = str(e).strip() or repr(e)
-            print(f"[notify-event] relay attempt {attempt + 1}/5 ({bot_id[:8]}...): {e}")
-    err_msg = (last_error or "Unknown error")[:200]
-    return False, err_msg
+def _send_alert_via_relay(bot_id, api_key, alert_type, message, user_name=None):
+    from utils.relay_delivery import send_alert_via_relay
+
+    return send_alert_via_relay(bot_id, api_key, alert_type, message, user_name=user_name)
 def notify_event(body, query, headers):
     """POST { access_code, event_type, message, user_name? } → desktop tells backend of admin-only events.
     Backend finds admin bot_id+api_key by access_code, persists alert row (dashboard user), sends to relay
-    → admin's app (FCM + popup), and notifies databus so desktop/mobile Alerts tabs refresh.
+    → admin's app via relay WebSocket (+ popup), and notifies databus so desktop/mobile Alerts tabs refresh.
     Events: system_started, system_unlocked, admin_login, dose_taken, etc.
     """
     data = body
@@ -928,20 +919,18 @@ def notify_event(body, query, headers):
     if (event_type or "").strip().lower() not in _system_types:
         relay_user_name = (data.get("user_name") or "").strip() or None
     bid, akey = bot.get("bot_id"), bot.get("api_key")
-    fcm = (bot.get("fcm_token") or "").strip() or None
-    if not fcm:
-        fcm = db.get_fcm_token_for_bot(bid, akey) or None
     if admin_id:
         try:
-            duid = db.get_dashboard_user_id(admin_id)
-            if duid:
-                db.create_alert(duid, admin_id, event_type, message)
+            if hasattr(db, "create_admin_system_alert"):
+                db.create_admin_system_alert(admin_id, event_type, message)
+            else:
+                users = db.get_all_users_by_admin_id(admin_id) or []
+                if users:
+                    db.create_alert(users[0]["id"], admin_id, event_type, message)
         except Exception as e:
             print(f"[notify-event] create_alert: {e}")
     def _deliver():
-        db2 = get_db()
-        fcm_now = (fcm or (db2.get_fcm_token_for_bot(bid, akey) if db2 else None) or "").strip() or None
-        _send_alert_via_relay(bid, akey, event_type, message, fcm_token=fcm_now, user_name=relay_user_name)
+        _send_alert_via_relay(bid, akey, event_type, message, user_name=relay_user_name)
         try:
             notify_databus(access_code)
         except Exception as e:
@@ -978,7 +967,6 @@ def notify_event_by_user(body, query, headers):
         db.create_alert(info["user_id"], info["admin_id"], event_type, message)
     except Exception:
         pass
-    admin_fcm = db.get_fcm_token_for_bot(admin_bot_id, admin_api_key)
     relay_user_name = (info.get("user_name") or "").strip()
     def _deliver():
         _send_alert_via_relay(
@@ -986,7 +974,6 @@ def notify_event_by_user(body, query, headers):
             admin_api_key,
             event_type,
             message,
-            fcm_token=admin_fcm,
             user_name=relay_user_name or None,
         )
     threading.Thread(target=_deliver, daemon=True, name="NotifyRelay").start()
@@ -1013,9 +1000,8 @@ def notify_event_to_user(body, query, headers):
                 "message": deleted_info.get("message", "The admin has removed you from their account."),
             })
         return (404, {"message": "User not found or not linked to an admin"})
-    user_fcm = db.get_fcm_token_for_bot(bot_id, api_key)
     def _deliver():
-        _send_alert_via_relay(bot_id, api_key, event_type, message, fcm_token=user_fcm)
+        _send_alert_via_relay(bot_id, api_key, event_type, message)
     threading.Thread(target=_deliver, daemon=True, name="NotifyRelay").start()
     return (200, {"message": "ok"})
 def get_linked_users(body, query, headers):
@@ -1130,23 +1116,11 @@ def admin_set_user_display_mode(body, query, headers):
 
 
 def put_admin_fcm_token(body, query, headers):
-    """PUT { access_code, fcm_token } ΓåÆ update admin's FCM token. Called when app gets FCM token (e.g. after permission).
-    So push alerts (and Test alert) work; relay uses FCM first when available."""
-    data = body
-    access_code = (data.get("access_code") or "").strip()
-    fcm_token = (data.get("fcm_token") or "").strip()
-    if not access_code:
-        return (400, {"message": "access_code required"})
-    db = get_db()
-    if not db:
-        return (503, {"message": "Central DB not configured"})
-    ok = db.update_admin_fcm_token_by_access_code(access_code, fcm_token if fcm_token else None)
-    if not ok:
-        return (404, {"message": "Admin not found for this access code"})
+    """Deprecated: FCM removed; relay uses WebSocket only. Kept for old app builds."""
     return (200, {"message": "ok"})
 def get_admin_connection(body, query, headers):
-    """GET /admin/connection?access_code=... ΓåÆ { fcm_token_set, connected, linked_users } for Connection panel.
-    connected = admin has bot_id+api_key (app has registered); fcm_token_set = FCM token stored for push."""
+    """GET /admin/connection?access_code=... → { fcm_token_set, connected, linked_users }.
+    connected = admin bot_id+api_key saved (relay can target admin app). fcm_token_set is always false (legacy field)."""
     access_code = (query.get("access_code") or "").strip()
     if not access_code:
         return (400, {"message": "access_code required", "fcm_token_set": False, "connected": False, "linked_users": []})
@@ -1160,7 +1134,7 @@ def get_admin_connection(body, query, headers):
     admin_id = admin.get("id") if admin else None
     users = db.get_all_users_by_admin_id(admin_id) or [] if admin_id else []
     return (200, {
-        "fcm_token_set": status.get("fcm_token_set", False),
+        "fcm_token_set": False,
         "connected": status.get("connected", False),
         "linked_users": [
             {
@@ -1198,9 +1172,13 @@ def delete_admin_user(user_id, body, query, headers):
         return (404, {"message": "User not found or not linked to this admin"})
     # Notify admin: create alert using dashboard user so it appears in admin alerts
     try:
-        duid = db.get_dashboard_user_id(admin_id)
-        if duid:
-            db.create_alert(duid, admin_id, "user_removed", f"User {user_name or 'User'} was removed from your account.")
+        if hasattr(db, "create_admin_system_alert"):
+            db.create_admin_system_alert(
+                admin_id,
+                "user_removed",
+                f"User {user_name or 'User'} was removed from your account.",
+                related_user_id=user_id,
+            )
     except Exception:
         pass
     return (200, {"message": "User deleted", "user_name": user_name or "User"})
@@ -1259,7 +1237,8 @@ def get_role(body, query, headers):
     return (200, {"role": "user", "name": None, "user_id": id_})
 def admin_data(body, query, headers):
     """GET /admin/data?access_code=...&last_sync_time=...&act_as_user_id=... (optional).
-    If act_as_user_id is set and belongs to this admin, returns that user's data (admin acting as that user)."""
+    Care mode: act_as_user_id = that linked user's medicines/logs. Admin home (no act_as): alerts + admin settings only.
+    Optional desktop big view uses the same act_as_user_id when managing a user."""
     access_code = (query.get("access_code") or "").strip()
     last_sync_time = (query.get("last_sync_time") or "").strip() or None
     act_as_user_id = (query.get("act_as_user_id") or "").strip() or None
@@ -1450,6 +1429,7 @@ def user_standalone_sync(body, query, headers):
     )
     if not ok:
         return (500, {"message": "Failed to merge user data"})
+    trigger_alert_checks_for_admin(admin_id)
     ac = (info.get("admin_access_code") or "").strip()
     if ac:
         notify_databus(ac)
@@ -1472,9 +1452,38 @@ def user_missed_dose_escalate_get(body, query, headers):
     )
 
 
+def user_medicine_reminder_email(body, query, headers):
+    """POST { bot_id, api_key, kind: pre30|pre15|exact|post5|post15, box_id, ... } — Gmail to user."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    kind = (data.get("kind") or "").strip().lower()
+    box_id = (data.get("box_id") or "").strip()
+    medicine_name = (data.get("medicine_name") or "").strip()
+    schedule_time = (data.get("schedule_time") or "").strip()
+    dose_date = (data.get("dose_date") or "").strip()
+    if not bot_id or not api_key:
+        return (400, {"message": "bot_id and api_key required"})
+    if kind not in ("pre30", "pre15", "exact", "post5", "post15"):
+        return (400, {"message": "kind must be pre30, pre15, exact, post5, or post15"})
+    if not box_id:
+        return (400, {"message": "box_id required"})
+    from alert_scheduler import BackendAlertScheduler
+
+    ok, detail = BackendAlertScheduler(get_db).deliver_device_medicine_email(
+        bot_id, api_key, kind, box_id, medicine_name, schedule_time, dose_date
+    )
+    if ok:
+        return (200, {"ok": True})
+    if detail == "user_not_found":
+        return (404, {"message": "User not found"})
+    if detail in ("skipped", "email_disabled_or_failed"):
+        return (200, {"ok": False, "skipped": True, "reason": detail})
+    return (500, {"message": detail or "email failed"})
+
+
 def user_missed_dose_escalate(body, query, headers):
-    """POST { bot_id, api_key, phase: 15|30, box_id, medicine_name?, schedule_time?, dose_date? }
-    Instant missed-dose escalation from user device (no cron delay)."""
+    """POST { bot_id, api_key, phase: 15|30, box_id, ... } — admin relay + family_email (+15 / +30)."""
     data = body if isinstance(body, dict) else {}
     bot_id = (data.get("bot_id") or "").strip()
     api_key = (data.get("api_key") or "").strip()
@@ -1612,9 +1621,8 @@ def user_databus_room(body, query, headers):
         return (404, {"message": "Admin not found"})
     return (200, {"databus_access_code": ac})
 def admin_sync(body, query, headers):
-    """POST { "access_code", "medicine_boxes", "dose_log", "alert_settings", "gmail_config", "medical_reminders", "sms_config" }.
-    Write all admin data to Central DB (per admin). Then notify data bus so other clients get the update via WebSocket.
-    """
+    """POST admin sync. With act_as_user_id: that linked user's medicines/logs (Care / desktop user view).
+    Without act_as: admin-wide settings only (hub). Desktop is optional; not required for mobile flows."""
     data = body
     access_code = (data.get("access_code") or "").strip()
     if not access_code:
@@ -1641,43 +1649,21 @@ def admin_sync(body, query, headers):
             return (500, {"message": "Failed to write user data"})
         duid = act_as_user_id
     else:
-        try:
-            ok = db.sync_admin_dashboard_data(admin_id, medicine_boxes, dose_log)
-            if not ok:
-                print(f"  [admin/sync] sync_admin_dashboard_data returned False (dashboard user may be missing)")
-                return (500, {"message": "Failed to write dashboard data (no dashboard user)"})
-        except Exception as e:
-            print(f"  [admin/sync] sync_admin_dashboard_data: {e}")
-            return (500, {"message": "Failed to write dashboard data"})
-        duid = db.get_dashboard_user_id(admin_id)
-    if duid:
-        settings = db.get_alert_settings(duid) or {}
+        payload = {}
         if isinstance(data.get("alert_settings"), dict):
-            settings["alert_settings"] = data["alert_settings"]
+            payload["alert_settings"] = data["alert_settings"]
         if isinstance(data.get("gmail_config"), dict):
-            settings["gmail_config"] = data["gmail_config"]
+            payload["gmail_config"] = data["gmail_config"]
         if isinstance(data.get("medical_reminders"), dict):
-            settings["medical_reminders"] = data["medical_reminders"]
+            payload["medical_reminders"] = data["medical_reminders"]
         if isinstance(data.get("sms_config"), dict):
-            settings["sms_config"] = data["sms_config"]
+            payload["sms_config"] = data["sms_config"]
         if isinstance(data.get("mobile_bot_config"), dict):
-            settings["mobile_bot_config"] = data["mobile_bot_config"]
+            payload["mobile_bot_config"] = data["mobile_bot_config"]
         if isinstance(data.get("admin_bot_config"), dict):
-            settings["admin_bot_config"] = data["admin_bot_config"]
-
-        incoming_meta = _extract_medicine_meta_from_boxes(medicine_boxes)
-        existing_meta = settings.get("medicine_meta") if isinstance(settings.get("medicine_meta"), dict) else {}
-        merged_meta = {}
-        for box in [f"B{i}" for i in range(1, 7)]:
-            if box in (medicine_boxes or {}):
-                if isinstance((medicine_boxes or {}).get(box), dict) and box in incoming_meta:
-                    merged_meta[box] = incoming_meta[box]
-            elif box in existing_meta:
-                merged_meta[box] = existing_meta[box]
-        settings["medicine_meta"] = merged_meta
-
-        if not db.upsert_alert_settings(duid, settings):
-            return (500, {"message": "Failed to save alert settings"})
+            payload["admin_bot_config"] = data["admin_bot_config"]
+        if not db.sync_admin_settings_only(admin_id, payload):
+            return (500, {"message": "Failed to save admin settings"})
     notify_databus(access_code)
     trigger_alert_checks_for_admin(admin_id)
     return (200, {"message": "ok"})
@@ -1830,19 +1816,17 @@ def _resolve_admin_from_access_code(db, access_code):
 
 
 def _target_user_for_admin(db, admin_id, act_as_user_id, check_desktop_linked=False):
-    """Return user_id to use for admin operations: act_as_user_id if valid, else dashboard user.
-    If check_desktop_linked and acting as a connected user, require that user to have linked desktop once.
-    Returns (user_id, None) or (None, error_response)."""
+    """Return linked user_id for admin medicine/settings writes. Requires act_as_user_id (Care mode)."""
     if act_as_user_id and (act_as_user_id or "").strip():
         uid = (act_as_user_id or "").strip()
         if db.user_belongs_to_admin(uid, admin_id):
             if check_desktop_linked and not getattr(db, "user_has_desktop_linked", lambda _: True)(uid):
                 return None, (400, {"message": "User must login to desktop first. Changes sync to the user's desktop."})
             return uid, None
-    duid = db.get_dashboard_user_id(admin_id)
-    if not duid:
-        return None, (500, {"message": "Dashboard user not found"})
-    return duid, None
+    return None, (
+        400,
+        {"message": "Select a linked user in the Admin app (Care mode) before changing medicines or reminders."},
+    )
 
 
 def _safe_int(value, default):
@@ -2082,18 +2066,16 @@ def put_admin_alert_settings(body, query, headers):
     # Mobile admin Care may save under act_as user; missed-dose + family_email belong on admin account.
     if isinstance(incoming_alert, dict) and act_as:
         esc = incoming_alert.get("missed_dose_escalation")
-        if isinstance(esc, dict):
-            admin_duid = db.get_dashboard_user_id(admin_id)
-            if admin_duid and str(admin_duid) != str(duid):
-                admin_blob = db.get_alert_settings(admin_duid) or {}
-                if not isinstance(admin_blob, dict):
-                    admin_blob = {}
-                admin_inner = admin_blob.get("alert_settings")
-                if not isinstance(admin_inner, dict):
-                    admin_inner = {}
-                    admin_blob["alert_settings"] = admin_inner
-                admin_inner["missed_dose_escalation"] = esc
-                db.upsert_alert_settings(admin_duid, admin_blob)
+        if isinstance(esc, dict) and hasattr(db, "sync_admin_settings_only"):
+            admin_blob = db.get_admin_settings_blob(admin_id) if hasattr(db, "get_admin_settings_blob") else {}
+            if not isinstance(admin_blob, dict):
+                admin_blob = {}
+            admin_inner = admin_blob.get("alert_settings")
+            if not isinstance(admin_inner, dict):
+                admin_inner = {}
+            admin_inner["missed_dose_escalation"] = esc
+            admin_blob["alert_settings"] = admin_inner
+            db.sync_admin_settings_only(admin_id, admin_blob)
 
     notify_databus(access_code)
     trigger_alert_checks_for_admin(admin_id)

@@ -47,7 +47,7 @@ object AdminLinkedUserDirectory {
     fun snapshot(): List<Entry> = entries
 
     /**
-     * Prefer stored relay/FCM user line; else infer from roster (single linked user, or name/email substring in message).
+     * Prefer stored relay user line; else infer from roster (single linked user, or name/email substring in message).
      */
     fun resolveAlertUserLabel(storedUserName: String, message: String, type: String = ""): String {
         if (AlertDisplayRules.isAdminHubSystemEvent(type)) return ""

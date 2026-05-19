@@ -21,9 +21,9 @@ object NotificationHelper {
         RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
-    /** Ringtone for standalone local alarms ([LocalAlertReceiver]); respects [Prefs.standaloneLocalAlertSoundUri]. */
+    /** Ringtone for on-device alarms; custom tone only in standalone ([LocalAlertsUi.usesCustomAlertToneSettings]). */
     fun resolveStandaloneAlertSoundUri(context: Context): Uri? {
-        if (!StandaloneUi.isUserStandalone(context)) return defaultAlertSoundUri(context)
+        if (!LocalAlertsUi.usesCustomAlertToneSettings(context)) return defaultAlertSoundUri(context)
         val raw = Prefs(context).standaloneLocalAlertSoundUri.trim()
         if (raw.isEmpty()) return defaultAlertSoundUri(context)
         if (raw.equals("silent", ignoreCase = true)) return null
@@ -35,7 +35,7 @@ object NotificationHelper {
     }
 
     private fun resolveStandaloneVibrate(context: Context): Boolean {
-        if (!StandaloneUi.isUserStandalone(context)) return true
+        if (!LocalAlertsUi.usesCustomAlertToneSettings(context)) return true
         return Prefs(context).standaloneLocalAlertVibrate
     }
 

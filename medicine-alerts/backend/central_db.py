@@ -697,7 +697,7 @@ class CentralDB:
     def upsert_admin_from_bot(self, bot_id, api_key, name=None, email=None, fcm_token=None, desktop_password_plain=None):
         """Insert or update admin by (bot_id, api_key). Returns (admin_id, admin_access_code, connection_code) or (None, None, None).
         New admins get unique admin_access_code and connection_code; existing admins keep their codes.
-        fcm_token: when provided, stored so backend can send push alerts to this admin.
+        fcm_token: legacy column only; alerts use relay WebSocket (bot_id+api_key).
         desktop_password_plain: when set (min length enforced by caller), stores PBKDF2 hash for mobile admin sign-in.
         """
         bot_id = (bot_id or "").strip()
@@ -821,7 +821,7 @@ class CentralDB:
 
     def get_admin_bot_by_access_code(self, access_code):
         """Return { bot_id, api_key, fcm_token } for admin with this access_code, or None.
-        Used when desktop notifies backend of events; fcm_token is passed to relay for FCM-first push."""
+        Used when desktop notifies backend; delivery is relay WebSocket to bot_id+api_key."""
         code = (access_code or "").strip().upper()
         if not code:
             return None
@@ -850,7 +850,7 @@ class CentralDB:
             cur.close()
 
     def get_fcm_token_for_bot(self, bot_id, api_key):
-        """Return fcm_token for this bot_id+api_key (admin or user). Used so relay can try FCM first."""
+        """Legacy: fcm_token column. Relay delivery uses bot_id+api_key WebSocket only."""
         bot_id = (bot_id or "").strip()
         api_key = (api_key or "").strip()
         if not bot_id or not api_key:
@@ -902,7 +902,7 @@ class CentralDB:
 
     def get_admin_connection_status(self, access_code):
         """Return { connected: bool, fcm_token_set: bool } for admin with this access_code, or None if not found.
-        connected = has bot_id and api_key; fcm_token_set = has non-empty fcm_token."""
+        connected = has bot_id and api_key; fcm_token_set is legacy (API always reports false)."""
         code = (access_code or "").strip().upper()
         if not code:
             return None
@@ -1267,7 +1267,9 @@ class CentralDB:
         finally:
             cur.close()
 
-    def upsert_user_from_bot(self, bot_id, api_key, admin_id, name=None, email=None, fcm_token=None, username=None):
+    def upsert_user_from_bot(
+        self, bot_id, api_key, admin_id, name=None, email=None, fcm_token=None, username=None, timezone=None
+    ):
         """Insert or update the user by (bot_id, api_key); links this app to the given admin_id. Returns user id or None.
         If email is provided, any other user rows for the same admin_id + email (previous installs) are deleted first,
         but their medicines, dose_logs, and alert_settings are migrated to the new user to preserve data.
@@ -1284,6 +1286,7 @@ class CentralDB:
             return None
         email_clean = (email or "").strip()
         fcm = (fcm_token or "").strip() or None
+        tz = (timezone or "").strip() or None
         if username is not None:
             uname_val = str(username).strip() or None
         else:
@@ -1291,27 +1294,45 @@ class CentralDB:
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
-            # Schema: users may have email, fcm_token, username columns
+            self._ensure_users_timezone_column()
+            # Schema: users may have email, fcm_token, username, timezone columns
             try:
                 cur.execute(
                     """
-                    INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, fcm_token, updated_at)
-                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', %s, NOW())
+                    INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, fcm_token, timezone, updated_at)
+                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', %s, %s, NOW())
                     ON CONFLICT (bot_id, api_key)
                     DO UPDATE SET admin_id = EXCLUDED.admin_id,
                                   name = COALESCE(EXCLUDED.name, users.name),
                                   email = COALESCE(EXCLUDED.email, users.email),
                                   username = COALESCE(NULLIF(TRIM(EXCLUDED.username), ''), users.username),
                                   fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
+                                  timezone = COALESCE(NULLIF(TRIM(EXCLUDED.timezone), ''), users.timezone),
                                   updated_at = NOW()
                     RETURNING id
                     """,
-                    (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key, fcm),
+                    (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key, fcm, tz),
                 )
             except Exception as e0:
                 conn.rollback()
                 el0 = str(e0).lower()
-                if "username" not in el0:
+                if "timezone" in el0:
+                    cur.execute(
+                        """
+                        INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, fcm_token, updated_at)
+                        VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', %s, NOW())
+                        ON CONFLICT (bot_id, api_key)
+                        DO UPDATE SET admin_id = EXCLUDED.admin_id,
+                                      name = COALESCE(EXCLUDED.name, users.name),
+                                      email = COALESCE(EXCLUDED.email, users.email),
+                                      username = COALESCE(NULLIF(TRIM(EXCLUDED.username), ''), users.username),
+                                      fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
+                                      updated_at = NOW()
+                        RETURNING id
+                        """,
+                        (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key, fcm),
+                    )
+                elif "username" not in el0:
                     raise e0
                 cur.execute(
                     """
@@ -1495,126 +1516,148 @@ class CentralDB:
         return None
 
     def get_dashboard_user_id(self, admin_id):
-        """Return user_id for the admin's dashboard data (one user per admin with bot_id='dashboard').
-        Creates that user if it does not exist. Used for syncing desktop medicine_boxes and for app GET /admin/data.
-        """
-        if not admin_id:
-            return None
-        try:
-            uuid.UUID(str(admin_id))
-        except (ValueError, TypeError):
-            return None
-        uid = self.get_user_id_by_bot("dashboard", str(admin_id))
-        if uid:
-            return uid
-        return self.upsert_user_from_bot("dashboard", str(admin_id), admin_id, name="Admin dashboard")
+        """Deprecated: legacy desktop stored medicines on users(bot_id='dashboard'). Always None — do not create."""
+        return None
 
-    def get_admin_dashboard_data(self, admin_id, last_sync_time=None):
-        """Return dashboard data for this admin. If last_sync_time (ISO) is set, return only data updated after that time (incremental).
-        Always returns server_time for next poll. Used by Android GET /admin/data?access_code=...&last_sync_time=...
-        """
-        duid = self.get_dashboard_user_id(admin_id)
-        if not duid:
+    def _ensure_admins_settings_column(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "ALTER TABLE admins ADD COLUMN IF NOT EXISTS admin_settings JSONB NOT NULL DEFAULT '{}'::jsonb"
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close()
+
+    def get_admin_settings_blob(self, admin_id):
+        """Admin-wide settings (gmail, escalation defaults, etc.) — not tied to a fake dashboard user."""
+        if not admin_id:
+            return {}
+        self._ensure_admins_settings_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
+        try:
+            cur.execute("SELECT admin_settings FROM admins WHERE id = %s::uuid LIMIT 1", (admin_id,))
+            row = cur.fetchone()
+            if not row:
+                return {}
+            raw = row["admin_settings"] if hasattr(row, "keys") else row[0]
+            if raw is None:
+                return {}
+            if isinstance(raw, dict):
+                return raw
+            if isinstance(raw, str):
+                return json.loads(raw) if raw.strip() else {}
+            return json.loads(str(raw)) if str(raw).strip() else {}
+        except Exception as e:
+            print(f"CentralDB get_admin_settings_blob: {e}")
+            return {}
+        finally:
+            cur.close()
+
+    def upsert_admin_settings_blob(self, admin_id, settings):
+        if not admin_id:
+            return False
+        if not isinstance(settings, dict):
+            settings = {}
+        self._ensure_admins_settings_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "UPDATE admins SET admin_settings = %s::jsonb, updated_at = NOW() WHERE id = %s::uuid",
+                (json.dumps(settings), admin_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB upsert_admin_settings_blob: {e}")
+            return False
+        finally:
+            cur.close()
+
+    def delete_legacy_dashboard_users(self):
+        """Remove users rows with bot_id='dashboard' (old desktop admin medicine store)."""
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("DELETE FROM users WHERE bot_id = 'dashboard'")
+            n = cur.rowcount
+            conn.commit()
+            return n
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB delete_legacy_dashboard_users: {e}")
+            return 0
+        finally:
+            cur.close()
+
+    def create_admin_system_alert(self, admin_id, type_, message, related_user_id=None):
+        """Persist an admin-visible alert without creating a dashboard user."""
+        uid = (related_user_id or "").strip() or None
+        if not uid:
+            users = self.get_all_users_by_admin_id(admin_id) or []
+            if users:
+                uid = users[0].get("id")
+        if not uid:
+            return None
+        return self.create_alert(uid, admin_id, type_, message)
+
+    def get_admin_hub_data(self, admin_id, last_sync_time=None):
+        """Admin APK home (no act-as): alerts + admin settings only — no legacy dashboard medicines."""
+        if not admin_id:
             return None
         now = datetime.now(timezone.utc).isoformat()
         incremental = bool(last_sync_time and (last_sync_time or "").strip())
+        settings = self.get_admin_settings_blob(admin_id) or {}
         if incremental:
-            medicines = self.list_medicines(duid, since=last_sync_time)
-            dose_logs = self.list_dose_logs(duid, from_=last_sync_time, limit=500)
-            alert_settings = self.get_alert_settings_if_updated_since(duid, last_sync_time)
             alerts = self.list_alerts(admin_id=admin_id, since=last_sync_time, limit=200)
         else:
-            medicines = self.list_medicines(duid)
-            dose_logs = self.list_dose_logs(duid, limit=500)
-            alert_settings = self.get_alert_settings(duid)
             alerts = self.list_alerts(admin_id=admin_id, limit=200)
-        medical_reminders = (alert_settings or {}).get("medical_reminders") if alert_settings else None
-        if medical_reminders is None and not incremental:
+        medical_reminders = settings.get("medical_reminders") if isinstance(settings.get("medical_reminders"), dict) else None
+        if medical_reminders is None:
             medical_reminders = {"appointments": [], "prescriptions": [], "lab_tests": [], "custom": []}
-        out = {
-            "medicines": medicines,
-            "dose_logs": dose_logs,
-            "alert_settings": alert_settings,
+        return {
+            "medicines": [],
+            "dose_logs": [],
+            "alert_settings": settings,
             "alerts": alerts,
             "medical_reminders": medical_reminders,
             "server_time": now,
             "incremental": incremental,
+            "medicine_box_ids": [],
         }
-        if incremental:
-            all_meds = self.list_medicines(duid)
-            out["medicine_box_ids"] = [m.get("box_id") for m in all_meds if m.get("box_id")]
-        return out
+
+    def get_admin_dashboard_data(self, admin_id, last_sync_time=None):
+        """Alias: admin home hub data (no fake dashboard user medicines)."""
+        return self.get_admin_hub_data(admin_id, last_sync_time=last_sync_time)
 
     def sync_admin_dashboard_data(self, admin_id, medicine_boxes, dose_log):
-        """Sync desktop medicine_boxes and dose_log to Central DB for this admin.
-        medicine_boxes: dict B1..B6 -> { name, quantity?, dose_per_day?, exact_time?, instructions?, ... }
-        dose_log: list of { timestamp, box, medicine, dose_taken, remaining }.
-        """
-        duid = self.get_dashboard_user_id(admin_id)
-        if not duid:
-            return False
-        existing_medicines = self.list_medicines(duid)
-        by_box = {m.get("box_id"): m for m in existing_medicines if m.get("box_id")}
-
-        for box_id in [f"B{i}" for i in range(1, 7)]:
-            med = (medicine_boxes or {}).get(box_id) if isinstance(medicine_boxes, dict) else None
-            if med and isinstance(med, dict):
-                name = (med.get("name") or "").strip() or "Medicine"
-                dosage = med.get("instructions") or str(med.get("dose_per_day") or "")
-                exact_time = med.get("exact_time") or "08:00"
-                times = [exact_time] if isinstance(exact_time, str) else (exact_time if isinstance(exact_time, (list, tuple)) else [])
-                low_stock = 5
-                if med.get("low_stock") is not None:
-                    try:
-                        low_stock = int(med.get("low_stock"))
-                    except (TypeError, ValueError):
-                        pass
-                quantity = 0
-                if med.get("quantity") is not None:
-                    try:
-                        quantity = int(med.get("quantity"))
-                    except (TypeError, ValueError):
-                        pass
-                existing = by_box.get(box_id)
-                if existing:
-                    self.update_medicine(
-                        existing.get("id"),
-                        name=name,
-                        box_id=box_id,
-                        dosage=dosage,
-                        times=times,
-                        low_stock=low_stock,
-                        quantity=quantity,
-                    )
-                else:
-                    self.create_medicine(duid, name, box_id=box_id, dosage=dosage, times=times, low_stock=low_stock, quantity=quantity)
-            else:
-                existing = by_box.get(box_id)
-                if existing:
-                    self.delete_medicine(existing.get("id"))
-
-        # Replace dose_logs for dashboard user: delete all then insert from dose_log
-        conn = self._ensure_conn()
-        cur = conn.cursor()
-        try:
-            cur.execute("DELETE FROM dose_logs WHERE user_id = %s::uuid", (duid,))
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            print(f"CentralDB sync_admin_dashboard_data delete dose_logs: {e}")
-            cur.close()
-            return True
-        finally:
-            cur.close()
-
-        for entry in (dose_log or [])[:500]:
-            if not isinstance(entry, dict):
-                continue
-            ts = entry.get("timestamp") or entry.get("taken_at")
-            box = entry.get("box") or entry.get("box_id") or ""
-            if ts:
-                self.create_dose_log(duid, medicine_id=None, box_id=box, taken_at=ts, source="desktop")
+        """Legacy desktop sync without act_as_user_id: admin-wide settings only (medicines ignored)."""
+        _ = medicine_boxes, dose_log
         return True
+
+    def sync_admin_settings_only(self, admin_id, payload):
+        """Merge settings fields onto admins.admin_settings (no medicines / dose_logs)."""
+        if not admin_id or not isinstance(payload, dict):
+            return False
+        current = self.get_admin_settings_blob(admin_id) or {}
+        if isinstance(payload.get("alert_settings"), dict):
+            inner = current.get("alert_settings")
+            if not isinstance(inner, dict):
+                inner = {}
+            inner.update(payload["alert_settings"])
+            current["alert_settings"] = inner
+        for key in ("gmail_config", "medical_reminders", "sms_config", "mobile_bot_config", "admin_bot_config"):
+            if isinstance(payload.get(key), dict):
+                current[key] = payload[key]
+        if isinstance(payload.get("medicine_meta"), dict):
+            current["medicine_meta"] = payload["medicine_meta"]
+        return self.upsert_admin_settings_blob(admin_id, current)
 
     def sync_admin_dashboard_data_for_user(self, admin_id, user_id, medicine_boxes, dose_log):
         """Sync medicine_boxes and dose_log to a connected user (when admin 'acts as' that user)."""
@@ -3003,6 +3046,36 @@ class CentralDB:
             conn.commit()
         except Exception:
             conn.rollback()
+        finally:
+            cur.close()
+
+    def _ensure_users_timezone_column(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) DEFAULT NULL")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close()
+
+    def get_user_timezone_for_user_id(self, user_id):
+        if not user_id:
+            return ""
+        self._ensure_users_timezone_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT timezone FROM users WHERE id = %s::uuid LIMIT 1", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                return ""
+            v = row["timezone"] if hasattr(row, "keys") else row[0]
+            return str(v or "").strip()
+        except Exception as e:
+            print(f"CentralDB get_user_timezone_for_user_id: {e}")
+            return ""
         finally:
             cur.close()
 
@@ -5180,6 +5253,11 @@ class CentralDB:
                 out["desktop_link_codes_deleted"] = cur.rowcount
             except Exception as e:
                 out["desktop_link_codes_error"] = str(e)
+            try:
+                cur.execute("DELETE FROM users WHERE bot_id = 'dashboard'")
+                out["dashboard_users_deleted"] = cur.rowcount
+            except Exception as e:
+                out["dashboard_users_error"] = str(e)
             conn.commit()
         except Exception as e:
             conn.rollback()

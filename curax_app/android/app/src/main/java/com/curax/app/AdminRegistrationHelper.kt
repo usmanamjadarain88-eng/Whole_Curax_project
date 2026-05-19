@@ -130,7 +130,6 @@ object AdminRegistrationHelper {
                         put("name", saveName)
                         put("email", email)
                         put("desktop_password", password)
-                        if (prefs.fcmToken.isNotEmpty()) put("fcm_token", prefs.fcmToken)
                     }
                     val saveReq = Request.Builder()
                         .url("$base/save-credentials")

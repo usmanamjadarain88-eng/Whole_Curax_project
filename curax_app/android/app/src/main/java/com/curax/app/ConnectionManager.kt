@@ -5,9 +5,9 @@ import android.content.Intent
 import android.os.Build
 
 /**
- * Central entry points for **alert relay** ([AlertConnectionService]) intents.
- * Authoritative connected state for UI remains the bound [AlertConnectionService] when available;
- * [AlertConnectionService.relayConnectedHint] is a best-effort mirror for diagnostics or quick checks.
+ * Alert relay = live WebSocket to [RELAY_URL] (e.g. curax-relay.onrender.com).
+ * Register with bot_id + api_key; server pushes {type, message} JSON for popups.
+ * Not used for routine dose times (those are local AlarmManager alarms).
  */
 object ConnectionManager {
 

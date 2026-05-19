@@ -35,7 +35,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.firebase.messaging.FirebaseMessaging
 import android.app.NotificationManager
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -200,7 +199,7 @@ class MainActivity : AppCompatActivity() {
                 disconnectService()
                 CuraxFeedback.info(this, "Disconnected")
             } else {
-                CuraxFeedback.info(this, "Registering FCM and connecting to relay…")
+                CuraxFeedback.info(this, "Connecting to relay…")
                 if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
                     pendingRelayConnectAfterNotificationPermission = true
                     ConnectRelaySetup.requestNotificationPrompt(this)
@@ -246,7 +245,8 @@ class MainActivity : AppCompatActivity() {
         if (prefs.linkedAdminId.isNotEmpty() && prefs.id.isNotEmpty()) {
             checkUserDeletedByAdmin()
         }
-        if (RelayAutoConnect.shouldAutoRestore(prefs)) {
+        if (RelayAutoConnect.userLinkedToAdmin(prefs)) {
+            RelayAutoConnect.enableForLinkedUser(this)
             try {
                 bindService(
                     Intent(this, AlertConnectionService::class.java),
@@ -255,7 +255,6 @@ class MainActivity : AppCompatActivity() {
                 )
             } catch (_: Exception) {
             }
-            ConnectionManager.ensureRelayLiveOnAppOpen(this)
         }
     }
 
@@ -505,33 +504,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun runMainConnectWakeAndRelayFlow(id: String, apiKey: String) {
         prefs.relayAutoConnectEnabled = true
-        connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+        saveCredentialsTimezoneIfLinked(id, apiKey)
+        startConnectionService(prefs.serverUrl, id, apiKey)
     }
 
-    private fun connectWithLatestFcmToken(serverUrl: String, id: String, apiKey: String) {
-        tvConnectionStatus.text = getString(R.string.connecting)
-        tvConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
-
-        FirebaseMessaging.getInstance().token
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val token = task.result.orEmpty()
-                    if (token.isNotEmpty()) {
-                        prefs.fcmToken = token
-                        saveFcmTokenToCentralApi(id, apiKey, token)
-                        startService(Intent(this, AlertConnectionService::class.java).apply {
-                            action = AlertConnectionService.ACTION_UPDATE_FCM
-                            putExtra(AlertConnectionService.EXTRA_BOT_ID, id)
-                            putExtra(AlertConnectionService.EXTRA_API_KEY, apiKey)
-                            putExtra(AlertConnectionService.EXTRA_FCM_TOKEN, token)
-                        })
-                    }
-                }
-                startConnectionService(serverUrl, id, apiKey)
-            }
-    }
-
-    private fun saveFcmTokenToCentralApi(botId: String, apiKey: String, fcmToken: String) {
+    private fun saveCredentialsTimezoneIfLinked(botId: String, apiKey: String) {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val adminId = prefs.linkedAdminId.trim()
         if (base.isEmpty() || adminId.isEmpty()) return
@@ -542,7 +519,7 @@ class MainActivity : AppCompatActivity() {
                     put("api_key", apiKey)
                     put("role", "user")
                     put("admin_id", adminId)
-                    put("fcm_token", fcmToken)
+                    put("timezone", java.util.TimeZone.getDefault().id)
                 }
                 val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).build()
                 val req = Request.Builder()

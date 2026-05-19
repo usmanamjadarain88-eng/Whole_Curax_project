@@ -82,9 +82,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Data bus on Vercel: subscribe to Ably channels (HTTP notify publishes via serverless).
     implementation("io.ably:ably-android:1.2.39")
-    // Firebase Cloud Messaging - receive alerts when app is closed (like WhatsApp)
-    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
-    implementation("com.google.firebase:firebase-messaging-ktx")
     // Sign-up: Google + Facebook profile (email / name) to prefill registration form
     implementation("com.google.android.gms:play-services-auth:21.3.0")
     implementation("com.facebook.android:facebook-login:18.0.1")

@@ -35,7 +35,6 @@ import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
-import com.google.firebase.messaging.FirebaseMessaging
 import android.app.NotificationManager
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -217,7 +216,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                     pendingRelayConnectAfterNotificationPermission = false
                     ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
                     prefs.relayAutoConnectEnabled = true
-                    connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+                    startConnectionService(prefs.serverUrl, id, apiKey)
                 }
             }
         }
@@ -329,7 +328,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             val id = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
             if (id.isNotEmpty() && apiKey.isNotEmpty()) {
-                connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+                startConnectionService(prefs.serverUrl, id, apiKey)
             }
         }
         applySidebarLocalStats()
@@ -350,7 +349,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         if (id.isEmpty() || apiKey.isEmpty()) return
         ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
         prefs.relayAutoConnectEnabled = true
-        connectWithLatestFcmToken(prefs.serverUrl, id, apiKey)
+        startConnectionService(prefs.serverUrl, id, apiKey)
     }
 
     private fun fetchAdminSnapshotFromServer() {
@@ -725,68 +724,6 @@ class AdminDashboardActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-
-    private fun connectWithLatestFcmToken(serverUrl: String, id: String, apiKey: String) {
-        tvAdminConnectionStatus.text = getString(R.string.connecting)
-        tvAdminConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
-
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val token = task.result.orEmpty()
-                    if (token.isNotEmpty()) {
-                        prefs.fcmToken = token
-                        saveFcmTokenToCentralApi(id, apiKey, token, role = "admin")
-                        startService(Intent(this, AlertConnectionService::class.java).apply {
-                            action = AlertConnectionService.ACTION_UPDATE_FCM
-                            putExtra(AlertConnectionService.EXTRA_BOT_ID, id)
-                            putExtra(AlertConnectionService.EXTRA_API_KEY, apiKey)
-                            putExtra(AlertConnectionService.EXTRA_FCM_TOKEN, token)
-                        })
-                    }
-                }
-            startConnectionService(serverUrl, id, apiKey)
-        }
-    }
-
-    private fun saveFcmTokenToCentralApi(botId: String, apiKey: String, fcmToken: String, role: String) {
-        val base = prefs.centralApiUrl.trim().removeSuffix("/")
-        if (base.isEmpty()) return
-        Thread {
-            try {
-                val client = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).build()
-                // 1) save-credentials so backend stores FCM in the correct admin/user row (use access_code for admin)
-                val body = JSONObject().apply {
-                    put("bot_id", botId)
-                    put("api_key", apiKey)
-                    put("role", role)
-                    put("fcm_token", fcmToken)
-                    if (role == "admin") {
-                        val ac = prefs.adminAccessCode.trim()
-                        if (ac.isNotEmpty()) put("access_code", ac)
-                    }
-                }
-                var req = Request.Builder()
-                    .url("$base/save-credentials")
-                    .post(body.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-                val res = client.newCall(req).execute()
-                if (res.isSuccessful) { }
-                // 2) Also update by access_code so admin's fcm_token is set for GET /admin/connection etc.
-                val accessCode = prefs.adminAccessCode.trim()
-                if (accessCode.isNotEmpty() && fcmToken.isNotEmpty()) {
-                    val fcmBody = JSONObject().apply {
-                        put("access_code", accessCode)
-                        put("fcm_token", fcmToken)
-                    }
-                    req = Request.Builder()
-                        .url("$base/admin/fcm-token")
-                        .put(fcmBody.toString().toRequestBody("application/json".toMediaType()))
-                        .build()
-                    client.newCall(req).execute()
-                }
-            } catch (_: Exception) { }
-        }.start()
     }
 
     private fun startConnectionService(serverUrl: String, id: String, apiKey: String) {

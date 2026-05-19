@@ -3,7 +3,6 @@ package com.curax.app
 import android.content.Intent
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.messaging.FirebaseMessaging
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -48,30 +47,28 @@ object AwaitingAdminLinkCoordinator {
                     val jo = ApiErrorMessages.parseResponseBody(raw, res.code)
                     if (res.code != 200 || jo == null || jo.optString("status") != "accepted") return@use
                     val snapshot = JSONObject(jo.toString())
-                    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                        val fcmToken = if (task.isSuccessful) task.result?.trim().orEmpty() else ""
-                        val pwd = store.password
-                        if (activity.isFinishing) return@addOnCompleteListener
-                        SignupAdminLinkHelper.applyServerLinkSuccess(
-                            activity,
-                            snapshot,
-                            snapshot.optString("connection_code", "").trim(),
-                            fcmToken,
-                            email,
-                            pwd,
-                            botId,
-                            apiKey,
-                            http,
-                            nameForLinkFallback = email,
-                            onUserDataApplied = {
-                                CuraxFeedback.success(
-                                    activity,
-                                    activity.getString(R.string.linked_to_admin_success),
-                                )
-                                activity.sendBroadcast(Intent(AlertEvents.ACTION_CONNECTION_STATE_CHANGED))
-                                if (activity is UserStandaloneActivity) {
-                                    activity.applyAdminLinkAcceptedUiRefresh()
-                                }
+                    val pwd = store.password
+                    if (activity.isFinishing) return@use
+                    SignupAdminLinkHelper.applyServerLinkSuccess(
+                        activity,
+                        snapshot,
+                        snapshot.optString("connection_code", "").trim(),
+                        email,
+                        pwd,
+                        botId,
+                        apiKey,
+                        http,
+                        nameForLinkFallback = email,
+                        onUserDataApplied = {
+                            RelayAutoConnect.enableForLinkedUser(activity)
+                            CuraxFeedback.success(
+                                activity,
+                                activity.getString(R.string.linked_to_admin_success),
+                            )
+                            activity.sendBroadcast(Intent(AlertEvents.ACTION_CONNECTION_STATE_CHANGED))
+                            if (activity is UserStandaloneActivity) {
+                                activity.applyAdminLinkAcceptedUiRefresh()
+                            }
                             },
                             onAuthRejected = { msg ->
                                 UserLogoutHelper.clearLocalSession(activity)
@@ -81,8 +78,7 @@ object AwaitingAdminLinkCoordinator {
                                     long = true,
                                 )
                             },
-                        )
-                    }
+                    )
                 }
             } catch (_: Exception) {
             }

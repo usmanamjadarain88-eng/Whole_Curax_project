@@ -7,8 +7,8 @@ import android.content.Context
  * - **User:** local [AlarmManager] schedules (+ escalation watchdog) from cached medicines.
  * - **User + Admin:** relay WebSocket via [AlertConnectionService] when auto-connect is enabled.
  *
- * Default linked users still receive routine dose reminders from server/relay/FCM; on-device +15/+30
- * POSTs are a backup so admin email is not missed if cron is delayed.
+ * Default and standalone linked users use on-device [LocalAlertsController] for dose/stock/expiry.
+ * Alert relay (WebSocket) carries user→admin escalations (+15/+30), stock, and expiry to the admin app.
  */
 object MobileReliabilityCoordinator {
 
@@ -16,6 +16,8 @@ object MobileReliabilityCoordinator {
         val app = context.applicationContext
         if (AppRole.isUser(app)) {
             UserAlarmScheduler.rescheduleAll(app)
+            DoseAutoMissedMarker.run(app)
+            RelayAutoConnect.enableForLinkedUser(app)
         }
         ConnectionManager.ensureRelayLiveOnAppOpen(app)
     }

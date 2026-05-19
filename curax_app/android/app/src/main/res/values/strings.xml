@@ -43,6 +43,7 @@
     <string name="dose_tracking_weekly_adherence">Weekly adherence (7 days): %1$d%%</string>
     <string name="dose_tracking_saved_on_time">On-time dose recorded.</string>
     <string name="dose_tracking_saved_late">Late dose recorded.</string>
+    <string name="dose_admin_notify_missed_auto">Missed dose: %1$s (%2$s) — scheduled %3$s not taken in time.</string>
     <string name="pending_sync_title_dose">Dose change</string>
     <string name="pending_sync_title_medicine">Medicine update</string>
     <string name="pending_sync_title_reminder">Reminder update</string>
@@ -114,7 +115,7 @@
     <string name="user_sidebar_profile_change_cd">Change profile picture</string>
     <string name="user_sidebar_notifications_title">How notifications work</string>
     <string name="user_sidebar_notifications_local_body">On-device reminders (medicines, dose times, Health Hub plans, medical reminders) are scheduled on this phone and work without the internet. This local layer is always on for Personal Health mode.</string>
-    <string name="user_sidebar_notifications_cloud_body">Cloud (FCM) is used for admin sync, server-driven updates, and important pushes from your care team — not for your daily dose schedule.</string>
+    <string name="user_sidebar_notifications_cloud_body">DataBus syncs medicines live. Alert relay (WebSocket) carries admin-linked events (+15/+30 to admin, stock/expiry). Daily dose times are local on this phone.</string>
     <string name="user_profile_pick_title">Update photo</string>
     <string name="user_profile_pick_gallery">Choose from gallery</string>
     <string name="user_profile_pick_camera">Take photo</string>
@@ -207,7 +208,7 @@
     <string name="user_temp_adjust_screen_title">Temperature adjustment</string>
     <string name="user_temp_adjust_intro">Set target ranges for each Peltier zone (same as desktop). Commands will be sent when hardware is linked.</string>
     <string name="admin_logs_screen_title">Logs</string>
-    <string name="admin_logs_screen_subtitle">Each alert received (FCM or relay) appears here as a log entry.</string>
+    <string name="admin_logs_screen_subtitle">Each alert received via relay WebSocket appears here as a log entry.</string>
     <string name="user_temp_peltier1_title">Peltier 1 — boxes B1–B4</string>
     <string name="user_temp_peltier2_title">Peltier 2 — boxes B5–B6</string>
     <string name="user_temp_range_c">Range (°C)</string>
@@ -236,8 +237,8 @@
     <string name="user_temp_ble_sent">Sent to ESP32 over Bluetooth.</string>
     <string name="user_sidebar_detail_admin_linked">Your data is tied to this admin. Medicines, reminders, and settings sync from their workspace.\n\n• Live updates need Realtime (DataBus) online.\n\n• Admin: %1$s</string>
     <string name="user_sidebar_detail_admin_not_linked">You are not linked to an admin yet. Without a link, CuraX cannot load your care plan from the server.\n\n• Complete sign-up or sign-in and enter the admin connection code when asked.\n\n• Ask your clinic for their CuraX connection code.</string>
-    <string name="user_sidebar_detail_health_ok">Everything needed for CuraX is up.\n\n• API &amp; account: configured.\n\n• DataBus (Realtime): receiving live medicine and settings updates.\n\n• Alert relay: connected so push/relay alerts can arrive.</string>
-    <string name="user_sidebar_detail_health_partial">One path is up, the other is not — you may miss updates or alerts until both are green.\n\n• Realtime (DataBus): live WebSocket sync for medicines and admin edits.\n\n• Alert relay: the Connect button at the bottom — starts the relay service for FCM/relay delivery.\n\n• Fix: open this drawer, check Realtime and Alerts rows, then tap Connect if the relay is off.</string>
+    <string name="user_sidebar_detail_health_ok">Everything needed for CuraX is up.\n\n• API &amp; account: configured.\n\n• DataBus (Realtime): receiving live medicine and settings updates.\n\n• Alert relay: WebSocket connected (admin/server alerts).</string>
+    <string name="user_sidebar_detail_health_partial">One path is up, the other is not — you may miss updates or alerts until both are green.\n\n• Realtime (DataBus): live WebSocket sync for medicines and admin edits.\n\n• Alert relay: WebSocket to the cloud relay for admin-linked alerts (+15/+30 to admin, etc.).\n\n• Fix: open this drawer, check Realtime and Alerts rows; linked users auto-connect relay.</string>
     <string name="user_sidebar_detail_health_issues">Multiple checks failed — you may see stale data or no alerts.\n\n• Confirm server URL, bot id, and API key in User Settings.\n\n• Ensure you are linked to an admin.\n\n• Tap Connect for the relay; wait for Realtime to show Connected.</string>
     <string name="user_sidebar_detail_health_config">Server URL or your device credentials are missing.\n\n• Open User Settings (toolbar menu) and set the central server URL if required.\n\n• Sign in again if your session was cleared.</string>
     <string name="user_sidebar_detail_health_no_admin">Account is signed in but not linked to an admin workspace.\n\n• Link using the admin connection code during sign-up, or contact support to attach your account.</string>

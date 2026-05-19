@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS admins (
 ALTER TABLE admins ADD COLUMN IF NOT EXISTS admin_access_code VARCHAR(32);
 ALTER TABLE admins ADD COLUMN IF NOT EXISTS connection_code VARCHAR(32);
 ALTER TABLE admins ADD COLUMN IF NOT EXISTS desktop_password_hash VARCHAR(128);
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS admin_settings JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE UNIQUE INDEX IF NOT EXISTS admins_admin_access_code_uidx ON admins (admin_access_code);
 CREATE UNIQUE INDEX IF NOT EXISTS admins_connection_code_uidx ON admins (connection_code);
@@ -112,6 +113,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMPTZ NOT NUL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_picture TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS health_hub_plans JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_otp_hash VARCHAR(128) DEFAULT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_otp_expires_at TIMESTAMPTZ DEFAULT NULL;
 

@@ -26,6 +26,10 @@ import android.os.Handler
 import android.os.Looper
 import kotlin.math.min
 
+/**
+ * Foreground WebSocket client for the cloud relay (wss).
+ * Long-lived: {"bot_id","api_key"}. Incoming JSON → [onAlertReceived] (admin/user popups).
+ */
 class AlertConnectionService : Service() {
 
     private val binder = LocalBinder()
@@ -66,21 +70,6 @@ class AlertConnectionService : Service() {
                 startForeground(NOTIF_ID, createNotification(false))
                 connect(serverUrl, botId, apiKey)
             }
-            ACTION_UPDATE_FCM -> {
-                val botId = intent.getStringExtra(EXTRA_BOT_ID) ?: lastBotId.orEmpty()
-                val apiKey = intent.getStringExtra(EXTRA_API_KEY) ?: lastApiKey.orEmpty()
-                val fcm = intent.getStringExtra(EXTRA_FCM_TOKEN).orEmpty()
-                if (botId.isNotEmpty() && apiKey.isNotEmpty()) {
-                    lastBotId = botId
-                    lastApiKey = apiKey
-                }
-                if (fcm.isNotEmpty()) {
-                    Prefs(this).fcmToken = fcm
-                }
-                if (isConnected() && botId.isNotEmpty() && apiKey.isNotEmpty()) {
-                    sendRegister(botId, apiKey, Prefs(this).fcmToken)
-                }
-            }
             ACTION_DISCONNECT -> {
                 relayConnectedHint = false
                 cancelReconnect()
@@ -111,10 +100,7 @@ class AlertConnectionService : Service() {
                     startForeground(NOTIF_ID, createNotification(false))
                     handler.postDelayed({ connect(url, botId, apiKey) }, 500L)
                 } else {
-                    val fcm = Prefs(this).fcmToken.trim()
-                    if (fcm.isNotEmpty()) {
-                        sendRegister(botId, apiKey, fcm)
-                    }
+                    sendRegister(botId, apiKey)
                 }
             }
         }
@@ -204,11 +190,11 @@ class AlertConnectionService : Service() {
         val request = Request.Builder().url(wsUrl).build()
         webSocket = client!!.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                sendRegister(botId, apiKey, Prefs(this@AlertConnectionService).fcmToken)
+                sendRegister(botId, apiKey)
                 isConnecting = false
                 reconnectBackoffMs = 2000L
                 relayConnectedHint = true
-                Log.d(TAG, "WebSocket connected; backend should store FCM for this bot_id + api_key")
+                Log.d(TAG, "WebSocket connected to relay")
                 runOnMain {
                     notifyRelayConnectionUi(true)
                     updateNotification(true)
@@ -272,12 +258,11 @@ class AlertConnectionService : Service() {
         )
     }
 
-    private fun sendRegister(botId: String, apiKey: String, fcmToken: String) {
+    private fun sendRegister(botId: String, apiKey: String) {
         try {
             val register = JSONObject().apply {
                 put("bot_id", botId)
                 put("api_key", apiKey)
-                if (fcmToken.isNotEmpty()) put("fcm_token", fcmToken)
             }
             webSocket?.send(register.toString())
         } catch (_: Exception) {
@@ -315,12 +300,12 @@ class AlertConnectionService : Service() {
 
     private fun createNotification(connected: Boolean): Notification {
         createChannel()
-        val title = if (connected) "CuraX - Linked" else "CuraX - FCM active"
+        val title = if (connected) "CuraX - Linked" else "CuraX - Connecting"
         val intent = Intent(this, LaunchActivity::class.java).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP }
         val pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
-            .setContentText(if (connected) "Receiving alerts by ID" else "Push alerts remain active")
+            .setContentText(if (connected) "Receiving alerts via relay" else "Connecting to relay…")
             .setSmallIcon(R.drawable.ic_launcher_inset)
             .setContentIntent(pi)
             .setOngoing(true)
@@ -407,11 +392,9 @@ class AlertConnectionService : Service() {
         const val ACTION_CONNECT = "com.curax.app.CONNECT"
         const val ACTION_DISCONNECT = "com.curax.app.DISCONNECT"
         const val ACTION_RECONNECT_NOW = "com.curax.app.RECONNECT_NOW"
-        const val ACTION_UPDATE_FCM = "com.curax.app.UPDATE_FCM"
         const val EXTRA_SERVER_URL = "server_url"
         const val EXTRA_BOT_ID = "bot_id"
         const val EXTRA_API_KEY = "api_key"
-        const val EXTRA_FCM_TOKEN = "fcm_token"
         private const val CHANNEL_ID = "curax_status_channel"
         private const val NOTIF_ID = 1001
     }

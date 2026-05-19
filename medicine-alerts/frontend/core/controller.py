@@ -507,7 +507,7 @@ class AppController(QObject):
         return "wss://databus.vercel.app"
 
     def get_relay_alert_url(self):
-        """URL for forwarding status alerts to relay (FCM). None = do not forward (avoids localhost:5000 errors when relay not running)."""
+        """Optional local PC relay HTTP POST (/relay/alert). Cloud relay uses wss:// directly from backend; None = skip."""
         url = (os.environ.get("RELAY_ALERT_URL") or "").strip().rstrip("/")
         if url:
             return url + "/relay/alert" if "/relay" not in url else url

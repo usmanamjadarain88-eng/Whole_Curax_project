@@ -20,8 +20,13 @@ object DoseAutoMissedMarker {
 
     fun run(context: Context) {
         val app = context.applicationContext
-        if (!StandaloneUi.isUserStandalone(app) || !AppRole.isUser(app)) return
-        if (StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(app)) return
+        if (!AppRole.isUser(app)) return
+        if (!LocalAlertsUi.usesOnDeviceMedicineAlarms(app) && !StandaloneUi.isUserStandalone(app)) return
+        if (StandaloneUi.isUserStandalone(app) &&
+            StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(app)
+        ) {
+            return
+        }
         AdminDemoData.warmScheduleTouchCache(app)
         val dayKey = LocalAlertsController.localDayKeyToday()
         val now = System.currentTimeMillis()
@@ -53,6 +58,16 @@ object DoseAutoMissedMarker {
                     ),
                 )
                 DoseTrackingLocalStore.markTakenForSlot(app, m.box, dayKey, slot)
+
+                val slotNorm = MedicineSchedule.normalizeToHhMm(slot)
+                val adminMsg = app.getString(
+                    R.string.dose_admin_notify_missed_auto,
+                    m.name,
+                    m.box,
+                    slotNorm,
+                )
+                AlertFlowLog.record(app, "missed_auto", m.box, slotNorm, dayKey, "admin_relay_post", adminMsg.take(80))
+                UserRelayNotifyApi.notifyAdmin(app, "missed_dose", adminMsg)
 
                 StandaloneUserMutationSink.notifyLocalChange(
                     null,

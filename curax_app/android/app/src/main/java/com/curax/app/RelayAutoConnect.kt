@@ -7,16 +7,31 @@ import android.content.ServiceConnection
 import android.os.IBinder
 
 /**
- * After the user completes first Connect, every app open restores relay + UI (even if they
- * tapped Disconnect earlier in the same install).
+ * Keeps the relay WebSocket up after first Connect (user↔admin channel).
+ * User local alarms handle dose times; relay delivers server-driven alerts to admin/user.
  */
 object RelayAutoConnect {
+
+    fun userLinkedToAdmin(prefs: Prefs): Boolean =
+        prefs.linkedAdminId.trim().isNotEmpty()
 
     fun shouldAutoRestore(prefs: Prefs): Boolean {
         if (!prefs.relayAutoConnectEnabled) return false
         if (prefs.id.trim().isEmpty() || prefs.apiKey.trim().isEmpty()) return false
         if (prefs.serverUrl.trim().isEmpty()) return false
         return true
+    }
+
+    /** Keep user relay up for the user↔admin channel (default + standalone when linked). */
+    fun enableForLinkedUser(context: Context) {
+        val app = context.applicationContext
+        if (!AppRole.isUser(app)) return
+        val prefs = Prefs(app)
+        if (!userLinkedToAdmin(prefs)) return
+        if (prefs.id.trim().isEmpty() || prefs.apiKey.trim().isEmpty()) return
+        if (prefs.serverUrl.trim().isEmpty()) return
+        prefs.relayAutoConnectEnabled = true
+        ConnectionManager.ensureRelayLiveOnAppOpen(app)
     }
 
     fun isRelayLive(context: Context, connectionService: AlertConnectionService?): Boolean =
@@ -31,7 +46,6 @@ object RelayAutoConnect {
         onConnecting: () -> Unit,
         onConnected: (Boolean) -> Unit,
     ) {
-        if (AppRole.isUser(activity) && StandaloneUi.isUserStandalone(activity)) return
         if (!shouldAutoRestore(prefs)) {
             onConnected(isRelayLive(activity, connectionService))
             return
