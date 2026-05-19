@@ -426,29 +426,31 @@ object LocalAlertsController {
                 if (emptyOn && m.stock == 0) {
                     val seed = "stock_empty_${m.box}_$dayTag"
                     val msg = app.getString(R.string.local_alert_stock_empty, m.name, m.box)
-                    NotificationHelper.showAlertNotification(
-                        app,
-                        (seed.hashCode() and 0x7fff_0000) xor 0x1200,
-                        -(100L + (seed.hashCode() and 0xfffffff)),
-                        "medicine_stock",
-                        msg,
-                    )
-                    if (notifyAdmin && LocalAlertRelayDedupe.tryClaim(app, seed)) {
-                        UserRelayNotifyApi.notifyAdmin(app, "stock", msg)
+                    if (LocalAlertRelayDedupe.tryClaim(app, seed)) {
+                        AlertDeliver.deliver(
+                            app,
+                            type = "medicine_stock",
+                            message = msg,
+                            notificationId = (seed.hashCode() and 0x7fff_0000) xor 0x1200,
+                        )
+                        if (notifyAdmin) {
+                            UserRelayNotifyApi.notifyAdmin(app, "stock", msg)
+                        }
                     }
                 }
                 if (criticalOn && m.stock > 0 && m.stock <= threshold) {
                     val seed = "stock_low_${m.box}_$dayTag"
                     val msg = app.getString(R.string.local_alert_stock_low, m.name, m.box, m.stock)
-                    NotificationHelper.showAlertNotification(
-                        app,
-                        (seed.hashCode() and 0x7fff_0000) xor 0x1300,
-                        -(101L + (seed.hashCode() and 0xfffffff)),
-                        "medicine_stock",
-                        msg,
-                    )
-                    if (notifyAdmin && LocalAlertRelayDedupe.tryClaim(app, seed)) {
-                        UserRelayNotifyApi.notifyAdmin(app, "stock", msg)
+                    if (LocalAlertRelayDedupe.tryClaim(app, seed)) {
+                        AlertDeliver.deliver(
+                            app,
+                            type = "medicine_stock",
+                            message = msg,
+                            notificationId = (seed.hashCode() and 0x7fff_0000) xor 0x1300,
+                        )
+                        if (notifyAdmin) {
+                            UserRelayNotifyApi.notifyAdmin(app, "stock", msg)
+                        }
                     }
                 }
             }
@@ -480,15 +482,16 @@ object LocalAlertsController {
                 if (!hit) continue
                 val seed = "exp_${m.box}_${daysUntil}_${dayKeyFromOffset(0)}"
                 val msg = app.getString(R.string.local_alert_expiry_days, m.name, m.box, daysUntil, expStr.take(10))
-                NotificationHelper.showAlertNotification(
-                    app,
-                    (seed.hashCode() and 0x7fff_0000) xor (daysUntil shl 8),
-                    -(200L + (seed.hashCode() and 0xfffffff)),
-                    "medicine_expiry",
-                    msg,
-                )
-                if (notifyAdmin && LocalAlertRelayDedupe.tryClaim(app, seed)) {
-                    UserRelayNotifyApi.notifyAdmin(app, "expiry", msg)
+                if (LocalAlertRelayDedupe.tryClaim(app, seed)) {
+                    AlertDeliver.deliver(
+                        app,
+                        type = "medicine_expiry",
+                        message = msg,
+                        notificationId = (seed.hashCode() and 0x7fff_0000) xor (daysUntil shl 8),
+                    )
+                    if (notifyAdmin) {
+                        UserRelayNotifyApi.notifyAdmin(app, "expiry", msg)
+                    }
                 }
             }
         }

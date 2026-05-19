@@ -30,7 +30,6 @@ class LocalAlertReceiver : BroadcastReceiver() {
                 acquire(60_000L)
             }
 
-            val standalone = StandaloneUi.isUserStandalone(app)
             val localAlarms = LocalAlertsUi.usesOnDeviceMedicineAlarms(app)
             val payload = when {
                 localAlarms -> LocalAlertsController.getPayload(app, id)
@@ -82,30 +81,15 @@ class LocalAlertReceiver : BroadcastReceiver() {
             if (type !in adminOnlyTypes) {
                 val title = payload.optString("title", "CuraX")
                 val message = payload.optString("message", "")
-                val nid = (id.hashCode() and 0x7fff_0000) xor (System.currentTimeMillis() % 0xffff).toInt()
                 val combined = if (title.isNotBlank() && title != message) "$title — $message" else message
-                val receivedAt = System.currentTimeMillis()
-                AlertFlowLog.record(app, type, box, slot, dayKey, "local_notification", combined.take(80))
-                NotificationHelper.showAlertNotification(
+                val nid = (id.hashCode() and 0x7fff_0000) xor (System.currentTimeMillis() % 0xffff).toInt()
+                AlertFlowLog.record(app, type, box, slot, dayKey, "local_deliver", combined.take(80))
+                AlertDeliver.deliver(
                     app,
-                    notificationId = nid,
-                    alertId = -(1L + (id.hashCode() and 0xfffffff)),
                     type = type,
                     message = combined,
-                    receivedAt = receivedAt,
+                    notificationId = nid,
                 )
-                if (standalone) {
-                    AdminDemoData.prependStandaloneLocalAlert(type, combined, receivedAt)
-                    StandaloneOfflineMirror.persistMergedSnapshot(app)
-                    StandaloneAlertSoundPlayer.play(app)
-                    app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
-                } else if (localAlarms) {
-                    try {
-                        AlertDb(app).insertAlert(type, combined, receivedAt = receivedAt)
-                    } catch (_: Exception) {
-                    }
-                    app.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
-                }
             }
 
             val medicineEmailKinds = mapOf(

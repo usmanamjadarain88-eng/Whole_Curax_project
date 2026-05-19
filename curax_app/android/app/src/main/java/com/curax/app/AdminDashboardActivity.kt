@@ -96,24 +96,11 @@ class AdminDashboardActivity : AppCompatActivity() {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             connectionService = (service as AlertConnectionService.LocalBinder).getService()
-            connectionService?.onAlertReceived = { type, message, userName ->
-                val storedUser = AlertDisplayRules.linkedUserLabelForAlert(type, userName)
-                val alertId = alertDb.insertAlert(type, message, userName = storedUser)
+            connectionService?.onAlertReceived = { _, _, _ ->
                 runOnUiThread {
-                    if (!AppVisibility.isForeground) {
-                        NotificationHelper.showAlertNotification(
-                            this@AdminDashboardActivity,
-                            notificationId = alertId.toInt(),
-                            alertId = alertId,
-                            type = type,
-                            message = message,
-                            userName = storedUser,
-                        )
-                    }
                     supportFragmentManager.fragments
                         .filterIsInstance<AdminAlertsFragment>()
                         .forEach { it.refresh() }
-                    sendBroadcast(Intent(AlertEvents.ACTION_ALERTS_UPDATED))
                 }
             }
             connectionService?.onConnectionStateChanged = { connected ->
