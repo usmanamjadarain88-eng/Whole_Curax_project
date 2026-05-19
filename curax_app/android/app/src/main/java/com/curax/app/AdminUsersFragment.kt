@@ -181,6 +181,7 @@ class AdminUsersFragment : Fragment() {
                 } else {
                     val data = if (usersBody.isNotBlank()) JSONObject(usersBody) else JSONObject()
                     val usersArr = data.optJSONArray("users") ?: JSONArray()
+                    AdminChatUserStore.ingestUsersArray(usersArr)
                     val lr = mutableListOf<AdminLinkedUserUiModel>()
                     for (i in 0 until usersArr.length()) {
                         val u = usersArr.optJSONObject(i) ?: continue

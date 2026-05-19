@@ -328,6 +328,18 @@
                         android:textColor="@android:color/white"
                         app:backgroundTint="@color/connect_button_bg"
                         app:cornerRadius="12dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSidebarMessageUsers"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/admin_sidebar_message_users"
+                        android:textAllCaps="false"
+                        android:textColor="@color/connection_panel_title"
+                        app:cornerRadius="12dp"
+                        app:strokeColor="@color/connect_button_bg" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>

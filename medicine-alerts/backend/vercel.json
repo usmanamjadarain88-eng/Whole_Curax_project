@@ -107,6 +107,10 @@
       "destination": "/api/admin_linked_users"
     },
     {
+      "source": "/admin/send-user-message",
+      "destination": "/api/admin_send_user_message"
+    },
+    {
       "source": "/admin/pending-user-link-requests",
       "destination": "/api/admin_pending_user_link_requests"
     },

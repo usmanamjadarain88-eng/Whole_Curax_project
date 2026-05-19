@@ -238,6 +238,12 @@
             android:theme="@style/Theme.Curax" />
 
         <activity
+            android:name=".AdminUserChatActivity"
+            android:exported="false"
+            android:parentActivityName=".AdminDashboardActivity"
+            android:theme="@style/Theme.Curax" />
+
+        <activity
             android:name=".AdminCareSettingsActivity"
             android:exported="false"
             android:parentActivityName=".AdminDashboardActivity"

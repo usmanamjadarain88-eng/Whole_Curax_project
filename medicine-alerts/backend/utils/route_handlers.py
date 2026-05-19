@@ -1004,6 +1004,55 @@ def notify_event_to_user(body, query, headers):
         _send_alert_via_relay(bot_id, api_key, event_type, message)
     threading.Thread(target=_deliver, daemon=True, name="NotifyRelay").start()
     return (200, {"message": "ok"})
+
+
+def admin_send_user_message(body, query, headers):
+    """POST { access_code, user_id, message } → relay popup on user's app (admin chat / relay test)."""
+    data = body if isinstance(body, dict) else {}
+    access_code = (data.get("access_code") or "").strip()
+    user_id = (data.get("user_id") or "").strip()
+    message = (data.get("message") or "").strip()
+    if not access_code:
+        return (400, {"message": "access_code required"})
+    if not user_id:
+        return (400, {"message": "user_id required"})
+    if not message:
+        return (400, {"message": "message required"})
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    admin = db.get_admin_by_access_code(access_code)
+    if not admin:
+        return (404, {"message": "Admin not found"})
+    admin_id = admin.get("id")
+    if not hasattr(db, "user_belongs_to_admin") or not db.user_belongs_to_admin(user_id, admin_id):
+        return (404, {"message": "User not linked to this admin"})
+    users = db.get_all_users_by_admin_id(admin_id) or []
+    target = None
+    for u in users:
+        if str(u.get("id") or "").strip() == user_id:
+            target = u
+            break
+    if not target:
+        return (404, {"message": "User not found"})
+    bot_id = (target.get("bot_id") or "").strip()
+    api_key = (target.get("api_key") or "").strip()
+    if not bot_id or not api_key:
+        return (400, {"message": "User app not registered yet (no bot_id/api_key)"})
+    admin_name = (admin.get("name") or "").strip() or "Admin"
+    body_text = f"[{admin_name}] {message}"
+    try:
+        db.create_alert(user_id, admin_id, "admin_message", body_text)
+    except Exception:
+        pass
+
+    def _deliver():
+        _send_alert_via_relay(bot_id, api_key, "admin_message", body_text)
+
+    threading.Thread(target=_deliver, daemon=True, name="AdminUserMessage").start()
+    return (200, {"ok": True, "message": "sent"})
+
+
 def get_linked_users(body, query, headers):
     """GET /admin/linked-users?access_code=... -> list of users linked to this admin (excluding dashboard user).
     Optional dose_preview=1 appends recent_doses (last 50) per user with medicine_name when known."""

@@ -57,6 +57,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     private lateinit var tvSidebarStatAlerts: TextView
     private lateinit var tvSidebarStatSync: TextView
     private lateinit var btnSidebarOpenUsers: MaterialButton
+    private lateinit var btnSidebarMessageUsers: MaterialButton
     private var tabLayout: TabLayout? = null
     private var viewPager: ViewPager2? = null
     private var tabMediator: TabLayoutMediator? = null
@@ -148,6 +149,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         tvSidebarStatAlerts = findViewById(R.id.tvSidebarStatAlerts)
         tvSidebarStatSync = findViewById(R.id.tvSidebarStatSync)
         btnSidebarOpenUsers = findViewById(R.id.btnSidebarOpenUsers)
+        btnSidebarMessageUsers = findViewById(R.id.btnSidebarMessageUsers)
 
         btnSidebarOpenUsers.setOnClickListener {
             drawerLayout.closeDrawer(Gravity.START)
@@ -156,6 +158,15 @@ class AdminDashboardActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             viewPager?.setCurrentItem(1, true)
+        }
+
+        btnSidebarMessageUsers.setOnClickListener {
+            drawerLayout.closeDrawer(Gravity.START)
+            if (prefs.actAsUserId.isNotEmpty()) {
+                CuraxFeedback.info(this, getString(R.string.admin_sidebar_open_users_blocked))
+                return@setOnClickListener
+            }
+            startActivity(AdminUserChatActivity.intent(this))
         }
 
         updateReturnToAdminBar()
@@ -278,6 +289,7 @@ class AdminDashboardActivity : AppCompatActivity() {
                     val usersBody = usersRes.body?.string().orEmpty()
                     val data = if (usersBody.isNotBlank()) JSONObject(usersBody) else JSONObject()
                     val usersArr = data.optJSONArray("users") ?: JSONArray()
+                    AdminChatUserStore.ingestUsersArray(usersArr)
                     linked = usersArr.length().toString()
                 }
 

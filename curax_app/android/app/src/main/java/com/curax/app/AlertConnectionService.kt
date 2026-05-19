@@ -210,11 +210,25 @@ class AlertConnectionService : Service() {
                     val message = obj.optString("message", text)
                     val userName = parseRelayUserName(obj)
                     runOnMain {
+                        RelayIncomingAlertDeliver.deliverToUser(
+                            this@AlertConnectionService,
+                            type,
+                            message,
+                            userName,
+                        )
                         onAlertReceived?.invoke(type, message, userName)
                         updateNotification(true)
                     }
                 } catch (_: Exception) {
-                    runOnMain { onAlertReceived?.invoke("alert", text, "") }
+                    runOnMain {
+                        RelayIncomingAlertDeliver.deliverToUser(
+                            this@AlertConnectionService,
+                            "alert",
+                            text,
+                            "",
+                        )
+                        onAlertReceived?.invoke("alert", text, "")
+                    }
                 }
             }
 
