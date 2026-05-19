@@ -1,8 +1,10 @@
 package com.curax.app
 
+import android.app.ForegroundServiceStartNotAllowedException
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 
 /**
  * Alert relay = live WebSocket to [RELAY_URL] (e.g. curax-relay.onrender.com).
@@ -19,10 +21,16 @@ object ConnectionManager {
             putExtra(AlertConnectionService.EXTRA_BOT_ID, botId)
             putExtra(AlertConnectionService.EXTRA_API_KEY, apiKey)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            app.startForegroundService(intent)
-        } else {
-            app.startService(intent)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                app.startForegroundService(intent)
+            } else {
+                app.startService(intent)
+            }
+        } catch (e: ForegroundServiceStartNotAllowedException) {
+            Log.w("ConnectionManager", "relay FGS blocked (no visible activity yet)", e)
+        } catch (e: IllegalStateException) {
+            Log.w("ConnectionManager", "relay service start failed", e)
         }
     }
 
@@ -39,10 +47,16 @@ object ConnectionManager {
         val intent = Intent(app, AlertConnectionService::class.java).apply {
             action = AlertConnectionService.ACTION_RECONNECT_NOW
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            app.startForegroundService(intent)
-        } else {
-            app.startService(intent)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                app.startForegroundService(intent)
+            } else {
+                app.startService(intent)
+            }
+        } catch (e: ForegroundServiceStartNotAllowedException) {
+            Log.w("ConnectionManager", "relay reconnect FGS blocked", e)
+        } catch (e: IllegalStateException) {
+            Log.w("ConnectionManager", "relay reconnect failed", e)
         }
     }
 

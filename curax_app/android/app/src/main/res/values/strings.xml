@@ -191,6 +191,7 @@
     <string name="local_alert_reminder_3d">3 days before expiry · %1$s · %2$s</string>
     <string name="local_alert_reminder_1d">1 day before expiry · %1$s · %2$s</string>
     <string name="user_sidebar_connect_for_alerts">Connect for alerts</string>
+    <string name="user_relay_always_on">Relay stays on for admin alerts. Use sidebar status to check connection.</string>
     <string name="user_sidebar_ambient_button">Live temperature &amp; humidity</string>
     <string name="user_sidebar_ambient_preview_title">Live temperature &amp; humidity</string>
     <string name="user_sidebar_ambient_open_hint">Tap for full live display</string>
@@ -524,6 +525,14 @@
     <string name="admin_tab_users">Users</string>
     <string name="admin_tab_reports">Reports</string>
     <string name="admin_tab_connections">Connections</string>
+    <string name="admin_tab_messages">Messages</string>
+    <string name="admin_messages_subtitle">Tap a linked user to send a message. Long-press a message to delete it from this device.</string>
+    <string name="admin_messages_empty">No linked users yet. Accept a connection request first.</string>
+    <string name="admin_messages_tap_to_chat">Tap to message</string>
+    <string name="admin_chat_sent_label">Sent</string>
+    <string name="admin_chat_failed_short">Failed</string>
+    <string name="admin_chat_delete_message_confirm">Delete this message from your chat history on this phone?</string>
+    <string name="admin_chat_clear_confirm">Remove all messages you sent to this user from this phone?</string>
     <string name="admin_connections_screen_subtitle">Review link requests and share your invite code.</string>
     <string name="admin_connections_pending_section">Pending requests</string>
     <string name="admin_connections_empty">No pending requests.</string>

@@ -1050,7 +1050,49 @@ def admin_send_user_message(body, query, headers):
         _send_alert_via_relay(bot_id, api_key, "admin_message", body_text)
 
     threading.Thread(target=_deliver, daemon=True, name="AdminUserMessage").start()
+    ac = (admin.get("admin_access_code") or "").strip()
+    if not ac:
+        ac = db.get_admin_access_code_by_id(admin_id) or ""
+    if ac:
+        try:
+            notify_databus(ac)
+        except Exception:
+            pass
     return (200, {"ok": True, "message": "sent"})
+
+
+def user_delete_alerts(body, query, headers):
+    """POST { bot_id, api_key, alert_ids: [uuid, ...] } — user removes alerts from server (mobile delete)."""
+    data = body if isinstance(body, dict) else {}
+    bot_id = (data.get("bot_id") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    raw_ids = data.get("alert_ids")
+    alert_ids = []
+    if isinstance(raw_ids, list):
+        alert_ids = [str(x).strip() for x in raw_ids if str(x).strip()]
+    elif isinstance(raw_ids, str) and raw_ids.strip():
+        alert_ids = [raw_ids.strip()]
+    if not bot_id or not api_key or not alert_ids:
+        return (400, {"message": "bot_id, api_key, and alert_ids required"})
+    db = get_db()
+    if not db:
+        return (503, {"message": "Central DB not configured"})
+    info = db.get_user_and_admin_bot_by_user_bot(bot_id, api_key)
+    if not info:
+        return (404, {"message": "User not found"})
+    user_id = info["user_id"]
+    deleted = db.delete_alerts_for_user(user_id, alert_ids)
+    if deleted <= 0:
+        return (404, {"message": "No matching alerts deleted"})
+    admin_id = info.get("admin_id")
+    if admin_id:
+        ac = db.get_admin_access_code_by_id(admin_id)
+        if ac:
+            try:
+                notify_databus(ac)
+            except Exception:
+                pass
+    return (200, {"ok": True, "deleted": deleted})
 
 
 def get_linked_users(body, query, headers):

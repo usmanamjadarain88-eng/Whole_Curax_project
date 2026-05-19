@@ -86,7 +86,15 @@ object AdminDemoData {
      * Inserts a locally fired standalone alarm at the front of the API alert list so the Alerts tab
      * shows the same items as heads-up notifications (Personal Health).
      */
+    fun alertDedupeKey(item: AlertItem): String =
+        alertDedupeKey(item.type, item.message, item.receivedAt)
+
+    fun alertDedupeKey(type: String, message: String, receivedAt: Long): String =
+        "fp:${type.trim().lowercase()}|${message.trim()}|${receivedAt / 60_000L}"
+
     fun prependStandaloneLocalAlert(type: String, message: String, receivedAt: Long) {
+        val key = alertDedupeKey(type, message, receivedAt)
+        if (apiAlertsStore.any { alertDedupeKey(it) == key }) return
         val base = (receivedAt * 31L) xor (type.hashCode().toLong() shl 16) xor message.hashCode().toLong()
         val id = if (base >= 0L) -base - 1L else base
         apiAlertsStore.add(
@@ -142,18 +150,21 @@ object AdminDemoData {
         if (incoming.isEmpty()) return
         val preserved = apiAlertsStore.filter { isDeviceLocalStandaloneAlertType(it.type) }
         val merged = (incoming + preserved)
-            .distinctBy { it.id }
+            .distinctBy { alertDedupeKey(it) }
             .sortedByDescending { it.receivedAt }
             .take(MAX_STANDALONE_LOCAL_ALERT_ROWS)
         replaceApiAlerts(merged)
     }
 
     fun applyApiAlertsFromSync(context: Context, alertsJson: org.json.JSONArray?) {
-        val incoming = fromApiAlerts(alertsJson)
+        val incoming = DeletedAlertsStore.filter(context, fromApiAlerts(alertsJson))
         val app = context.applicationContext
-        if (StandaloneUi.isUserStandalone(app) && AppRole.isUser(app)) {
+        val before = getApiAlerts()
+        if (AppRole.isUser(app) && LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) {
             if (incoming.isEmpty()) return
             mergeApiAlertsForStandalone(incoming)
+            SyncAlertNotifier.notifyNewFromSync(app, before, getApiAlerts())
+            UserAlertsSnapshot.persistAlerts(app)
         } else {
             replaceApiAlerts(incoming)
         }
@@ -203,20 +214,7 @@ object AdminDemoData {
         return list
     }
 
-    private fun parseIsoToMillis(iso: String): Long {
-        if (iso.isBlank()) return System.currentTimeMillis()
-        return try {
-            val withZ = iso.replace("Z", "+00:00").replace(Regex("([+-]\\d{2}):(\\d{2})"), "$1$2")
-            val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US)
-            f.parse(withZ)?.time ?: System.currentTimeMillis()
-        } catch (_: Exception) {
-            try {
-                SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso)?.time ?: System.currentTimeMillis()
-            } catch (_: Exception) {
-                System.currentTimeMillis()
-            }
-        }
-    }
+    private fun parseIsoToMillis(iso: String): Long = IsoTimeParse.toMillis(iso)
 
     /** Medical reminders from GET /admin/data. Keys: appointments, prescriptions, lab_tests, custom. */
     private val medicalRemindersStore = mutableMapOf<String, List<Map<String, Any?>>>()

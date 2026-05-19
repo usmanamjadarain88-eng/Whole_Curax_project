@@ -22,7 +22,7 @@ object MissedDoseEscalationWatchdog {
 
     fun scheduleNext(context: Context) {
         val app = context.applicationContext
-        if (!AppRole.isUser(app)) return
+        if (!LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) return
         if (!StandaloneUi.isUserStandalone(app)) {
             val p = Prefs(app)
             if (p.id.trim().isEmpty() || p.apiKey.trim().isEmpty() || p.centralApiUrl.trim().isEmpty()) return

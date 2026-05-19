@@ -167,8 +167,8 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
     private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
-    /** Debounced: [LocalAlertsController.reschedule] is heavy (many alarms); run off the UI thread so the Health Hub ECG does not freeze after resume. */
-    private val standaloneHeavyResumeRunnable = Runnable {
+    /** Personal Health only: full local alert reschedule off the UI thread (default uses alarms from payload sync). */
+    private val userLocalAlertsResumeRunnable = Runnable {
         if (isFinishing) return@Runnable
         val app = applicationContext
         Thread {
@@ -178,9 +178,9 @@ class UserStandaloneActivity : AppCompatActivity() {
                 }
             } catch (_: Exception) {
             }
-            if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@Thread
+            if (isFinishing) return@Thread
             mainHandler.post {
-                if (isFinishing || !StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return@post
+                if (isFinishing) return@post
                 try {
                     DoseAutoMissedMarker.run(this@UserStandaloneActivity)
                 } catch (_: Exception) {
@@ -207,14 +207,23 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
     private var dataSyncReceiverRegistered = false
+    private val userShellSyncDebounceRunnable = Runnable {
+        if (isFinishing) return@Runnable
+        refreshAllUserShellFragments()
+        refreshUserSidebar()
+        if (StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) {
+            mainHandler.removeCallbacks(userLocalAlertsResumeRunnable)
+            mainHandler.post(userLocalAlertsResumeRunnable)
+        }
+    }
     private val dataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
                 showLoading(false)
-                refreshAllUserShellFragments()
-                refreshUserSidebar()
-                mainHandler.removeCallbacks(standaloneHeavyResumeRunnable)
-                mainHandler.post(standaloneHeavyResumeRunnable)
+                mainHandler.removeCallbacks(userShellSyncDebounceRunnable)
+                val debounceMs =
+                    if (StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) 0L else 64L
+                mainHandler.postDelayed(userShellSyncDebounceRunnable, debounceMs)
             }
         }
     }
@@ -368,7 +377,8 @@ class UserStandaloneActivity : AppCompatActivity() {
                 botId,
                 apiKey,
                 onFetchFinished = { swipeRefresh.isRefreshing = false },
-                broadcastFetchUi = true,
+                // SwipeRefresh already shows progress; skip dashboard "syncing" overlay (felt like a 1s stick).
+                broadcastFetchUi = false,
             )
         }
         viewPager.registerOnPageChangeCallback(userShellSwipePageCallback)
@@ -448,6 +458,10 @@ class UserStandaloneActivity : AppCompatActivity() {
             val id = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
             if (connectionService?.isConnected() == true) {
+                if (ConnectRelaySetup.isRelaySetupComplete(prefs)) {
+                    CuraxFeedback.info(this, getString(R.string.user_relay_always_on))
+                    return@setOnClickListener
+                }
                 disconnectService()
                 CuraxFeedback.info(this, "Disconnected")
             } else if (id.isNotEmpty() && apiKey.isNotEmpty()) {
@@ -476,9 +490,17 @@ class UserStandaloneActivity : AppCompatActivity() {
             refreshSidebarEsp32BleUi()
         }
 
-        restoreRelayOnHomeOpen()
         // No cloud snapshot yet while waiting for admin approval — avoid blocking overlay + bogus /user/data logout.
-        showLoading(!restored && !prefs.awaitingAdminLinkApproval)
+        val blockForData = !restored && !prefs.awaitingAdminLinkApproval
+        showLoading(blockForData)
+        if (blockForData) {
+            window.decorView.postDelayed({ showLoading(false) }, 4_000L)
+        }
+        window.decorView.post {
+            restoreRelayOnHomeOpen()
+            refreshDefaultRelayConnectUi()
+            scheduleUserLocalAlertsResumeDebounced()
+        }
 
         pendingSyncSwipeTray = PendingSyncSwipeTray(this)
         StandaloneUserMutationSink.swipeCardPresenter = { title, subtitle ->
@@ -496,31 +518,37 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     override fun onPause() {
-        window.decorView.removeCallbacks(standaloneHeavyResumeRunnable)
+        window.decorView.removeCallbacks(userLocalAlertsResumeRunnable)
+        mainHandler.removeCallbacks(userShellSyncDebounceRunnable)
         mainHandler.removeCallbacks(cancelSpuriousShellPullRefreshRunnable)
         super.onPause()
     }
 
-    private fun scheduleStandaloneHeavyResumeDebounced() {
+    private fun scheduleUserLocalAlertsResumeDebounced() {
+        if (!StandaloneUi.isUserStandalone(this)) return
         val decor = window.decorView
-        decor.removeCallbacks(standaloneHeavyResumeRunnable)
+        decor.removeCallbacks(userLocalAlertsResumeRunnable)
         val delayMs =
             if (StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(this)) 48L else 16L
-        decor.postDelayed(standaloneHeavyResumeRunnable, delayMs)
+        decor.postDelayed(userLocalAlertsResumeRunnable, delayMs)
     }
 
     override fun onResume() {
         super.onResume()
         refreshUserShellChrome()
         if (!StandaloneUi.isUserStandalone(this)) {
-            CuraxEsp32BleLink.init(this)
-            CuraxEsp32BleLink.connectSavedDevice(this)
-            restoreRelayOnHomeOpen()
+            window.decorView.postDelayed({
+                if (isFinishing) return@postDelayed
+                CuraxEsp32BleLink.init(this@UserStandaloneActivity)
+                CuraxEsp32BleLink.connectSavedDevice(this@UserStandaloneActivity)
+                restoreRelayOnHomeOpen()
+                refreshDefaultRelayConnectUi()
+            }, 350L)
         }
         refreshUserSidebar()
         AwaitingAdminLinkCoordinator.pollIfNeeded(this)
+        scheduleUserLocalAlertsResumeDebounced()
         if (StandaloneUi.isUserStandalone(this)) {
-            scheduleStandaloneHeavyResumeDebounced()
             DoseNudgeController.tickDailyAdherenceIfNeeded(this)
             PendingSyncCoordinator.requestFlush(this)
         }
@@ -747,6 +775,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         tabCard.requestLayout()
         pagerCard.requestLayout()
         syncSidebarConnectButtonStyleWithRelayState()
+        refreshDefaultRelayConnectUi()
         applySidebarAmbientVisibility()
         refreshSidebarSetupVisibility()
         applyWindowSystemBars()
@@ -935,13 +964,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         UserDataBusClient.setOnUserDataAppliedListener {
-            runOnUiThread {
-                showLoading(false)
-                refreshAllUserShellFragments()
-                refreshUserSidebar()
-                mainHandler.removeCallbacks(standaloneHeavyResumeRunnable)
-                mainHandler.post(standaloneHeavyResumeRunnable)
-            }
+            runOnUiThread { showLoading(false) }
         }
         if (!dataSyncReceiverRegistered) {
             val filter = IntentFilter(AlertEvents.ACTION_ADMIN_DATA_SYNCED)
@@ -986,9 +1009,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
         bootstrapStandaloneDataOnce()
         if (!StandaloneUi.isUserStandalone(this)) {
-            restoreRelayOnHomeOpen()
             window.decorView.postDelayed({ refreshUserSidebar() }, 900L)
-            window.decorView.postDelayed({ refreshUserSidebar() }, 2800L)
         }
         startAmbientSidebarPreviewIfNeeded()
     }
@@ -1079,6 +1100,36 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (id.isEmpty() || apiKey.isEmpty()) return
         prefs.relayAutoConnectEnabled = true
         startConnectionService(prefs.serverUrl, id, apiKey)
+        refreshDefaultRelayConnectUi()
+    }
+
+    /**
+     * Default (Smart System): Connect button only until first-time relay setup (permissions).
+     * After that relay stays on; status is shown in the sidebar health block.
+     */
+    private fun refreshDefaultRelayConnectUi() {
+        if (!::btnConnect.isInitialized) return
+        if (StandaloneUi.isUserStandalone(this)) {
+            findViewById<View>(R.id.cardUserSidebarConnection)?.visibility = View.VISIBLE
+            btnConnect.visibility = View.VISIBLE
+            return
+        }
+        val linked = RelayAutoConnect.userLinkedToAdmin(prefs)
+        val card = findViewById<View>(R.id.cardUserSidebarConnection) ?: return
+        if (!linked) {
+            card.visibility = View.VISIBLE
+            btnConnect.visibility = View.VISIBLE
+            return
+        }
+        if (ConnectRelaySetup.isRelaySetupComplete(prefs)) {
+            // INVISIBLE keeps sidebar layout (ambient / temp blocks stay in place).
+            card.visibility = View.INVISIBLE
+            btnConnect.visibility = View.GONE
+        } else {
+            card.visibility = View.VISIBLE
+            btnConnect.visibility = View.VISIBLE
+            btnConnect.text = getString(R.string.user_sidebar_connect_for_alerts)
+        }
     }
 
     /** After first Connect, every reopen restores relay (even if user tapped Disconnect earlier). */
@@ -1147,6 +1198,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         setSidebarConnectBackgroundDrawable(connected = connected, connecting = false)
         applySidebarConnectIconForMode()
         if (connected) prefs.hasEverConnected = true
+        refreshDefaultRelayConnectUi()
         refreshUserSidebar()
     }
 
@@ -1164,6 +1216,12 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     private fun disconnectService() {
+        if (!StandaloneUi.isUserStandalone(this) &&
+            RelayAutoConnect.userLinkedToAdmin(prefs) &&
+            ConnectRelaySetup.isRelaySetupComplete(prefs)
+        ) {
+            return
+        }
         try {
             unbindService(serviceConnection)
         } catch (_: Exception) { }
@@ -1481,6 +1539,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                 )
             }
         } else {
+            // Default Smart System: same health / alerts sidebar rules as Personal Health.
             when {
                 !configOk -> setSidebarLine(
                     tvUserSidebarHealthStatus,
@@ -1497,25 +1556,15 @@ class UserStandaloneActivity : AppCompatActivity() {
                     1,
                     getString(R.string.user_sidebar_health_no_admin),
                 )
-                databusOk && relayOk -> setSidebarLine(
+                databusOk -> setSidebarLine(
                     tvUserSidebarHealthStatus,
                     0,
-                    getString(R.string.user_sidebar_health_ok),
-                )
-                relayRestoring -> setSidebarLine(
-                    tvUserSidebarHealthStatus,
-                    1,
-                    getString(R.string.connecting),
-                )
-                databusOk || relayOk -> setSidebarLine(
-                    tvUserSidebarHealthStatus,
-                    1,
-                    getString(R.string.user_sidebar_health_partial),
+                    getString(R.string.user_sidebar_health_ok_standalone),
                 )
                 snapshotOk -> setSidebarLine(
                     tvUserSidebarHealthStatus,
                     1,
-                    getString(R.string.user_sidebar_health_offline),
+                    getString(R.string.user_sidebar_health_offline_standalone),
                 )
                 else -> setSidebarLine(
                     tvUserSidebarHealthStatus,
@@ -1527,33 +1576,12 @@ class UserStandaloneActivity : AppCompatActivity() {
 
         val alertsRelayReady = (relayOk || relayRestoring) && notificationsChannelReady()
 
-        if (StandaloneUi.isUserStandalone(this)) {
-            if (adminLinked && alertsRelayReady) {
-                setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
-            } else if (adminLinked) {
-                setSidebarLine(
-                    tvUserSidebarAlertsStatus,
-                    1,
-                    getString(R.string.connecting),
-                )
-            } else {
-                setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_local_standalone))
-            }
-        } else if (alertsRelayReady) {
+        if (adminLinked && alertsRelayReady) {
             setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
+        } else if (adminLinked) {
+            setSidebarLine(tvUserSidebarAlertsStatus, 1, getString(R.string.connecting))
         } else {
-            val prefix = "⚪ "
-            val inactive = getString(R.string.user_sidebar_alerts_inactive)
-            val full = prefix + inactive
-            val bodyColor = ContextCompat.getColor(this, R.color.text_primary)
-            val s = SpannableString(full)
-            s.setSpan(
-                ForegroundColorSpan(bodyColor),
-                prefix.length,
-                full.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-            )
-            tvUserSidebarAlertsStatus.text = s
+            setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_local_standalone))
         }
 
         val rtState = UserDataBusClient.getRealtimeConnectionState()
@@ -1586,31 +1614,18 @@ class UserStandaloneActivity : AppCompatActivity() {
             else -> getString(R.string.user_sidebar_detail_admin_not_linked)
         }
 
-        val healthDetailRes = if (StandaloneUi.isUserStandalone(this)) {
-            when {
-                !configOk -> R.string.user_sidebar_detail_health_config
-                awaitingAdmin -> R.string.user_sidebar_detail_health_until_admin_detail
-                !adminLinked -> R.string.user_sidebar_detail_health_no_admin
-                databusOk -> R.string.user_sidebar_detail_health_ok_standalone
-                snapshotOk -> R.string.user_sidebar_detail_health_offline_standalone
-                else -> R.string.user_sidebar_detail_health_issues_standalone
-            }
-        } else {
-            when {
-                !configOk -> R.string.user_sidebar_detail_health_config
-                awaitingAdmin -> R.string.user_sidebar_detail_health_until_admin_detail
-                !adminLinked -> R.string.user_sidebar_detail_health_no_admin
-                databusOk && relayOk -> R.string.user_sidebar_detail_health_ok
-                databusOk || relayOk -> R.string.user_sidebar_detail_health_partial
-                snapshotOk -> R.string.user_sidebar_detail_health_offline
-                else -> R.string.user_sidebar_detail_health_issues
-            }
+        val healthDetailRes = when {
+            !configOk -> R.string.user_sidebar_detail_health_config
+            awaitingAdmin -> R.string.user_sidebar_detail_health_until_admin_detail
+            !adminLinked -> R.string.user_sidebar_detail_health_no_admin
+            databusOk -> R.string.user_sidebar_detail_health_ok_standalone
+            snapshotOk -> R.string.user_sidebar_detail_health_offline_standalone
+            else -> R.string.user_sidebar_detail_health_issues_standalone
         }
         tvUserSidebarHealthDetail.setText(healthDetailRes)
 
         tvUserSidebarAlertsDetail.text = when {
-            StandaloneUi.isUserStandalone(this) && !adminLinked ->
-                getString(R.string.user_sidebar_detail_alerts_local_standalone)
+            !adminLinked -> getString(R.string.user_sidebar_detail_alerts_local_standalone)
             alertsRelayReady -> getString(R.string.user_sidebar_detail_alerts_active)
             adminLinked -> getString(R.string.user_sidebar_detail_health_partial)
             else -> getString(R.string.user_sidebar_detail_alerts_inactive)
@@ -1936,12 +1951,14 @@ class UserStandaloneActivity : AppCompatActivity() {
                 is AdminOverviewFragment ->
                     if (f.isAdded && f.view != null) {
                         f.refreshStandaloneFromMemory()
-                        f.view?.requestLayout()
-                        f.view?.invalidate()
-                        f.view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvInventory)?.apply {
-                            requestLayout()
-                            invalidate()
-                            adapter?.notifyDataSetChanged()
+                        if (StandaloneUi.isUserStandalone(this)) {
+                            f.view?.requestLayout()
+                            f.view?.invalidate()
+                            f.view?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.rvInventory)?.apply {
+                                requestLayout()
+                                invalidate()
+                                adapter?.notifyDataSetChanged()
+                            }
                         }
                     }
                 is DoseTrackingFragment -> f.applyRemoteUserDataSync()

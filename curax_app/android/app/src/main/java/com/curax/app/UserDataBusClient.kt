@@ -427,9 +427,13 @@ object UserDataBusClient {
                         res.isSuccessful -> {
                             val data = JSONObject(bodyStr.ifBlank { "{}" })
                             appContext?.let { ctx ->
-                                mainHandler.post {
+                                try {
                                     applyUserPayload(ctx, data)
                                     persistUserSnapshot(ctx, data)
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "apply user payload failed", e)
+                                }
+                                mainHandler.post {
                                     onUserDataApplied?.invoke()
                                     ctx.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
                                 }
@@ -498,14 +502,15 @@ object UserDataBusClient {
                         res.isSuccessful -> {
                             val data = JSONObject(bodyStr.ifBlank { "{}" })
                             val appCtx = context.applicationContext
-                            // End pull-to-refresh / fetch UI first so the indicator does not "stick" while JSON applies.
+                            try {
+                                applyUserPayload(appCtx, data)
+                                persistUserSnapshot(appCtx, data)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "apply user payload failed", e)
+                            }
                             mainHandler.post {
                                 broadcastFetchEnded(broadcastFetchUi)
                                 onFetchFinished?.invoke()
-                            }
-                            mainHandler.post {
-                                applyUserPayload(appCtx, data)
-                                persistUserSnapshot(appCtx, data)
                                 onUserDataApplied?.invoke()
                                 context.sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
                                 onSuccess?.invoke()
@@ -612,7 +617,7 @@ object UserDataBusClient {
         AdminDemoData.replaceMedicalReminders(AdminDemoData.fromApiMedicalReminders(data.optJSONObject("medical_reminders")))
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
         if (AppRole.isUser(ctx)) {
-            UserAlarmScheduler.rescheduleAll(ctx)
+            UserAlarmScheduler.rescheduleAlarmsOnly(ctx)
             RelayAutoConnect.enableForLinkedUser(ctx)
         }
     }

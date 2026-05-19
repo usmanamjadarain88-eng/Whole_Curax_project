@@ -21,7 +21,7 @@ object AdminChatHistoryStore {
 
     private fun key(userId: String) = "u_${userId.trim()}"
 
-    fun append(context: Context, userId: String, text: String, delivery: String) {
+    fun append(context: Context, userId: String, text: String, delivery: String = "") {
         val k = key(userId)
         val sp = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val arr = try {
@@ -41,6 +41,37 @@ object AdminChatHistoryStore {
             next.put(arr.get(i))
         }
         sp.edit().putString(k, next.toString()).apply()
+    }
+
+    fun deleteLine(context: Context, userId: String, at: String, text: String): Boolean {
+        val k = key(userId)
+        val sp = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val arr = try {
+            JSONArray(sp.getString(k, "[]") ?: "[]")
+        } catch (_: Exception) {
+            return false
+        }
+        val next = JSONArray()
+        var removed = false
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val match = o.optString("at", "") == at && o.optString("text", "") == text
+            if (match && !removed) {
+                removed = true
+                continue
+            }
+            next.put(o)
+        }
+        if (!removed) return false
+        sp.edit().putString(k, next.toString()).apply()
+        return true
+    }
+
+    fun clearUser(context: Context, userId: String) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(key(userId))
+            .apply()
     }
 
     fun lines(context: Context, userId: String): List<Line> {

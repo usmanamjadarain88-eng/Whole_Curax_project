@@ -31,7 +31,7 @@ object RelayAutoConnect {
         if (prefs.id.trim().isEmpty() || prefs.apiKey.trim().isEmpty()) return
         if (prefs.serverUrl.trim().isEmpty()) return
         prefs.relayAutoConnectEnabled = true
-        ConnectionManager.ensureRelayLiveOnAppOpen(app)
+        // Connect only from a visible Activity ([restoreOnAppOpen]) — not here (FGS not allowed at cold start).
     }
 
     fun isRelayLive(context: Context, connectionService: AlertConnectionService?): Boolean =

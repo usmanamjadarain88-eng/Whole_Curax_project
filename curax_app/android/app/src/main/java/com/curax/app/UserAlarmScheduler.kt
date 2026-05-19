@@ -15,13 +15,23 @@ object UserAlarmScheduler {
     }
 
     /** Rebuild all local schedules from cached/API-hydrated [AdminDemoData]. */
-    fun rescheduleAll(context: Context) {
+    fun rescheduleAll(context: Context, restoreCache: Boolean = true) {
         val app = context.applicationContext
         if (!AppRole.isUser(app)) {
             MissedDoseEscalationWatchdog.cancel(app)
             return
         }
-        restoreCacheIfNeeded(app)
+        if (restoreCache) restoreCacheIfNeeded(app)
+        rescheduleAlarmsOnly(app)
+    }
+
+    /** Schedule alarms only — no snapshot restore (call from [UserDataBusClient.applyUserPayload]). */
+    fun rescheduleAlarmsOnly(context: Context) {
+        val app = context.applicationContext
+        if (!AppRole.isUser(app)) {
+            MissedDoseEscalationWatchdog.cancel(app)
+            return
+        }
         if (LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) {
             LocalAlertsController.reschedule(app)
         } else {

@@ -147,14 +147,7 @@ class AdminDashboardActivity : AppCompatActivity() {
             viewPager?.setCurrentItem(1, true)
         }
 
-        btnSidebarMessageUsers.setOnClickListener {
-            drawerLayout.closeDrawer(Gravity.START)
-            if (prefs.actAsUserId.isNotEmpty()) {
-                CuraxFeedback.info(this, getString(R.string.admin_sidebar_open_users_blocked))
-                return@setOnClickListener
-            }
-            startActivity(AdminUserChatActivity.intent(this))
-        }
+        btnSidebarMessageUsers.visibility = View.GONE
 
         updateReturnToAdminBar()
 
@@ -458,7 +451,7 @@ class AdminDashboardActivity : AppCompatActivity() {
 
     /**
      * Care mode: Overview, Reminders, optional temp adjustment, Logs, Settings — no Alerts/Dose/Reports
-     * (admin home strip already has Alerts/Reports). Pure admin: hub · Users · Alerts · Reports · Connections.
+     * (admin home strip already has Alerts/Reports). Pure admin: hub · Users · Alerts · Reports · Connections · Messages.
      */
     private fun resolveInitialHubTab(intent: Intent?, savedInstanceState: Bundle?): Int {
         if (intent?.getBooleanExtra(AlertNavigation.EXTRA_OPEN_ALERTS_TAB, false) == true) {
@@ -481,7 +474,7 @@ class AdminDashboardActivity : AppCompatActivity() {
         val careStandalone =
             actingAsUser && prefs.actAsUserDisplayMode.trim().equals("standalone", ignoreCase = true)
         val count = when {
-            !actingAsUser -> 5
+            !actingAsUser -> 6
             careStandalone -> 4
             else -> 5
         }
@@ -511,7 +504,8 @@ class AdminDashboardActivity : AppCompatActivity() {
                         1 -> AdminUsersFragment()
                         2 -> AdminAlertsFragment()
                         3 -> AdminReportsFragment()
-                        else -> AdminConnectionsFragment()
+                        4 -> AdminConnectionsFragment()
+                        else -> AdminMessagesFragment()
                     }
                 }
             }
@@ -540,7 +534,8 @@ class AdminDashboardActivity : AppCompatActivity() {
                     1 -> getString(R.string.admin_tab_users)
                     2 -> getString(R.string.admin_tab_alerts)
                     3 -> getString(R.string.admin_tab_reports)
-                    else -> getString(R.string.admin_tab_connections)
+                    4 -> getString(R.string.admin_tab_connections)
+                    else -> getString(R.string.admin_tab_messages)
                 }
             }
         }.apply { attach() }

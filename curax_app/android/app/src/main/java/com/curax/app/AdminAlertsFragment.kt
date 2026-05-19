@@ -28,6 +28,7 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import java.util.LinkedHashSet
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
@@ -59,7 +60,7 @@ class AdminAlertsFragment : Fragment() {
     private lateinit var adapter: AdminAlertsAdapter
 
     private lateinit var cardFilter: View
-    private lateinit var btnFiltersTrigger: TextView
+    private lateinit var btnAlertsRefresh: View
     private lateinit var btnFilterTime: MaterialButton
     private lateinit var btnFilterStatus: MaterialButton
     private lateinit var panelTimeOptions: View
@@ -128,7 +129,9 @@ class AdminAlertsFragment : Fragment() {
             )
         }
         cardFilter = view.findViewById(R.id.cardFilterPanel)
-        btnFiltersTrigger = view.findViewById(R.id.btnFiltersTrigger)
+        cardFilter.visibility = View.GONE
+        btnAlertsRefresh = view.findViewById(R.id.btnAlertsRefresh)
+        btnAlertsRefresh.setOnClickListener { reloadAlertsPage() }
         btnFilterTime = view.findViewById(R.id.btnFilterTime)
         btnFilterStatus = view.findViewById(R.id.btnFilterStatus)
         panelTimeOptions = view.findViewById(R.id.panelTimeOptions)
@@ -226,12 +229,33 @@ class AdminAlertsFragment : Fragment() {
         updateApplyButton()
     }
 
-    private fun setupFilterUi(view: View) {
-        btnFiltersTrigger.setOnClickListener {
-            val show = cardFilter.visibility != View.VISIBLE
-            if (show) openFilterPanel() else closeFilterPanel()
+    private fun reloadAlertsPage() {
+        val ctx = requireContext()
+        val prefs = Prefs(ctx)
+        if (AppRole.isUser(ctx)) {
+            val base = prefs.centralApiUrl.trim().removeSuffix("/")
+            val botId = prefs.id.trim()
+            val apiKey = prefs.apiKey.trim()
+            if (botId.isNotEmpty() && apiKey.isNotEmpty() && base.isNotEmpty()) {
+                UserDataBusClient.fetchAndApplyUserData(
+                    ctx,
+                    base,
+                    botId,
+                    apiKey,
+                    broadcastFetchUi = false,
+                    onFetchFinished = { refresh() },
+                )
+            } else {
+                refresh()
+            }
+        } else if (AppRole.isAdmin(ctx)) {
+            AdminDataBusClient.fetchAdminSnapshotAsync(ctx) { refresh() }
+        } else {
+            refresh()
         }
+    }
 
+    private fun setupFilterUi(view: View) {
         btnFilterTime.setOnClickListener {
             filterTab = FilterTab.TIME
             panelTimeOptions.visibility = View.VISIBLE
@@ -422,7 +446,9 @@ class AdminAlertsFragment : Fragment() {
         } else {
             api
         }
-        val combined = (apiForUi + db).let { raw ->
+        val combined = dedupeAlerts(apiForUi + db).filter { item ->
+            !DeletedAlertsStore.isDeleted(requireContext(), item)
+        }.let { raw ->
             if (!AppRole.isAdmin(requireContext())) raw
             else raw.map { item ->
                 val r = AdminLinkedUserDirectory.resolveAlertUserLabel(
@@ -488,11 +514,6 @@ class AdminAlertsFragment : Fragment() {
     private fun updateSelectionUi(count: Int) {
         adminSelectionActionBar.visibility = if (count > 0) View.VISIBLE else View.GONE
         btnAdminSelectionSelectAll.text = if (adapter.areAllSelected()) getString(R.string.unselect_all) else getString(R.string.select_all)
-        if (count > 0) {
-            btnFiltersTrigger.text = getString(R.string.selected_count, count)
-        } else {
-            btnFiltersTrigger.text = "Filters"
-        }
     }
 
     private fun confirmDeleteSelected() {
@@ -514,18 +535,26 @@ class AdminAlertsFragment : Fragment() {
         if (removed.isEmpty()) return
 
         // Optimistic UI: remove from list immediately; sync server in background.
+        DeletedAlertsStore.markDeleted(requireContext(), removed)
         applyLocalDelete(removed, ids)
 
-        if (!AppRole.isAdmin(requireContext())) return
         val prefs = Prefs(requireContext())
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
-        val accessCode = prefs.adminAccessCode.trim()
         val serverIds = removed.mapNotNull { it.serverId?.trim()?.takeIf { id -> id.isNotEmpty() } }.distinct()
-        if (base.isEmpty() || accessCode.isEmpty() || serverIds.isEmpty()) return
+        if (base.isEmpty() || serverIds.isEmpty()) return
 
         Thread {
             val ok = try {
-                AdminAlertsApi.deleteAlerts(base, accessCode, serverIds, http)
+                if (AppRole.isAdmin(requireContext())) {
+                    val accessCode = prefs.adminAccessCode.trim()
+                    if (accessCode.isEmpty()) false
+                    else AdminAlertsApi.deleteAlerts(base, accessCode, serverIds, http)
+                } else {
+                    val botId = prefs.id.trim()
+                    val apiKey = prefs.apiKey.trim()
+                    if (botId.isEmpty() || apiKey.isEmpty()) false
+                    else UserAlertsApi.deleteAlerts(base, botId, apiKey, serverIds)
+                }
             } catch (_: Exception) {
                 false
             }
@@ -550,8 +579,8 @@ class AdminAlertsFragment : Fragment() {
 
         adapter.clearSelection()
         refresh()
-        if (AppRole.isUser(requireContext()) && StandaloneUi.isUserStandalone(requireContext())) {
-            StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
+        if (AppRole.isUser(requireContext())) {
+            UserAlertsSnapshot.persistAlerts(requireContext())
         }
 
         CuraxFeedback.successWithUndo(
@@ -560,8 +589,19 @@ class AdminAlertsFragment : Fragment() {
         ) { undoDelete(removed) }
     }
 
+    private fun dedupeAlerts(raw: List<AlertItem>): List<AlertItem> {
+        val seen = LinkedHashSet<String>()
+        val out = ArrayList<AlertItem>(raw.size)
+        for (item in raw) {
+            val key = AdminDemoData.alertDedupeKey(item)
+            if (seen.add(key)) out.add(item)
+        }
+        return out
+    }
+
     private fun undoDelete(items: List<AlertItem>) {
         if (items.isEmpty()) return
+        DeletedAlertsStore.unmarkDeleted(requireContext(), items)
         val apiItems = mutableListOf<AlertItem>()
         items.forEach { item ->
             if (item.id > 0L) {

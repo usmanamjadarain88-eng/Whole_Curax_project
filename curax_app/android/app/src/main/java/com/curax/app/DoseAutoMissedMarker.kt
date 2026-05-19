@@ -21,7 +21,7 @@ object DoseAutoMissedMarker {
     fun run(context: Context) {
         val app = context.applicationContext
         if (!AppRole.isUser(app)) return
-        if (!LocalAlertsUi.usesOnDeviceMedicineAlarms(app) && !StandaloneUi.isUserStandalone(app)) return
+        if (!LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) return
         if (StandaloneUi.isUserStandalone(app) &&
             StandaloneUserMutationGate.isStandaloneUserWithoutAdminLink(app)
         ) {

@@ -52,6 +52,7 @@ _STATIC: List[Tuple[str, str, str]] = [
     ("GET", "/user/missed-dose-escalate", "user_missed_dose_escalate_get"),
     ("POST", "/user/missed-dose-escalate", "user_missed_dose_escalate"),
     ("POST", "/user/medicine-reminder-email", "user_medicine_reminder_email"),
+    ("POST", "/user/delete-alerts", "user_delete_alerts"),
     ("GET", "/user/databus-room", "user_databus_room"),
     ("GET", "/user/plans", "user_plans_get"),
     ("POST", "/user/plans", "user_plans_post"),
@@ -158,6 +159,7 @@ _NAME_TO_FN = {
     "user_missed_dose_escalate": rh.user_missed_dose_escalate,
     "user_missed_dose_escalate_get": rh.user_missed_dose_escalate_get,
     "user_medicine_reminder_email": rh.user_medicine_reminder_email,
+    "user_delete_alerts": rh.user_delete_alerts,
     "verify_credentials": rh.verify_credentials,
 }
 
@@ -202,6 +204,7 @@ _STEM_TO_PUBLIC_PATH: dict[str, str] = {
     "user_standalone_sync": "/user/standalone-sync",
     "user_missed_dose_escalate": "/user/missed-dose-escalate",
     "user_medicine_reminder_email": "/user/medicine-reminder-email",
+    "user_delete_alerts": "/user/delete-alerts",
     "user_databus_room": "/user/databus-room",
     "user_plans": "/user/plans",
     "admin_sync": "/admin/sync",

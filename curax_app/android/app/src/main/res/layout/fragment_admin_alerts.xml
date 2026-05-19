@@ -22,19 +22,16 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/btnFiltersTrigger"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:paddingStart="12dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="8dp"
-            android:text="Filters"
-            android:textColor="@color/connection_panel_title"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btnAlertsRefresh"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/refresh"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            app:srcCompat="@drawable/ic_refresh_24"
+            app:tint="@color/connection_panel_title" />
     </LinearLayout>
 
     <TextView
@@ -60,6 +57,7 @@
             android:maxWidth="320dp"
             android:minWidth="260dp"
             android:visibility="gone"
+            android:importantForAccessibility="no"
             app:cardBackgroundColor="@color/summary_card"
             app:cardCornerRadius="12dp"
             app:cardElevation="6dp"

@@ -32,19 +32,16 @@
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/btnFiltersTrigger"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btnAlertsRefresh"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:paddingStart="10dp"
-                android:paddingTop="6dp"
-                android:paddingEnd="4dp"
-                android:paddingBottom="6dp"
-                android:text="Filters"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
+                android:contentDescription="@string/refresh"
+                android:padding="6dp"
+                android:scaleType="centerInside"
+                app:srcCompat="@drawable/ic_refresh_24"
+                app:tint="@color/text_primary" />
         </LinearLayout>
 
         <TextView

@@ -46,7 +46,10 @@ class LocalAlertReceiver : BroadcastReceiver() {
             val slot = payload.optString("schedule_time")
 
             if (DoseSlotAlertGuard.shouldSkip(app, payload)) {
-                AlertFlowLog.record(app, type, box, slot, dayKey, "skipped", "dose already marked")
+                val reason =
+                    if (DoseSlotAlertGuard.isStaleMedicineSlot(payload)) "stale schedule"
+                    else "dose already marked"
+                AlertFlowLog.record(app, type, box, slot, dayKey, "skipped", reason)
                 if (localAlarms) LocalAlertsController.clearPayload(app, id)
                 else MissedDoseEscalationController.clearPayload(app, id)
                 return

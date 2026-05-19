@@ -171,6 +171,10 @@
       "destination": "/api/user_medicine_reminder_email"
     },
     {
+      "source": "/user/delete-alerts",
+      "destination": "/api/user_delete_alerts"
+    },
+    {
       "source": "/user/databus-room",
       "destination": "/api/user_databus_room"
     },

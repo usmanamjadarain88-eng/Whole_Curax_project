@@ -61,7 +61,13 @@ class CuraxApp : Application() {
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
         })
 
-        Thread { MobileReliabilityCoordinator.onAppStart(this) }.start()
+        Thread {
+            try {
+                MobileReliabilityCoordinator.onAppStart(this)
+            } catch (t: Throwable) {
+                Log.e("CuraxApp", "reliability onAppStart", t)
+            }
+        }.start()
     }
 }
 

@@ -8,12 +8,8 @@ import android.content.Context
  */
 object LocalAlertsUi {
 
-    fun usesOnDeviceMedicineAlarms(context: Context): Boolean {
-        if (!AppRole.isUser(context)) return false
-        if (StandaloneUi.isUserStandalone(context)) return true
-        val p = Prefs(context)
-        return p.id.trim().isNotEmpty() && p.apiKey.trim().isNotEmpty()
-    }
+    /** Default + Personal Health: dose/stock/expiry on [AlarmManager], not server cron. */
+    fun usesOnDeviceMedicineAlarms(context: Context): Boolean = AppRole.isUser(context)
 
     /** Custom ringtone picker is standalone-only; default mode uses system default alert sound. */
     fun usesCustomAlertToneSettings(context: Context): Boolean =
