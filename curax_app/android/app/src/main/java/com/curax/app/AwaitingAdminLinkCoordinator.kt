@@ -27,7 +27,7 @@ object AwaitingAdminLinkCoordinator {
         val prefs = Prefs(activity)
         if (!prefs.awaitingAdminLinkApproval) return
         val now = android.os.SystemClock.elapsedRealtime()
-        if (now - lastPollElapsedRealtimeMs < 10_000L) return
+        if (now - lastPollElapsedRealtimeMs < 4_000L) return
         lastPollElapsedRealtimeMs = now
 
         val store = LocalUserStore(activity)
@@ -60,7 +60,6 @@ object AwaitingAdminLinkCoordinator {
                         http,
                         nameForLinkFallback = email,
                         onUserDataApplied = {
-                            RelayAutoConnect.enableForLinkedUser(activity)
                             CuraxFeedback.success(
                                 activity,
                                 activity.getString(R.string.linked_to_admin_success),

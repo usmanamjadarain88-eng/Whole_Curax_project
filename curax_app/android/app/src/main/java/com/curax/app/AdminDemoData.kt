@@ -161,7 +161,10 @@ object AdminDemoData {
         val app = context.applicationContext
         val before = getApiAlerts()
         if (AppRole.isUser(app) && LocalAlertsUi.usesOnDeviceMedicineAlarms(app)) {
-            if (incoming.isEmpty()) return
+            if (incoming.isEmpty()) {
+                replaceApiAlerts(apiAlertsStore.filter { isDeviceLocalStandaloneAlertType(it.type) })
+                return
+            }
             mergeApiAlertsForStandalone(incoming)
             SyncAlertNotifier.notifyNewFromSync(app, before, getApiAlerts())
             UserAlertsSnapshot.persistAlerts(app)
@@ -319,14 +322,8 @@ object AdminDemoData {
             else dosePerAdministration()
     }
 
-    private val medicineStore = mutableListOf(
-        Medicine("Panadol", 56, "2026-10-10", "Normal", "B1", 2, "08:00"),
-        Medicine("Amoxil", 67, "2026-11-01", "Normal", "B2", 3, "09:15"),
-        Medicine("Insulin", 78, "2026-09-20", "Normal", "B3", 2, "13:10"),
-        Medicine("Aspirin", 40, "2026-07-15", "Normal", "B4", 1, "18:30"),
-        Medicine("Vitamin D", 32, "2026-06-30", "Low", "B5", 1, "11:40"),
-        Medicine("Metformin", 25, "2026-03-02", "Expiring", "B6", 2, "16:05")
-    )
+    /** Empty until API/sync; admin care preview uses [adminPreviewAlerts] / server fetch — not hardcoded rows here. */
+    private val medicineStore = mutableListOf<Medicine>()
 
     val medicines: List<Medicine>
         get() = medicineStore.toList()
@@ -399,7 +396,10 @@ object AdminDemoData {
         val app = context.applicationContext
         if (!AppRole.isUser(app)) return
         if (!StandaloneUi.isUserStandalone(app)) return
-        if (Prefs(app).linkedAdminId.trim().isNotEmpty()) return
+        val p = Prefs(app)
+        if (p.awaitingAdminLinkApproval) return
+        if (!p.userStandaloneDataReady) return
+        if (p.linkedAdminId.trim().isNotEmpty()) return
         if (getApiAlerts().isNotEmpty()) return
         if (AlertDb(app).getAllAlerts().isNotEmpty()) return
 

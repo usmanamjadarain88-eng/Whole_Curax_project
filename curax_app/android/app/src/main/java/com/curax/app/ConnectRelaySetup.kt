@@ -19,10 +19,9 @@ object ConnectRelaySetup {
 
     const val REQ_POST_NOTIFICATIONS = 1
 
-    /** First-time Connect finished (permissions + relay auto-restore enabled). */
+    /** True only after the user tapped Connect once and completed the first-time permission flow. */
     fun isRelaySetupComplete(prefs: Prefs): Boolean =
-        prefs.relayAutoConnectEnabled &&
-            (prefs.hasRequestedConnectWakePermissions || prefs.hasEverConnected)
+        prefs.hasRequestedConnectWakePermissions
 
     fun needsNotificationPrompt(context: Context, prefs: Prefs): Boolean {
         if (prefs.hasRequestedConnectWakePermissions) return false

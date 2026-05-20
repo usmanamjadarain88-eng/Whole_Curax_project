@@ -15,11 +15,19 @@ import java.util.Locale
 
 class AdminAlertsAdapter(
     private val useStandaloneCards: Boolean,
-    private val allowBulkMutations: Boolean = true,
+    allowBulkMutations: Boolean = true,
     private val onBulkMutationBlocked: (() -> Unit)? = null,
     private val onClick: (AlertItem) -> Unit,
     private val onSelectionChanged: (Int) -> Unit,
 ) : RecyclerView.Adapter<AdminAlertsAdapter.Holder>() {
+
+    private var allowBulkMutations: Boolean = allowBulkMutations
+
+    fun setBulkMutationsAllowed(allowed: Boolean) {
+        if (allowBulkMutations == allowed) return
+        allowBulkMutations = allowed
+        notifyDataSetChanged()
+    }
 
     private val items = mutableListOf<AlertItem>()
     private val selectedIds = mutableSetOf<Long>()

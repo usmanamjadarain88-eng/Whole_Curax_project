@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatButton
@@ -31,16 +30,16 @@ class LaunchActivity : AppCompatActivity() {
 
             findViewById<AppCompatButton>(R.id.btnContinueUser).setOnClickListener {
                 startActivity(Intent(this, SignInActivity::class.java))
+                finish()
                 @Suppress("DEPRECATION")
-                overridePendingTransition(R.anim.launch_slide_in_up, R.anim.launch_slide_out_soft)
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
             }
             findViewById<AppCompatButton>(R.id.btnContinueAdmin).setOnClickListener {
                 startActivity(Intent(this, AdminRegistrationActivity::class.java))
+                finish()
                 @Suppress("DEPRECATION")
-                overridePendingTransition(R.anim.launch_slide_in_up, R.anim.launch_slide_out_soft)
+                overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
             }
-
-            window.decorView.post { runFirstLaunchEntrance() }
             return
         }
 
@@ -55,34 +54,6 @@ class LaunchActivity : AppCompatActivity() {
             overridePendingTransition(R.anim.splash_fade_in, R.anim.splash_fade_out)
             finish()
         }, RETURNING_SPLASH_MS)
-    }
-
-    /**
-     * Title → subtitle → orbit → User → Admin, left-to-right slide + fade (first launch only).
-     */
-    private fun runFirstLaunchEntrance() {
-        if (isFinishing) return
-        val slidePx = 48f * resources.displayMetrics.density
-        val decel = DecelerateInterpolator()
-        val dur = 400L
-
-        fun slideIn(v: View, delay: Long) {
-            v.alpha = 0f
-            v.translationX = -slidePx
-            v.animate()
-                .alpha(1f)
-                .translationX(0f)
-                .setDuration(dur)
-                .setStartDelay(delay)
-                .setInterpolator(decel)
-                .start()
-        }
-
-        slideIn(findViewById(R.id.tvSplashTitle), 30L)
-        slideIn(findViewById(R.id.tvSplashSubtitle), 120L)
-        slideIn(findViewById(R.id.splashOrbit), 200L)
-        slideIn(findViewById(R.id.btnContinueUser), 340L)
-        slideIn(findViewById(R.id.btnContinueAdmin), 490L)
     }
 
     override fun onDestroy() {

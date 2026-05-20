@@ -122,6 +122,7 @@
     <string name="user_profile_uploading">Uploading photo…</string>
     <string name="user_profile_upload_ok">Profile photo saved</string>
     <string name="user_profile_upload_fail">Could not save profile photo</string>
+    <string name="user_profile_saved_local_until_linked">Photo saved on this device. It will upload when your admin link is active.</string>
     <string name="local_alert_med_title">Medicine reminder</string>
     <string name="local_alert_plan_title">Planned item</string>
     <string name="local_alert_reminder_title">Reminder</string>
@@ -246,6 +247,7 @@
     <string name="user_sidebar_detail_health_offline">Realtime and relay are both down, but a past snapshot exists — you may see older data.\n\n• Open the app on a stable network.\n\n• Tap Connect to start the relay.\n\n• Realtime reconnects automatically when possible.</string>
     <string name="user_sidebar_detail_alerts_active">Notifications are ready.\n\n• FCM token is registered and notification permission is granted (Android 13+).\n\n• You still need the relay connected for server-side alert delivery.</string>
     <string name="user_sidebar_detail_alerts_inactive">Alerts are limited until this is active.\n\n• Grant notification permission when the system asks (Android 13+).\n\n• Tap Connect so the app can register FCM with the relay.\n\n• Check that battery optimization is not killing background work.</string>
+    <string name="user_sidebar_detail_alerts_until_connect">Shows Connecting until you tap Connect for alerts in the drawer.\n\n• If you deny notification permission, it still counts as ready for now.</string>
     <string name="user_sidebar_alerts_local_standalone">Local alerts on</string>
     <string name="user_sidebar_detail_alerts_local_standalone">Medicine and reminder notifications are scheduled on this device (your chosen tone). They do not require relay or FCM. Use Alert settings to change sounds and toggles.</string>
     <string name="standalone_logout">Logout</string>
@@ -253,6 +255,8 @@
     <string name="user_sidebar_detail_realtime_connected">DataBus WebSocket is open.\n\n• Medicine list, reminders, and admin changes can sync in real time.\n\n• If data looks wrong, pull to refresh from Dashboard or reopen the app.</string>
     <string name="user_sidebar_detail_realtime_reconnecting">The app is trying to reopen the DataBus connection.\n\n• Stay online; this usually resolves in a few seconds.\n\n• If it sticks, check network and that your admin has not revoked access.</string>
     <string name="user_sidebar_detail_realtime_disconnected">Live sync is off — you will not receive instant admin updates until this shows Connected.\n\n• DataBus starts automatically when you are linked and credentials are valid.\n\n• Try closing and reopening the drawer after a few seconds.</string>
+    <string name="user_sidebar_detail_realtime_awaiting_admin">DataBus is on while you are signed in.\n\n• When your admin approves the link request, medicines and settings sync here automatically — no extra Connect step.\n\n• This is not the Alerts relay row (Connect for alerts is separate).</string>
+    <string name="user_sidebar_detail_realtime_until_linked">DataBus is on — waiting for your admin link to finish.\n\n• Live medicine and settings updates appear as soon as you are linked.</string>
     <string name="server_url">Server URL (cloud relay)</string>
     <string name="server_url_hint">https://curax-relay.onrender.com</string>
     <string name="connect">Connect</string>

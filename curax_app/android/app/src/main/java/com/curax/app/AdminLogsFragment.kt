@@ -114,6 +114,8 @@ class AdminLogsFragment : Fragment() {
     private fun bindLogs() {
         val entries = if (CareUi.isAdminCareMode(requireContext())) {
             careModeDoseLogEntries()
+        } else if (AppRole.isUser(requireContext()) && Prefs(requireContext()).awaitingAdminLinkApproval) {
+            emptyList()
         } else {
             if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
                 AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())

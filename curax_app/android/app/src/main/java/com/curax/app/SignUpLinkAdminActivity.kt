@@ -271,8 +271,8 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     }
 
     /**
-     * User keeps full app access in standalone mode; admin acceptance is applied later via
-     * [AwaitingAdminLinkCoordinator].
+     * Opens home in default mode until the user picks Smart System vs Personal Health on the first-home sheet.
+     * Admin acceptance is applied later via [AwaitingAdminLinkCoordinator].
      */
     private fun openFullAppAfterAdminRequestSent(chosenAdminDisplayName: String) {
         val email = SignUpFlowState.email
@@ -281,6 +281,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         val apiKey = SignUpFlowState.apiKey
         val nameForLink = SignUpFlowState.nameForLink.trim().ifBlank { email }
 
+        UserLogoutHelper.disconnectRealtimeTransport(this)
         if (!prefs.commitAwaitingAdminHomeSession(
                 chosenAdminDisplayName = chosenAdminDisplayName.trim(),
                 botId = botId,
@@ -294,6 +295,7 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
             return
         }
+        UserModeSheetPrefs.syncGlobalFlagFromBot(this, botId)
         SignUpFlowState.clear()
         if (!store.saveUserCommitted(email, password, LocalUserStore.ROLE_USER)) {
             CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
@@ -313,8 +315,10 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
     private fun navigateHomeAndFinish() {
         if (isFinishing) return
         setResult(RESULT_OK)
-        startActivity(UserHomeIntent.forSignedInUserClearingBackStack(this))
+        startActivity(UserHomeIntent.forSignedInUserAfterSignIn(this))
         finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(R.anim.auth_slide_in_from_left, R.anim.auth_slide_out_to_right)
     }
 
     private fun onLinkAdminClicked() {
@@ -352,8 +356,6 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                 runOnUiThread {
                     btnLinkAdmin.text = connectLabel
                     if (code == 200 && jo != null) {
-                        prefs.awaitingAdminLinkApproval = false
-                        prefs.awaitingAdminChosenDisplayName = ""
                         applyPrefsAfterLink(jo, connectionCode, base, email, password, botId, apiKey)
                     } else {
                         CuraxFeedback.warn(this, ApiErrorMessages.userMessage(this, code, jo), long = true)
@@ -391,12 +393,16 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             http,
             nameForLinkFallback = nameFb,
             onUserDataApplied = {
-                RelayAutoConnect.enableForLinkedUser(this)
                 CuraxFeedback.successThen(this, R.string.linked_to_admin_success) {
                     if (!isFinishing) {
                         setResult(RESULT_OK)
-                        startActivity(UserHomeIntent.forSignedInUserClearingBackStack(this))
+                        startActivity(UserHomeIntent.forSignedInUserAfterSignIn(this))
                         finish()
+                        @Suppress("DEPRECATION")
+                        overridePendingTransition(
+                            R.anim.auth_slide_in_from_left,
+                            R.anim.auth_slide_out_to_right,
+                        )
                     }
                 }
             },

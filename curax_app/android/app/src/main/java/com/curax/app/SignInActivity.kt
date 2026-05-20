@@ -19,8 +19,6 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.app.ActivityCompat
-import androidx.core.app.ActivityOptionsCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -600,6 +598,7 @@ class SignInActivity : AppCompatActivity() {
         pendingAdminName: String,
     ) {
         runOnUiThread {
+                UserLogoutHelper.disconnectRealtimeTransport(this@SignInActivity)
                 if (!prefs.commitAwaitingAdminHomeSession(
                         chosenAdminDisplayName = pendingAdminName,
                         botId = botId,
@@ -613,6 +612,7 @@ class SignInActivity : AppCompatActivity() {
                     CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)
                     return@runOnUiThread
                 }
+                UserModeSheetPrefs.syncGlobalFlagFromBot(this@SignInActivity, botId)
                 SignUpFlowState.clear()
                 if (!store.saveUserCommitted(email, password, LocalUserStore.ROLE_USER)) {
                     CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)
@@ -630,16 +630,11 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun navigateToUserHomeAfterAuth() {
-        val home = UserHomeIntent.forSignedInUser(this).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        }
-        val opts = ActivityOptionsCompat.makeCustomAnimation(
-            this,
-            android.R.anim.fade_in,
-            android.R.anim.fade_out,
-        )
-        ActivityCompat.startActivity(this, home, opts.toBundle())
+        val home = UserHomeIntent.forSignedInUserAfterSignIn(this)
+        startActivity(home)
         finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(R.anim.auth_slide_in_from_left, R.anim.auth_slide_out_to_right)
     }
 
     private fun handleSignInSuccess(
@@ -673,6 +668,7 @@ class SignInActivity : AppCompatActivity() {
                 val botId = jo.optString("bot_id", "").trim()
                 val apiKey = jo.optString("api_key", "").trim()
                 val pendingAdminName = jo.optString("pending_admin_name", "").trim()
+                AppModeManager.applyDisplayModeFromAuthJson(this, jo, notifyRelaunch = false)
                 if (botId.isNotEmpty() && apiKey.isNotEmpty()) {
                     resumePendingAdminDirectorySession(
                         resolvedEmail,

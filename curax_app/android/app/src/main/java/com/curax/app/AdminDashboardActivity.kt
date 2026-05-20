@@ -76,7 +76,8 @@ class AdminDashboardActivity : AppCompatActivity() {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
                 runOnUiThread {
                     updateReturnToAdminBar()
-                    fetchSidebarHealthOverview(force = false)
+                    fetchSidebarHealthOverview(force = true)
+                    refreshAdminUsersTab()
                 }
             }
         }
@@ -195,20 +196,16 @@ class AdminDashboardActivity : AppCompatActivity() {
 
         fetchSidebarHealthOverview(force = true)
         btnAdminConnect.setOnClickListener {
-            if (connectionService?.isConnected() == true) {
-                disconnectService()
-                CuraxFeedback.info(this, getString(R.string.admin_relay_disconnected_toast))
+            if (connectionService?.isConnected() == true) return@setOnClickListener
+            CuraxFeedback.info(this, getString(R.string.admin_relay_registering))
+            if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
+                pendingRelayConnectAfterNotificationPermission = true
+                ConnectRelaySetup.requestNotificationPrompt(this)
             } else {
-                CuraxFeedback.info(this, getString(R.string.admin_relay_registering))
-                if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
-                    pendingRelayConnectAfterNotificationPermission = true
-                    ConnectRelaySetup.requestNotificationPrompt(this)
-                } else {
-                    pendingRelayConnectAfterNotificationPermission = false
-                    ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
-                    prefs.relayAutoConnectEnabled = true
-                    startConnectionService(prefs.serverUrl, id, apiKey)
-                }
+                pendingRelayConnectAfterNotificationPermission = false
+                ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
+                prefs.relayAutoConnectEnabled = true
+                startConnectionService(prefs.serverUrl, id, apiKey)
             }
         }
     }
@@ -307,9 +304,10 @@ class AdminDashboardActivity : AppCompatActivity() {
             connectionService = connectionService,
             serviceConnection = serviceConnection,
             onConnecting = {
+                btnAdminConnect.visibility = View.GONE
                 tvAdminConnectionStatus.text = getString(R.string.connecting)
                 tvAdminConnectionStatus.setTextColor(
-                    ContextCompat.getColor(this, android.R.color.holo_orange_dark),
+                    ContextCompat.getColor(this, R.color.sidebar_status_warn),
                 )
             },
             onConnected = { updateConnectionUi(it) },
@@ -368,6 +366,11 @@ class AdminDashboardActivity : AppCompatActivity() {
                 prefs.actAsUserId = ""
                 prefs.actAsUserName = ""
                 prefs.actAsUserDisplayMode = ""
+            } else if (result == AdminDataBusClient.SnapshotResult.APPLIED) {
+                val dm = AdminLinkedUserDirectory.displayModeForUserId(prefs.actAsUserId)
+                if (dm == "standalone" || dm == "default") {
+                    prefs.actAsUserDisplayMode = dm
+                }
             }
             refreshTabsForActAsUser()
             updateReturnToAdminBar()
@@ -593,9 +596,10 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
         prefs.actAsUserId = userId
         prefs.actAsUserName = name
-        prefs.actAsUserDisplayMode = when (userDisplayMode.trim().lowercase()) {
-            "standalone", "default" -> userDisplayMode.trim().lowercase()
-            else -> ""
+        val dmFromRow = userDisplayMode.trim().lowercase()
+        prefs.actAsUserDisplayMode = when {
+            dmFromRow == "standalone" || dmFromRow == "default" -> dmFromRow
+            else -> AdminLinkedUserDirectory.displayModeForUserId(userId)
         }
         drawerLayout.closeDrawer(android.view.Gravity.START)
         updateToolbarSubtitle()
@@ -722,8 +726,11 @@ class AdminDashboardActivity : AppCompatActivity() {
 
     private fun startConnectionService(serverUrl: String, id: String, apiKey: String) {
         ConnectionManager.requestConnectRelay(this, serverUrl, id, apiKey)
+        btnAdminConnect.visibility = View.GONE
         tvAdminConnectionStatus.text = getString(R.string.connecting)
-        tvAdminConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_dark))
+        tvAdminConnectionStatus.setTextColor(
+            ContextCompat.getColor(this, R.color.sidebar_status_warn),
+        )
         bindService(Intent(this, AlertConnectionService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
@@ -744,9 +751,12 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
         connectionService = null
         ConnectionManager.requestDisconnectRelay(this)
-        tvAdminConnectionStatus.text = getString(R.string.disconnected)
-        tvAdminConnectionStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+        btnAdminConnect.visibility = View.VISIBLE
         btnAdminConnect.text = getString(R.string.connect)
+        tvAdminConnectionStatus.text = getString(R.string.disconnected)
+        tvAdminConnectionStatus.setTextColor(
+            ContextCompat.getColor(this, R.color.sidebar_status_err),
+        )
         applySidebarLocalStats()
         sendBroadcast(
             Intent(AlertEvents.ACTION_CONNECTION_STATE_CHANGED).apply {
@@ -760,14 +770,20 @@ class AdminDashboardActivity : AppCompatActivity() {
 
     private fun updateConnectionUi(connected: Boolean) {
         if (connected) prefs.hasEverConnected = true
-        tvAdminConnectionStatus.text = if (connected) getString(R.string.connected) else getString(R.string.disconnected)
-        tvAdminConnectionStatus.setTextColor(
-            ContextCompat.getColor(
-                this,
-                if (connected) android.R.color.holo_green_dark else android.R.color.holo_red_dark
+        if (connected) {
+            btnAdminConnect.visibility = View.GONE
+            tvAdminConnectionStatus.text = getString(R.string.connected)
+            tvAdminConnectionStatus.setTextColor(
+                ContextCompat.getColor(this, R.color.sidebar_status_ok),
             )
-        )
-        btnAdminConnect.text = if (connected) getString(R.string.disconnect) else getString(R.string.connect)
+        } else {
+            btnAdminConnect.visibility = View.VISIBLE
+            btnAdminConnect.text = getString(R.string.connect)
+            tvAdminConnectionStatus.text = getString(R.string.disconnected)
+            tvAdminConnectionStatus.setTextColor(
+                ContextCompat.getColor(this, R.color.sidebar_status_err),
+            )
+        }
         applySidebarLocalStats()
     }
 
@@ -775,6 +791,16 @@ class AdminDashboardActivity : AppCompatActivity() {
         (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
             .setPrimaryClip(ClipData.newPlainText("", text))
         CuraxFeedback.success(this, getString(R.string.clipboard_generic_copied))
+    }
+
+    private fun refreshAdminUsersTab() {
+        val vp = viewPager ?: return
+        supportFragmentManager.executePendingTransactions()
+        val fsa = vp.adapter as? androidx.viewpager2.adapter.FragmentStateAdapter ?: return
+        for (i in 0 until fsa.itemCount) {
+            val tag = "f${fsa.getItemId(i)}"
+            (supportFragmentManager.findFragmentByTag(tag) as? AdminUsersFragment)?.refreshAll()
+        }
     }
 
     override fun onDestroy() {

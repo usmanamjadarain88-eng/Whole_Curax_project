@@ -544,10 +544,10 @@ class AdminOverviewFragment : Fragment() {
     private fun ensureInventorySeeded() {
         val prefs = Prefs(requireContext())
         if (isUserApp()) {
+            if (prefs.awaitingAdminLinkApproval) return
+            if (!prefs.userStandaloneDataReady) return
             val linked = prefs.linkedAdminId.trim().isNotEmpty()
-            val snapshotReady = prefs.userStandaloneDataReady
-            // Avoid injecting demo rows while linked and the first server snapshot is still loading.
-            if (linked && !snapshotReady) return
+            if (linked && !prefs.userStandaloneDataReady) return
         }
         if (allItems.isEmpty() && AdminDemoData.medicines.isNotEmpty()) {
             seedInventory()

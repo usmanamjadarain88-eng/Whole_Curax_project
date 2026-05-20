@@ -17,22 +17,37 @@ object NotificationHelper {
 
     private const val CHANNEL_ID = "curax_alert_channel"
 
-    private fun defaultAlertSoundUri(context: Context): Uri? =
-        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    /** Default / Smart System: notification sound only (not alarm stream). */
+    private fun defaultNotificationSoundUri(): Uri? =
+        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
 
-    /** Ringtone for on-device alarms; custom tone only in standalone ([LocalAlertsUi.usesCustomAlertToneSettings]). */
+    /** Standalone: custom or alarm URI. Default mode: notification URI only. */
     fun resolveStandaloneAlertSoundUri(context: Context): Uri? {
-        if (!LocalAlertsUi.usesCustomAlertToneSettings(context)) return defaultAlertSoundUri(context)
+        if (!LocalAlertsUi.usesCustomAlertToneSettings(context)) return defaultNotificationSoundUri()
         val raw = Prefs(context).standaloneLocalAlertSoundUri.trim()
-        if (raw.isEmpty()) return defaultAlertSoundUri(context)
+        if (raw.isEmpty()) {
+            return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: defaultNotificationSoundUri()
+        }
         if (raw.equals("silent", ignoreCase = true)) return null
         return try {
             Uri.parse(raw)
         } catch (_: Exception) {
-            defaultAlertSoundUri(context)
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) ?: defaultNotificationSoundUri()
         }
     }
+
+    private fun channelAudioAttributes(context: Context): AudioAttributes =
+        AudioAttributes.Builder().apply {
+            if (LocalAlertsUi.usesCustomAlertToneSettings(context)) {
+                setUsage(AudioAttributes.USAGE_ALARM)
+                setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            } else {
+                setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            }
+        }.build()
 
     private fun resolveStandaloneVibrate(context: Context): Boolean {
         if (!LocalAlertsUi.usesCustomAlertToneSettings(context)) return true
@@ -55,10 +70,7 @@ object NotificationHelper {
     private fun ensureAlertChannel(context: Context, soundUri: Uri?) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val importance = NotificationManager.IMPORTANCE_HIGH
-        val audioAttrs = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
+        val audioAttrs = channelAudioAttributes(context)
         val ch = NotificationChannel(CHANNEL_ID, "CuraX Alerts", importance).apply {
             setShowBadge(true)
             enableVibration(true)
@@ -122,7 +134,13 @@ object NotificationHelper {
                 if (pi != null) setContentIntent(pi)
             }
             .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setCategory(
+                if (LocalAlertsUi.usesCustomAlertToneSettings(context)) {
+                    NotificationCompat.CATEGORY_ALARM
+                } else {
+                    NotificationCompat.CATEGORY_REMINDER
+                },
+            )
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setSound(soundUri)

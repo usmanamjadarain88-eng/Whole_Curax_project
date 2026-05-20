@@ -352,6 +352,7 @@ class AdminConnectionsFragment : Fragment() {
                         this,
                         if (accept) getString(R.string.admin_users_accept_ok) else getString(R.string.admin_users_decline_ok),
                     )
+                    AdminConnectionsPendingCache.invalidate()
                     requireContext().sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
                     AdminDataBusClient.fetchAdminSnapshotAsync(requireContext(), null)
                     loadPending(force = true)

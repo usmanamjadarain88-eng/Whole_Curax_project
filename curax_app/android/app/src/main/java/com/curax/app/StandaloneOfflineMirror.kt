@@ -23,6 +23,8 @@ object StandaloneOfflineMirror {
         if (!AppRole.isUser(ctx)) return
 
         val prefs = Prefs(ctx)
+        if (prefs.awaitingAdminLinkApproval) return
+        if (!prefs.userStandaloneDataReady) return
         val base = try {
             JSONObject(prefs.cachedUserDataSnapshotJson.trim().ifEmpty { "{}" })
         } catch (_: Exception) {

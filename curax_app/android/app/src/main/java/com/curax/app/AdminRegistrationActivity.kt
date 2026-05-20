@@ -65,78 +65,96 @@ class AdminRegistrationActivity : AppCompatActivity() {
                         setCancelable(false)
                         show()
                     }
-                    Thread {
-                        try {
-                            val json = JSONObject().apply {
-                                put("email", email)
-                                put("password", password)
-                            }
-                            val req = Request.Builder()
-                                .url("$base/admin/mobile-sign-in-start")
-                                .post(json.toString().toRequestBody("application/json".toMediaType()))
-                                .build()
-                            val res = http.newCall(req).execute()
-                            val body = res.body?.string().orEmpty()
-                            val jo = if (body.isNotBlank()) JSONObject(body) else JSONObject()
-                            if (!res.isSuccessful) {
-                                runOnUiThread {
-                                    progress.dismiss()
-                                    btnSignIn.isEnabled = true
-                                }
-                                val codeKey = jo.optString("message", "").trim().lowercase(Locale.US)
-                                val detail = jo.optString("detail", "").trim()
-                                val msg = when (codeKey) {
-                                    "unknown_admin_email" -> getString(R.string.admin_unknown_email)
-                                    "invalid_credentials" -> getString(R.string.sign_in_error_invalid_credentials)
-                                    "password_not_synced" -> detail.ifEmpty { getString(R.string.admin_password_not_synced_detail) }
-                                    "password_too_short" -> getString(R.string.sign_up_password_short)
-                                    "invalid_email" -> getString(R.string.admin_error_invalid_email_server)
-                                    "admin_mobile_login_not_configured" -> getString(R.string.admin_error_mobile_login_not_configured)
-                                    else -> listOf(jo.optString("message", "").trim(), detail)
-                                        .filter { it.isNotEmpty() }
-                                        .joinToString("\n")
-                                        .ifEmpty { getString(R.string.request_failed) }
-                                }
-                                runOnUiThread {
-                                    CuraxFeedback.warn(this@AdminRegistrationActivity, msg, long = true)
-                                }
-                                return@Thread
-                            }
-                            val challenge = jo.optString("challenge_token", "").trim()
-                            if (challenge.length < 16) {
-                                runOnUiThread {
-                                    progress.dismiss()
-                                    btnSignIn.isEnabled = true
-                                    CuraxFeedback.warn(this@AdminRegistrationActivity, getString(R.string.request_failed), long = true)
-                                }
-                                return@Thread
-                            }
-                            AdminMobileAuthSession.passwordPlain = password
-                            runOnUiThread {
-                                progress.dismiss()
-                                btnSignIn.isEnabled = true
-                                CuraxFeedback.success(this@AdminRegistrationActivity, getString(R.string.admin_otp_sent_short))
-                                window.decorView.post {
-                                    if (!isFinishing) {
-                                        startActivity(
-                                            Intent(this, AdminMobileVerifyActivity::class.java)
-                                                .putExtra(AdminMobileVerifyActivity.EXTRA_CHALLENGE_TOKEN, challenge)
-                                                .putExtra(AdminMobileVerifyActivity.EXTRA_EMAIL, email),
-                                        )
-                                    }
-                                }
-                            }
-                        } catch (_: Exception) {
-                            runOnUiThread {
-                                progress.dismiss()
-                                btnSignIn.isEnabled = true
-                                CuraxFeedback.warn(this@AdminRegistrationActivity, getString(R.string.error_network_unreachable), long = true)
-                            }
-                        }
-                    }.start()
+                    if (base.isBlank()) {
+                        CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
+                        return@setOnClickListener
+                    }
+                    postAdminSignInStart(email, password, base, progress, btnSignIn, attempt = 0)
                 }
             }
         }
+    }
+
+    private fun postAdminSignInStart(
+        email: String,
+        password: String,
+        base: String,
+        progress: ProgressDialog,
+        btnSignIn: MaterialButton,
+        attempt: Int,
+    ) {
+        Thread {
+            try {
+                val json = JSONObject().apply {
+                    put("email", email)
+                    put("password", password)
+                }
+                val req = Request.Builder()
+                    .url("$base/admin/mobile-sign-in-start")
+                    .post(json.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val res = http.newCall(req).execute()
+                val body = res.body?.string().orEmpty()
+                val jo = if (body.isNotBlank()) JSONObject(body) else JSONObject()
+                if (!res.isSuccessful) {
+                    val codeKey = jo.optString("message", "").trim().lowercase(Locale.US)
+                    val detail = jo.optString("detail", "").trim()
+                    val msg = when (codeKey) {
+                        "unknown_admin_email" -> getString(R.string.admin_unknown_email)
+                        "invalid_credentials" -> getString(R.string.sign_in_error_invalid_credentials)
+                        "password_not_synced" -> detail.ifEmpty { getString(R.string.admin_password_not_synced_detail) }
+                        "password_too_short" -> getString(R.string.sign_up_password_short)
+                        "invalid_email" -> getString(R.string.admin_error_invalid_email_server)
+                        "admin_mobile_login_not_configured" -> getString(R.string.admin_error_mobile_login_not_configured)
+                        else -> listOf(jo.optString("message", "").trim(), detail)
+                            .filter { it.isNotEmpty() }
+                            .joinToString("\n")
+                            .ifEmpty { getString(R.string.request_failed) }
+                    }
+                    runOnUiThread {
+                        progress.dismiss()
+                        btnSignIn.isEnabled = true
+                        CuraxFeedback.warn(this@AdminRegistrationActivity, msg, long = true)
+                    }
+                    return@Thread
+                }
+                val challenge = jo.optString("challenge_token", "").trim()
+                if (challenge.length < 16) {
+                    runOnUiThread {
+                        progress.dismiss()
+                        btnSignIn.isEnabled = true
+                        CuraxFeedback.warn(this@AdminRegistrationActivity, getString(R.string.request_failed), long = true)
+                    }
+                    return@Thread
+                }
+                AdminMobileAuthSession.passwordPlain = password
+                runOnUiThread {
+                    progress.dismiss()
+                    btnSignIn.isEnabled = true
+                    CuraxFeedback.success(this@AdminRegistrationActivity, getString(R.string.admin_otp_sent_short))
+                    window.decorView.post {
+                        if (!isFinishing) {
+                            startActivity(
+                                Intent(this, AdminMobileVerifyActivity::class.java)
+                                    .putExtra(AdminMobileVerifyActivity.EXTRA_CHALLENGE_TOKEN, challenge)
+                                    .putExtra(AdminMobileVerifyActivity.EXTRA_EMAIL, email),
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                if (attempt == 0) {
+                    Thread.sleep(500)
+                    postAdminSignInStart(email, password, base, progress, btnSignIn, attempt = 1)
+                    return@Thread
+                }
+                runOnUiThread {
+                    progress.dismiss()
+                    btnSignIn.isEnabled = true
+                    CuraxFeedback.warn(this@AdminRegistrationActivity, getString(R.string.error_network_unreachable), long = true)
+                }
+            }
+        }.start()
     }
 
     private fun applyFloatingHintColors() {

@@ -479,7 +479,7 @@ def signup_sign_in(body, query, headers):
         ):
             out[k] = r.get(k) or ""
     if phase == "pending_admin":
-        for k in ("bot_id", "api_key", "pending_admin_name"):
+        for k in ("bot_id", "api_key", "pending_admin_name", "user_display_mode"):
             v = r.get(k)
             if v:
                 out[k] = v
@@ -1447,12 +1447,9 @@ def user_post_display_mode(body, query, headers):
         return (400, {"message": "bot_id and api_key required"})
     if mode not in ("standalone", "default"):
         return (400, {"message": "display_mode must be standalone or default"})
-    info = db.get_user_and_admin_bot_by_user_bot(bot_id, api_key)
-    if not info:
-        return (404, {"message": "User not found"})
-    ok = db.set_user_display_mode_by_bot(bot_id, api_key, mode)
+    ok = db.set_user_display_mode_by_bot_or_pending(bot_id, api_key, mode)
     if not ok:
-        return (500, {"message": "Failed to save display mode"})
+        return (404, {"message": "User or pending signup session not found for this device"})
     return (200, {"ok": True, "user_display_mode": mode})
 
 

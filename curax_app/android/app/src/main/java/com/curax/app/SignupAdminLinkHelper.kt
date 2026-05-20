@@ -30,6 +30,8 @@ object SignupAdminLinkHelper {
     ) {
         val prefs = Prefs(activity)
         val store = LocalUserStore(activity)
+        UserLogoutHelper.disconnectRealtimeTransport(activity)
+        UserSessionIsolate.ensureSessionForBotId(activity, botId)
         prefs.awaitingAdminLinkApproval = false
         prefs.awaitingAdminChosenDisplayName = ""
 
@@ -43,12 +45,14 @@ object SignupAdminLinkHelper {
 
         prefs.id = botId
         prefs.apiKey = apiKey
+        UserModeSheetPrefs.syncGlobalFlagFromBot(activity, botId)
         prefs.connectionCode = codeForPrefs
         prefs.databusAccessCode = databusAccessCode
         prefs.linkedAdminId = adminId
         prefs.linkedAdminName = adminName
-        prefs.hasEverConnected = true
-        prefs.userInitialAppModeSheetCompleted = false
+        if (databusAccessCode.isNotEmpty()) {
+            UserDataBusClient.reconnectFromPrefs(activity)
+        }
         val fromServer = jo.optString("user_first_name", "").trim()
         val hubFirst = fromServer.ifBlank { UserNameFormatter.firstNameForHub(nameForLinkFallback) }
         if (hubFirst.isNotEmpty()) prefs.userHubFirstName = hubFirst
@@ -60,13 +64,16 @@ object SignupAdminLinkHelper {
         if (fromUsername.isNotEmpty()) prefs.userHubUsername = fromUsername
 
         val dm = jo.optString("user_display_mode", "").trim().lowercase()
-        if (dm == "standalone" || dm == "default") {
-            val wantStandalone = dm == "standalone"
-            val was = prefs.userStandaloneMode
-            if (wantStandalone != was) {
-                AppModeManager.setStandaloneMode(activity, wantStandalone)
-                activity.sendBroadcast(Intent(AlertEvents.ACTION_USER_DISPLAY_MODE_FROM_SERVER))
+        if (!prefs.userInitialAppModeSheetCompleted) {
+            if (dm == "standalone" || dm == "default") {
+                AppModeManager.applyDisplayModeValueFromServer(
+                    activity,
+                    dm == "standalone",
+                    notifyRelaunch = true,
+                )
             }
+        } else {
+            UserDisplayModeApi.postDisplayModeAsync(activity, prefs.userStandaloneMode)
         }
 
         store.saveUser(email, password, LocalUserStore.ROLE_USER)
@@ -74,17 +81,13 @@ object SignupAdminLinkHelper {
         prefs.clearSignupWipLink()
 
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
-        RelayAutoConnect.enableForLinkedUser(activity)
 
         UserDataBusClient.fetchAndApplyUserData(
             activity,
             base,
             botId,
             apiKey,
-            onSuccess = {
-                RelayAutoConnect.enableForLinkedUser(activity)
-                onUserDataApplied()
-            },
+            onSuccess = { onUserDataApplied() },
             onAuthRejected = { msg -> onAuthRejected(msg) },
         )
     }

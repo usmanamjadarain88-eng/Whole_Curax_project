@@ -38,6 +38,9 @@ object AdminRegistrationHelper {
         onErrorEnableUi: Runnable?,
     ) {
         val base = baseRaw.trim().removeSuffix("/")
+        UserLogoutHelper.disconnectRealtimeTransport(activity)
+        prefs.relayAutoConnectEnabled = false
+        prefs.hasRequestedConnectWakePermissions = false
         Thread {
             try {
                 val roleUrl = "$base/get-role?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"

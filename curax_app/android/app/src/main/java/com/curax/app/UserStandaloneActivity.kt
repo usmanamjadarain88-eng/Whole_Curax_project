@@ -75,6 +75,8 @@ class UserStandaloneActivity : AppCompatActivity() {
         private const val STATE_VIEW_PAGER_TAB = "user_standalone_vp_tab"
         /** Cold start of this activity after mode toggle (avoids fragment restore from [recreate]). */
         const val EXTRA_RELAUNCH_TAB = "user_standalone_relaunch_tab"
+        /** Sign-in prefetch applied user data — restore snapshot before first frame. */
+        const val EXTRA_WARM_FROM_SIGN_IN = "user_standalone_warm_from_sign_in"
         /** Toolbar action order: lower = further left (theme → mode → overflow). */
         private const val MENU_ORDER_THEME = 1
         private const val MENU_ORDER_MODE = 2
@@ -167,7 +169,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
     private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
-    /** Personal Health only: full local alert reschedule off the UI thread (default uses alarms from payload sync). */
+    /** Personal Health only: on-device dose alarm reschedule (default mode uses relay popups, not AlarmManager). */
     private val userLocalAlertsResumeRunnable = Runnable {
         if (isFinishing) return@Runnable
         val app = applicationContext
@@ -234,6 +236,8 @@ class UserStandaloneActivity : AppCompatActivity() {
                 AlertEvents.ACTION_CONNECTION_STATE_CHANGED -> {
                     val connected = intent?.getBooleanExtra(AlertEvents.EXTRA_CONNECTED, false) == true
                     updateConnectionUi(connected)
+                    refreshUserSidebar()
+                    refreshAllUserShellFragments()
                 }
                 AlertEvents.ACTION_USER_DATABUS_SOCKET_STATE -> refreshUserSidebar()
             }
@@ -264,6 +268,10 @@ class UserStandaloneActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        val botOnCreate = prefs.id.trim()
+        if (botOnCreate.isNotEmpty()) {
+            UserSessionIsolate.ensureSessionForBotId(this, botOnCreate)
+        }
         val store = LocalUserStore(this)
         if (store.role != LocalUserStore.ROLE_USER) {
             startActivity(Intent(this, MainActivity::class.java))
@@ -273,15 +281,15 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             prefs.userHomeColdStartCount = prefs.userHomeColdStartCount + 1
         }
-        // Bootstrap from the last saved standalone snapshot so the screen has data immediately on open.
-        val restored = UserDataBusClient.restoreCachedUserData(this)
-        if (StandaloneUi.isUserStandalone(this)) {
-            // Plans live in UserPlansLocalStore; warm from network when possible so cold start matches server.
-            Thread { UserPlansApi.fetchPlans(applicationContext) }.start()
+        val warmFromSignIn = intent.getBooleanExtra(EXTRA_WARM_FROM_SIGN_IN, false)
+        if (warmFromSignIn) {
+            intent.removeExtra(EXTRA_WARM_FROM_SIGN_IN)
         }
-
         setContentView(R.layout.activity_user_standalone)
         applyWindowSystemBars()
+        if (warmFromSignIn) {
+            UserDataBusClient.restoreCachedUserData(applicationContext)
+        }
 
         drawerLayout = findViewById(R.id.userStandaloneDrawer)
         val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.userStandaloneToolbar)
@@ -350,6 +358,10 @@ class UserStandaloneActivity : AppCompatActivity() {
             savedInstanceState?.getInt(STATE_VIEW_PAGER_TAB)?.coerceIn(0, maxTabIndex) ?: 0
         }
         setupTabs(restoreTab)
+        viewPager.offscreenPageLimit = 1
+        if (warmFromSignIn) {
+            refreshUserShellChrome()
+        }
         swipeRefresh = findViewById(R.id.userStandaloneSwipeRefresh)
         val refreshAccent = ContextCompat.getColor(this, R.color.button_primary_bg)
         swipeRefresh.setColorSchemeColors(refreshAccent)
@@ -432,48 +444,21 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         })
 
-        findViewById<MaterialButton>(R.id.btnSidebarCompleteSetup).setOnClickListener {
-            if (!StandaloneUi.isUserStandalone(this)) return@setOnClickListener
-            pendingStandaloneDeviceSetup = true
-            pendingRelayConnectAfterNotificationPermission = false
-            DeviceAlertSetup.startStandaloneSetup(this, prefs)
-        }
-
         btnConnect.setOnClickListener {
-            if (StandaloneUi.isUserStandalone(this)) {
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.logout)
-                    .setMessage(R.string.logout_confirm_message)
-                    .setPositiveButton(R.string.logout) { _, _ ->
-                        if (connectionService?.isConnected() == true) {
-                            disconnectService()
-                        }
-                        UserLogoutHelper.clearLocalSession(this)
-                        UserLogoutHelper.navigateToSignIn(this)
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .show()
+            if (ConnectRelaySetup.isRelaySetupComplete(prefs)) {
+                showSidebarLogoutConfirmation()
                 return@setOnClickListener
             }
             val id = prefs.id.trim()
             val apiKey = prefs.apiKey.trim()
-            if (connectionService?.isConnected() == true) {
-                if (ConnectRelaySetup.isRelaySetupComplete(prefs)) {
-                    CuraxFeedback.info(this, getString(R.string.user_relay_always_on))
-                    return@setOnClickListener
-                }
-                disconnectService()
-                CuraxFeedback.info(this, "Disconnected")
-            } else if (id.isNotEmpty() && apiKey.isNotEmpty()) {
-                CuraxFeedback.info(this, "Connecting to relay…")
-                if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
-                    pendingRelayConnectAfterNotificationPermission = true
-                    ConnectRelaySetup.requestNotificationPrompt(this)
-                } else {
-                    pendingRelayConnectAfterNotificationPermission = false
-                    ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
-                    runConnectWakeAndRelayFlow()
-                }
+            if (id.isEmpty() || apiKey.isEmpty()) return@setOnClickListener
+            if (ConnectRelaySetup.needsNotificationPrompt(this, prefs)) {
+                pendingRelayConnectAfterNotificationPermission = true
+                ConnectRelaySetup.requestNotificationPrompt(this)
+            } else {
+                pendingRelayConnectAfterNotificationPermission = false
+                ConnectRelaySetup.runFirstConnectSystemPrompts(this, prefs)
+                runConnectWakeAndRelayFlow()
             }
         }
 
@@ -490,17 +475,28 @@ class UserStandaloneActivity : AppCompatActivity() {
             refreshSidebarEsp32BleUi()
         }
 
-        // No cloud snapshot yet while waiting for admin approval — avoid blocking overlay + bogus /user/data logout.
-        val blockForData = !restored && !prefs.awaitingAdminLinkApproval
-        showLoading(blockForData)
-        if (blockForData) {
-            window.decorView.postDelayed({ showLoading(false) }, 4_000L)
-        }
+        showLoading(false)
+        Thread {
+            UserDataBusClient.restoreCachedUserData(applicationContext)
+            if (StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) {
+                UserPlansApi.fetchPlans(applicationContext)
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                refreshUserSidebar()
+            }
+        }.start()
         window.decorView.post {
-            restoreRelayOnHomeOpen()
+            applySidebarHardwareBlocksVisibility()
             refreshDefaultRelayConnectUi()
             scheduleUserLocalAlertsResumeDebounced()
+            ensureUserDataBusConnected()
         }
+        val relayDeferMs = if (StandaloneUi.isUserStandalone(this)) 80L else 450L
+        window.decorView.postDelayed({
+            if (isFinishing) return@postDelayed
+            restoreRelayOnHomeOpen()
+        }, relayDeferMs)
 
         pendingSyncSwipeTray = PendingSyncSwipeTray(this)
         StandaloneUserMutationSink.swipeCardPresenter = { title, subtitle ->
@@ -536,6 +532,9 @@ class UserStandaloneActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshUserShellChrome()
+        if (prefs.id.trim().isNotEmpty() && prefs.apiKey.trim().isNotEmpty()) {
+            ensureUserDataBusConnected()
+        }
         if (!StandaloneUi.isUserStandalone(this)) {
             window.decorView.postDelayed({
                 if (isFinishing) return@postDelayed
@@ -655,6 +654,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     private fun shellDp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun scheduleDeferredHomeDialogs() {
+        UserModeSheetPrefs.syncGlobalFlagFromBot(this, prefs.id.trim())
         deferredHomeUiRunnable?.let { r ->
             try {
                 window.decorView.removeCallbacks(r)
@@ -776,8 +776,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         pagerCard.requestLayout()
         syncSidebarConnectButtonStyleWithRelayState()
         refreshDefaultRelayConnectUi()
-        applySidebarAmbientVisibility()
-        refreshSidebarSetupVisibility()
+        applySidebarHardwareBlocksVisibility()
         applyWindowSystemBars()
     }
 
@@ -791,39 +790,42 @@ class UserStandaloneActivity : AppCompatActivity() {
         insets.isAppearanceLightNavigationBars = false
     }
 
-    /** Default (Smart System) mode: ESP32 bridge + hardware ambient above Connect; hidden in Personal Health standalone. */
-    private fun applySidebarAmbientVisibility() {
+    /**
+     * Default mode sidebar order (inside scroll): status panel → medicine box (ESP32) → live temperature.
+     * Hidden in Personal Health standalone.
+     */
+    private fun applySidebarHardwareBlocksVisibility() {
         val show = !StandaloneUi.isUserStandalone(this)
-        findViewById<View>(R.id.cardUserSidebarAmbient)?.visibility = if (show) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.cardUserSidebarEsp32Ble)?.visibility = if (show) View.VISIBLE else View.GONE
+        val esp = findViewById<View>(R.id.cardUserSidebarEsp32Ble)
+        val amb = findViewById<View>(R.id.cardUserSidebarAmbient)
+        esp?.visibility = if (show) View.VISIBLE else View.GONE
+        amb?.visibility = if (show) View.VISIBLE else View.GONE
     }
 
-    /** Sidebar Connect: Default mode = medicine-box green; Standalone = same gradient as Health hub hero. */
-    private fun setSidebarConnectBackgroundDrawable(connected: Boolean, connecting: Boolean) {
-        val textColor = ContextCompat.getColor(this, R.color.connect_button_text)
-        if (!StandaloneUi.isUserStandalone(this)) {
-            val bgRes = when {
-                connecting -> R.drawable.bg_sidebar_connect_connecting_default
-                connected -> R.drawable.bg_sidebar_connect_connected
-                else -> R.drawable.bg_sidebar_connect_disconnected
-            }
-            btnConnect.background = ContextCompat.getDrawable(this, bgRes)
-            btnConnect.backgroundTintList = null
-            btnConnect.setTextColor(textColor)
-            return
-        }
-        btnConnect.background = ContextCompat.getDrawable(this, R.drawable.bg_sidebar_connect_standalone)
+    private fun isSidebarConnectLogoutMode(): Boolean =
+        ConnectRelaySetup.isRelaySetupComplete(prefs)
+
+    private fun applySidebarConnectOutlineStyle() {
+        btnConnect.background = ContextCompat.getDrawable(
+            this,
+            R.drawable.bg_sidebar_connect_logout_outline,
+        )
         btnConnect.backgroundTintList = null
-        btnConnect.setTextColor(ContextCompat.getColor(this, R.color.standalone_on_hero))
+        btnConnect.setTextColor(ContextCompat.getColor(this, R.color.button_primary_bg))
+    }
+
+    /** Connect + Logout: transparent fill, green border (no blue/red/orange fills). */
+    private fun setSidebarConnectBackgroundDrawable(connected: Boolean, connecting: Boolean) {
+        applySidebarConnectOutlineStyle()
     }
 
     private fun applySidebarConnectIconForMode() {
         if (!::btnConnect.isInitialized) return
-        if (StandaloneUi.isUserStandalone(this)) {
+        if (isSidebarConnectLogoutMode()) {
             btnConnect.icon = ContextCompat.getDrawable(this, R.drawable.ic_logout)
             btnConnect.iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
             btnConnect.iconTint = ColorStateList.valueOf(
-                ContextCompat.getColor(this, R.color.standalone_on_hero),
+                ContextCompat.getColor(this, R.color.button_primary_bg),
             )
             btnConnect.iconPadding = (resources.displayMetrics.density * 6f).toInt().coerceAtLeast(0)
         } else {
@@ -832,12 +834,31 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    private fun applySidebarConnectLogoutButtonUi() {
+        btnConnect.text = getString(R.string.standalone_logout)
+        applySidebarConnectOutlineStyle()
+        applySidebarConnectIconForMode()
+    }
+
+    private fun showSidebarLogoutConfirmation() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.logout)
+            .setMessage(R.string.logout_confirm_message)
+            .setPositiveButton(R.string.logout) { _, _ ->
+                if (connectionService?.isConnected() == true) {
+                    disconnectService()
+                }
+                UserLogoutHelper.clearLocalSession(this)
+                UserLogoutHelper.navigateToSignIn(this)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun syncSidebarConnectButtonStyleWithRelayState() {
         if (!::btnConnect.isInitialized) return
-        if (StandaloneUi.isUserStandalone(this)) {
-            btnConnect.text = getString(R.string.standalone_logout)
-            setSidebarConnectBackgroundDrawable(connected = false, connecting = false)
-            applySidebarConnectIconForMode()
+        if (isSidebarConnectLogoutMode()) {
+            applySidebarConnectLogoutButtonUi()
             return
         }
         val connected = connectionService?.isConnected() == true
@@ -912,10 +933,11 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     /**
-     * Join the admin databus room (WebSocket) so data_sync → GET /user/data applies medicines, reminders, settings.
-     * Called from onStart and onResume so returning to the app reconnects if the socket dropped.
+     * Realtime = admin databus (Ably/WebSocket). Independent of relay [Connect for alerts].
+     * Connects whenever the user is signed in with credentials — both Default and Standalone.
      */
     private fun ensureUserDataBusConnected() {
+        if (prefs.awaitingAdminLinkApproval) return
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -1005,13 +1027,21 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
             esp32BleReceiverRegistered = true
         }
-        ensureUserDataBusConnected()
-        UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
-        bootstrapStandaloneDataOnce()
-        if (!StandaloneUi.isUserStandalone(this)) {
-            window.decorView.postDelayed({ refreshUserSidebar() }, 900L)
+        val runDeferredShellSync = Runnable {
+            if (isFinishing) return@Runnable
+            ensureUserDataBusConnected()
+            UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this)
+            bootstrapStandaloneDataOnce()
+            refreshUserSidebar()
+            if (!StandaloneUi.isUserStandalone(this)) {
+                startAmbientSidebarPreviewIfNeeded()
+            }
         }
-        startAmbientSidebarPreviewIfNeeded()
+        if (StandaloneUi.isUserStandalone(this)) {
+            runDeferredShellSync.run()
+        } else {
+            window.decorView.postDelayed(runDeferredShellSync, 500L)
+        }
     }
 
     private fun startAmbientSidebarPreviewIfNeeded() {
@@ -1098,47 +1128,41 @@ class UserStandaloneActivity : AppCompatActivity() {
         val id = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         if (id.isEmpty() || apiKey.isEmpty()) return
-        prefs.relayAutoConnectEnabled = true
+        RelayAutoConnect.markConnectFlowComplete(this)
         startConnectionService(prefs.serverUrl, id, apiKey)
         refreshDefaultRelayConnectUi()
+        refreshUserSidebar()
     }
 
-    /**
-     * Default (Smart System): Connect button only until first-time relay setup (permissions).
-     * After that relay stays on; status is shown in the sidebar health block.
-     */
+    /** Sidebar Connect / Logout: visible in both modes; Logout after first Connect setup. */
     private fun refreshDefaultRelayConnectUi() {
         if (!::btnConnect.isInitialized) return
-        if (StandaloneUi.isUserStandalone(this)) {
-            findViewById<View>(R.id.cardUserSidebarConnection)?.visibility = View.VISIBLE
-            btnConnect.visibility = View.VISIBLE
-            return
-        }
-        val linked = RelayAutoConnect.userLinkedToAdmin(prefs)
         val card = findViewById<View>(R.id.cardUserSidebarConnection) ?: return
-        if (!linked) {
-            card.visibility = View.VISIBLE
-            btnConnect.visibility = View.VISIBLE
-            return
-        }
-        if (ConnectRelaySetup.isRelaySetupComplete(prefs)) {
-            // INVISIBLE keeps sidebar layout (ambient / temp blocks stay in place).
-            card.visibility = View.INVISIBLE
-            btnConnect.visibility = View.GONE
+        card.visibility = View.VISIBLE
+        btnConnect.visibility = View.VISIBLE
+        if (isSidebarConnectLogoutMode()) {
+            applySidebarConnectLogoutButtonUi()
         } else {
-            card.visibility = View.VISIBLE
-            btnConnect.visibility = View.VISIBLE
             btnConnect.text = getString(R.string.user_sidebar_connect_for_alerts)
+            val connected = connectionService?.isConnected() == true
+            setSidebarConnectBackgroundDrawable(
+                connected = connected,
+                connecting = sidebarConnectShowsConnecting,
+            )
+            applySidebarConnectIconForMode()
         }
     }
 
     /** After first Connect, every reopen restores relay (even if user tapped Disconnect earlier). */
     private fun restoreRelayOnHomeOpen() {
+        if (!ConnectRelaySetup.isRelaySetupComplete(prefs)) {
+            refreshDefaultRelayConnectUi()
+            return
+        }
         if (StandaloneUi.isUserStandalone(this) && !RelayAutoConnect.userLinkedToAdmin(prefs)) {
             updateConnectionUi(false)
             return
         }
-        RelayAutoConnect.enableForLinkedUser(this)
         RelayAutoConnect.restoreOnAppOpen(
             activity = this,
             prefs = prefs,
@@ -1183,18 +1207,12 @@ class UserStandaloneActivity : AppCompatActivity() {
 
     private fun updateConnectionUi(connected: Boolean) {
         sidebarConnectShowsConnecting = false
-        if (StandaloneUi.isUserStandalone(this)) {
-            btnConnect.text = getString(R.string.standalone_logout)
-            setSidebarConnectBackgroundDrawable(connected = false, connecting = false)
-            applySidebarConnectIconForMode()
+        if (isSidebarConnectLogoutMode()) {
+            applySidebarConnectLogoutButtonUi()
             refreshUserSidebar()
             return
         }
-        btnConnect.text = if (connected) {
-            getString(R.string.disconnect)
-        } else {
-            getString(R.string.user_sidebar_connect_for_alerts)
-        }
+        btnConnect.text = getString(R.string.user_sidebar_connect_for_alerts)
         setSidebarConnectBackgroundDrawable(connected = connected, connecting = false)
         applySidebarConnectIconForMode()
         if (connected) prefs.hasEverConnected = true
@@ -1203,14 +1221,13 @@ class UserStandaloneActivity : AppCompatActivity() {
     }
 
     private fun applyConnectionButtonConnectingUi() {
-        if (StandaloneUi.isUserStandalone(this)) {
-            btnConnect.text = getString(R.string.standalone_logout)
-            applySidebarConnectIconForMode()
+        if (isSidebarConnectLogoutMode()) {
+            applySidebarConnectLogoutButtonUi()
             return
         }
         sidebarConnectShowsConnecting = true
-        btnConnect.text = getString(R.string.connecting)
-        setSidebarConnectBackgroundDrawable(connected = false, connecting = true)
+        btnConnect.text = getString(R.string.user_sidebar_connect_for_alerts)
+        applySidebarConnectOutlineStyle()
         applySidebarConnectIconForMode()
         refreshUserSidebar()
     }
@@ -1228,13 +1245,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         connectionService = null
         ConnectionManager.requestDisconnectRelay(this)
         sidebarConnectShowsConnecting = false
-        btnConnect.text = if (StandaloneUi.isUserStandalone(this)) {
-            getString(R.string.standalone_logout)
-        } else {
-            getString(R.string.user_sidebar_connect_for_alerts)
-        }
-        setSidebarConnectBackgroundDrawable(connected = false, connecting = false)
-        applySidebarConnectIconForMode()
+        refreshDefaultRelayConnectUi()
         refreshUserSidebar()
     }
 
@@ -1436,14 +1447,24 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
             val dataUrl = UserProfileImageCodec.toJpegDataUrl(bmp)
             if (!bmp.isRecycled) bmp.recycle()
-            val (ok, err) = UserProfilePictureApi.uploadProfilePicture(applicationContext, dataUrl)
+            val canUploadServer = !prefs.awaitingAdminLinkApproval &&
+                prefs.linkedAdminId.trim().isNotEmpty()
+            val (ok, err) = if (canUploadServer) {
+                UserProfilePictureApi.uploadProfilePicture(applicationContext, dataUrl)
+            } else {
+                true to null
+            }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (ok) {
                     prefs.userProfilePictureDataUrl = dataUrl
                     bindSidebarProfileAvatar()
-                    StandaloneOfflineMirror.persistMergedSnapshot(applicationContext)
-                    CuraxFeedback.success(this, getString(R.string.user_profile_upload_ok))
+                    if (canUploadServer) {
+                        StandaloneOfflineMirror.persistMergedSnapshot(applicationContext)
+                        CuraxFeedback.success(this, getString(R.string.user_profile_upload_ok))
+                    } else {
+                        CuraxFeedback.success(this, getString(R.string.user_profile_saved_local_until_linked))
+                    }
                 } else {
                     CuraxFeedback.warn(
                         this,
@@ -1574,18 +1595,18 @@ class UserStandaloneActivity : AppCompatActivity() {
             }
         }
 
-        val alertsRelayReady = (relayOk || relayRestoring) && notificationsChannelReady()
-
-        if (adminLinked && alertsRelayReady) {
-            setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_active))
-        } else if (adminLinked) {
-            setSidebarLine(tvUserSidebarAlertsStatus, 1, getString(R.string.connecting))
-        } else {
-            setSidebarLine(tvUserSidebarAlertsStatus, 0, getString(R.string.user_sidebar_alerts_local_standalone))
+        val signedIn = configOk && botId.isNotEmpty() && apiKey.isNotEmpty()
+        val networkOk = PendingSyncCoordinator.isOnline(this)
+        /** Realtime (DataBus) is separate from Connect for alerts (relay). Signed-in + internet = Connected. */
+        val rtDisplayState = when {
+            !signedIn -> 2
+            networkOk || databusOk -> 0
+            UserDataBusClient.isDataBusRunning() -> 1
+            else -> 1
         }
+        applySidebarAlertsRow()
 
-        val rtState = UserDataBusClient.getRealtimeConnectionState()
-        when (rtState) {
+        when (rtDisplayState) {
             0 -> setSidebarLine(
                 tvUserSidebarRealtimeStatus,
                 0,
@@ -1624,28 +1645,43 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
         tvUserSidebarHealthDetail.setText(healthDetailRes)
 
-        tvUserSidebarAlertsDetail.text = when {
-            !adminLinked -> getString(R.string.user_sidebar_detail_alerts_local_standalone)
-            alertsRelayReady -> getString(R.string.user_sidebar_detail_alerts_active)
-            adminLinked -> getString(R.string.user_sidebar_detail_health_partial)
-            else -> getString(R.string.user_sidebar_detail_alerts_inactive)
-        }
-
-        tvUserSidebarRealtimeDetail.text = when (rtState) {
-            0 -> getString(R.string.user_sidebar_detail_realtime_connected)
-            1 -> getString(R.string.user_sidebar_detail_realtime_reconnecting)
+        tvUserSidebarRealtimeDetail.text = when {
+            !signedIn -> getString(R.string.user_sidebar_detail_realtime_disconnected)
+            networkOk || databusOk -> getString(R.string.user_sidebar_detail_realtime_connected)
+            rtDisplayState == 1 -> getString(R.string.user_sidebar_detail_realtime_reconnecting)
             else -> getString(R.string.user_sidebar_detail_realtime_disconnected)
         }
 
         refreshSidebarEsp32BleUi()
-        refreshSidebarSetupVisibility()
     }
 
-    private fun refreshSidebarSetupVisibility() {
-        val showSetup = StandaloneUi.isUserStandalone(this) &&
-            DeviceAlertSetup.needsStandaloneSetup(prefs)
-        findViewById<View>(R.id.cardUserSidebarCompleteSetup).visibility =
-            if (showSetup) View.VISIBLE else View.GONE
+    /**
+     * Alerts row = relay push channel only (Connect for alerts). Not databus / Realtime.
+     * Both Default and Standalone use the same rules.
+     */
+    /** Local push alerts (relay) only — not Realtime / DataBus. */
+    private fun applySidebarAlertsRow() {
+        val connectFlowDone = ConnectRelaySetup.isRelaySetupComplete(prefs)
+        when {
+            connectFlowDone -> {
+                setSidebarLine(
+                    tvUserSidebarAlertsStatus,
+                    0,
+                    getString(R.string.user_sidebar_alerts_active),
+                )
+            }
+            else -> {
+                setSidebarLine(
+                    tvUserSidebarAlertsStatus,
+                    1,
+                    getString(R.string.connecting),
+                )
+            }
+        }
+        tvUserSidebarAlertsDetail.text = when {
+            connectFlowDone -> getString(R.string.user_sidebar_detail_alerts_active)
+            else -> getString(R.string.user_sidebar_detail_alerts_until_connect)
+        }
     }
 
     private fun refreshSidebarEsp32BleUi() {
@@ -1666,18 +1702,25 @@ class UserStandaloneActivity : AppCompatActivity() {
 
     internal fun applyAdminLinkAcceptedUiRefresh() {
         runOnUiThread {
+            if (isFinishing) return@runOnUiThread
+            bootstrapFetchRequested = false
+            ensureUserDataBusConnected()
+            UserDataBusClient.reconnectFromPrefs(this)
+            UserDataBusClient.scheduleApiFallbackIfDataBusOffline(this, 2500L)
+            bootstrapStandaloneDataOnce()
             refreshUserShellChrome()
             refreshUserSidebar()
+            refreshAllUserShellFragments()
         }
     }
 
     private fun bootstrapStandaloneDataOnce() {
         if (bootstrapFetchRequested) return
-        bootstrapFetchRequested = true
         if (prefs.awaitingAdminLinkApproval) {
             showLoading(false)
             return
         }
+        bootstrapFetchRequested = true
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -1736,7 +1779,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         cardPersonal.setOnClickListener { applyFirstModeCardSelection(smartSelected = false) }
         btnContinue.setOnClickListener {
             AppModeManager.setStandaloneMode(this, wantStandalone)
-            prefs.userInitialAppModeSheetCompleted = true
+            UserModeSheetPrefs.markCompletedForBot(this, prefs.id.trim())
             UserDisplayModeApi.postDisplayModeAsync(this, wantStandalone)
             sheet.dismiss()
             // Overview layout is chosen once in onCreateView; without a fresh activity, Dashboard stays on

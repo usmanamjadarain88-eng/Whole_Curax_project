@@ -146,7 +146,7 @@ class AdminUsersFragment : Fragment() {
         }
     }
 
-    private fun refreshAll() {
+    fun refreshAll() {
         loadLinkedUsers()
     }
 
@@ -226,7 +226,11 @@ class AdminUsersFragment : Fragment() {
                     return@runOnUiThread
                 }
 
-                val linkedForUi = if (linkedRows.isEmpty()) demoLinkedUsers() else linkedRows
+                val linkedForUi = if (linkedRows.isEmpty() && prefs.actAsUserId.isEmpty()) {
+                    demoLinkedUsers()
+                } else {
+                    linkedRows
+                }
                 AdminLinkedUserDirectory.ingestFromUiModels(linkedForUi)
                 linkedAdapter.submit(linkedForUi)
                 tvEmptyLinked.visibility = View.GONE

@@ -186,8 +186,12 @@ CREATE TABLE IF NOT EXISTS signup_sessions (
 
 ALTER TABLE signup_sessions ADD COLUMN IF NOT EXISTS first_name VARCHAR(120) DEFAULT '';
 ALTER TABLE signup_sessions ADD COLUMN IF NOT EXISTS last_name VARCHAR(120) DEFAULT '';
+ALTER TABLE signup_sessions ADD COLUMN IF NOT EXISTS user_display_mode VARCHAR(32) DEFAULT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_signup_sessions_cleanup ON signup_sessions (created_at, account_status);
+
+COMMENT ON COLUMN signup_sessions.user_display_mode IS
+    'User-chosen app shell (default|standalone) while PENDING_ADMIN, before users row exists. Copied to users.user_display_mode when admin links the account.';
 
 COMMENT ON TABLE signup_sessions IS
     'Email→OTP→admin code flow. Row removed when link-admin succeeds.';

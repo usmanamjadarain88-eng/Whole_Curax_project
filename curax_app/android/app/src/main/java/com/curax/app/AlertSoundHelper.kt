@@ -12,8 +12,8 @@ object AlertSoundHelper {
 
     fun playAlertSound(context: Context) {
         try {
-            val uri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val uri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             val ringtone = RingtoneManager.getRingtone(context.applicationContext, uri)
             ringtone.play()
         } catch (_: Exception) {

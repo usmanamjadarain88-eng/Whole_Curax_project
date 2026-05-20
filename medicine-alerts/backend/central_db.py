@@ -3134,6 +3134,101 @@ class CentralDB:
         finally:
             cur.close()
 
+    def _ensure_signup_sessions_display_mode_column(self):
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "ALTER TABLE signup_sessions ADD COLUMN IF NOT EXISTS user_display_mode VARCHAR(32) DEFAULT NULL"
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        finally:
+            cur.close()
+
+    def get_signup_session_display_mode(self, email_normalized):
+        email_n = self._normalize_signup_email(email_normalized)
+        if not email_n:
+            return ""
+        self._ensure_signup_sessions_display_mode_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT user_display_mode FROM signup_sessions WHERE email_normalized = %s LIMIT 1",
+                (email_n,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return ""
+            v = row["user_display_mode"] if hasattr(row, "keys") else row[0]
+            m = str(v or "").strip().lower()
+            return m if m in ("standalone", "default") else ""
+        except Exception as e:
+            print(f"CentralDB get_signup_session_display_mode: {e}")
+            return ""
+        finally:
+            cur.close()
+
+    def _signup_email_for_pending_device(self, bot_id, api_key):
+        """Resolve signup email from a queued directory link request (PENDING_ADMIN, no users row yet)."""
+        bid = (bot_id or "").strip()
+        key = (api_key or "").strip()
+        if not bid or not key:
+            return ""
+        self._ensure_user_admin_link_requests_table()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT email_normalized FROM user_admin_link_requests
+                WHERE user_bot_id = %s AND user_api_key = %s
+                ORDER BY created_at DESC NULLS LAST
+                LIMIT 1
+                """,
+                (bid, key),
+            )
+            row = cur.fetchone()
+            if not row:
+                return ""
+            em = row["email_normalized"] if hasattr(row, "keys") else row[0]
+            return str(em or "").strip()
+        except Exception as e:
+            print(f"CentralDB _signup_email_for_pending_device: {e}")
+            return ""
+        finally:
+            cur.close()
+
+    def set_signup_session_display_mode(self, email_normalized, mode):
+        m = (mode or "").strip().lower()
+        if m not in ("standalone", "default"):
+            return False
+        email_n = self._normalize_signup_email(email_normalized)
+        if not email_n:
+            return False
+        self._ensure_signup_sessions_display_mode_column()
+        conn = self._ensure_conn()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                """
+                UPDATE signup_sessions
+                SET user_display_mode = %s, updated_at = NOW()
+                WHERE email_normalized = %s AND account_status = 'PENDING_ADMIN'
+                """,
+                (m, email_n),
+            )
+            conn.commit()
+            return cur.rowcount > 0
+        except Exception as e:
+            conn.rollback()
+            print(f"CentralDB set_signup_session_display_mode: {e}")
+            return False
+        finally:
+            cur.close()
+
     def set_user_display_mode_by_bot(self, bot_id, api_key, mode):
         m = (mode or "").strip().lower()
         if m not in ("standalone", "default"):
@@ -3151,13 +3246,22 @@ class CentralDB:
                 (m, bid, key),
             )
             conn.commit()
-            return cur.rowcount > 0
+            if cur.rowcount > 0:
+                return True
         except Exception as e:
             conn.rollback()
             print(f"CentralDB set_user_display_mode_by_bot: {e}")
             return False
         finally:
             cur.close()
+        email_n = self._signup_email_for_pending_device(bid, key)
+        if email_n:
+            return self.set_signup_session_display_mode(email_n, m)
+        return False
+
+    def set_user_display_mode_by_bot_or_pending(self, bot_id, api_key, mode):
+        """Active users row and/or PENDING_ADMIN signup_sessions (directory request before link)."""
+        return self.set_user_display_mode_by_bot(bot_id, api_key, mode)
 
     def set_user_display_mode_for_admin(self, admin_id, user_id, mode):
         """Admin overrides linked user's shell mode (standalone vs default). User app picks up via GET /user/data + databus."""
@@ -4252,6 +4356,9 @@ class CentralDB:
                 creds = self._signup_pending_directory_link_credentials(email_n)
                 if creds:
                     out.update(creds)
+                dm = self.get_signup_session_display_mode(email_n)
+                if dm:
+                    out["user_display_mode"] = dm
                 return out
             return {"ok": False, "error": "invalid_state", "account_status": st}
 
@@ -4793,6 +4900,7 @@ class CentralDB:
         combined = re.sub(r"\s+", " ", f"{session_fn} {session_ln}").strip()
         actual_display = combined if (session_fn or session_ln) else ((display_name or "").strip() or email_n)
         user_uname = combined if (session_fn or session_ln) else None
+        pending_dm = self.get_signup_session_display_mode(email_n)
         user_id = self.upsert_user_from_bot(
             bot_id,
             api_key,
@@ -4804,6 +4912,8 @@ class CentralDB:
         )
         if not user_id:
             return {"ok": False, "error": "link_failed"}
+        if pending_dm in ("standalone", "default"):
+            self.set_user_display_mode_by_bot(bot_id, api_key, pending_dm)
         if session_fn or session_ln:
             self.set_user_first_last_name(user_id, session_fn, session_ln)
         self._touch_user_password_and_active(user_id, password_hash_session=pw_row)

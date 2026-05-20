@@ -11,6 +11,7 @@ import java.util.LinkedHashSet
 import java.util.Locale
 
 class Prefs(context: Context) {
+    private val appContext: Context = context.applicationContext
     private val prefs: SharedPreferences = context.getSharedPreferences("curax_prefs", Context.MODE_PRIVATE)
 
     var serverUrl: String
@@ -199,6 +200,11 @@ class Prefs(context: Context) {
     var userStandaloneDataReady: Boolean
         get() = prefs.getBoolean(KEY_USER_STANDALONE_DATA_READY, false)
         set(value) = prefs.edit().putBoolean(KEY_USER_STANDALONE_DATA_READY, value).apply()
+
+    /** Last signed-in user bot_id — used to wipe [AdminDemoData] when a different account opens the app. */
+    var lastActiveSessionBotId: String
+        get() = prefs.getString(KEY_LAST_ACTIVE_SESSION_BOT_ID, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LAST_ACTIVE_SESSION_BOT_ID, value.trim()).apply()
 
     /**
      * Cached standalone snapshot used only to bootstrap the user UI on app start.
@@ -499,9 +505,16 @@ class Prefs(context: Context) {
             .putString(KEY_CONNECTION_CODE, "")
             .putString(KEY_DATABUS_ACCESS_CODE, "")
             .putBoolean(KEY_HAS_EVER_CONNECTED, false)
-            .putBoolean(KEY_USER_INITIAL_MODE_SHEET, true)
-            .putBoolean(KEY_USER_STANDALONE_DATA_READY, true)
-            .putBoolean(KEY_USER_STANDALONE_MODE, true)
+            .putBoolean(
+                KEY_USER_INITIAL_MODE_SHEET,
+                !UserModeSheetPrefs.hasCompletedForBot(appContext, botId.trim()),
+            )
+            .putBoolean(KEY_USER_STANDALONE_DATA_READY, false)
+            .putBoolean(KEY_USER_STANDALONE_MODE, false)
+            .putString(KEY_USER_HUB_FIRST_NAME, "")
+            .putString(KEY_USER_HUB_FULL_NAME, "")
+            .putString(KEY_USER_HUB_USERNAME, "")
+            .putString(KEY_USER_PROFILE_PICTURE, "")
             .putString(KEY_SIGNUP_WIP_EMAIL, emailForWip.trim())
             .putString(KEY_SIGNUP_WIP_PASSWORD, passwordForWip)
             .putString(KEY_SIGNUP_WIP_BOT_ID, botId.trim())
@@ -509,7 +522,14 @@ class Prefs(context: Context) {
             .putString(KEY_SIGNUP_WIP_NAME, nameForLinkForWip.trim())
             .remove(KEY_CACHED_USER_DATA_JSON)
         if (fcmToken.isNotEmpty()) ed.putString(KEY_FCM_TOKEN, fcmToken)
-        return ed.commit()
+        val ok = ed.commit()
+        if (ok) {
+            UserSessionIsolate.ensureSessionForBotId(appContext, botId)
+            // Directory-request home must not show the previous account's reminders / alerts / logs.
+            UserSessionIsolate.clearUserScopedData(appContext)
+            Prefs(appContext).lastActiveSessionBotId = botId.trim()
+        }
+        return ok
     }
 
     fun clearSignupWipLink() {
@@ -563,6 +583,7 @@ class Prefs(context: Context) {
         private const val KEY_USER_HOME_COLD_START_COUNT = "user_home_cold_start_count"
         private const val KEY_PIN_DEFERRED_AUTO_PROMPT_SHOWN = "pin_deferred_auto_prompt_shown"
         private const val KEY_USER_STANDALONE_DATA_READY = "user_standalone_data_ready"
+        private const val KEY_LAST_ACTIVE_SESSION_BOT_ID = "last_active_session_bot_id"
         private const val KEY_CACHED_USER_DATA_JSON = "cached_user_data_snapshot_json"
         private const val KEY_USER_HUB_FIRST_NAME = "user_hub_first_name"
         private const val KEY_USER_HUB_FULL_NAME = "user_hub_full_name"

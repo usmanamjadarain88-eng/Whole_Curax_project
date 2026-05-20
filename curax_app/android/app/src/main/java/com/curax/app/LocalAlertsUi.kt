@@ -4,14 +4,23 @@ import android.content.Context
 
 /**
  * On-device medicine / plan / reminder alarms ([LocalAlertsController]).
- * Used for standalone users and default-mode linked users (no Vercel cron dependency).
+ *
+ * **Personal Health (standalone) only** — AlarmManager + optional custom tone.
+ * **Default (Smart System)** — popup via relay / server; system notification sound only (no device dose alarm schedule).
  */
 object LocalAlertsUi {
 
-    /** Default + Personal Health: dose/stock/expiry on [AlarmManager], not server cron. */
-    fun usesOnDeviceMedicineAlarms(context: Context): Boolean = AppRole.isUser(context)
+    /**
+     * Personal Health shell only. Not used while awaiting admin approval (no stale dose alarms).
+     */
+    fun usesOnDeviceMedicineAlarms(context: Context): Boolean {
+        if (!AppRole.isUser(context)) return false
+        if (!StandaloneUi.isUserStandalone(context)) return false
+        if (Prefs(context).awaitingAdminLinkApproval) return false
+        return true
+    }
 
-    /** Custom ringtone picker is standalone-only; default mode uses system default alert sound. */
+    /** Custom ringtone picker is standalone-only; default mode uses system notification sound. */
     fun usesCustomAlertToneSettings(context: Context): Boolean =
         StandaloneUi.isUserStandalone(context)
 

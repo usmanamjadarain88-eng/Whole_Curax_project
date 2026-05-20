@@ -151,16 +151,28 @@ object UserDataBusClient {
 
     private fun persistUserSnapshot(ctx: Context, data: JSONObject) {
         val prefs = Prefs(ctx)
+        val bid = prefs.id.trim()
+        if (bid.isNotEmpty()) {
+            data.put("session_bot_id", bid)
+        }
         prefs.cachedUserDataSnapshotJson = data.toString()
         prefs.userStandaloneDataReady = true
     }
 
     fun restoreCachedUserData(context: Context): Boolean {
-        val cached = Prefs(context).cachedUserDataSnapshotJson.trim()
+        val ctx = context.applicationContext
+        val prefs = Prefs(ctx)
+        val cached = prefs.cachedUserDataSnapshotJson.trim()
         if (cached.isEmpty()) return false
         return try {
             val data = JSONObject(cached)
-            applyUserPayload(context.applicationContext, data)
+            val snapBot = data.optString("session_bot_id", "").trim()
+            val liveBot = prefs.id.trim()
+            if (snapBot.isNotEmpty() && liveBot.isNotEmpty() && snapBot != liveBot) {
+                prefs.cachedUserDataSnapshotJson = ""
+                return false
+            }
+            applyUserPayload(ctx, data)
             Prefs(context).userStandaloneDataReady = true
             true
         } catch (_: Exception) {
@@ -477,6 +489,8 @@ object UserDataBusClient {
         onFetchFinished: (() -> Unit)? = null,
         /** When false, no fetch-started/ended broadcasts (socket sync / bootstrap — avoids dashboard "syncing" on tab switches). */
         broadcastFetchUi: Boolean = true,
+        /** When false, mode is applied silently (sign-in before home opens — no Default→Standalone relaunch flash). */
+        notifyDisplayModeChange: Boolean = true,
     ) {
         val base = apiBase.trim().removeSuffix("/")
         val bid = botId.trim()
@@ -503,7 +517,7 @@ object UserDataBusClient {
                             val data = JSONObject(bodyStr.ifBlank { "{}" })
                             val appCtx = context.applicationContext
                             try {
-                                applyUserPayload(appCtx, data)
+                                applyUserPayload(appCtx, data, notifyDisplayModeChange)
                                 persistUserSnapshot(appCtx, data)
                             } catch (e: Exception) {
                                 Log.w(TAG, "apply user payload failed", e)
@@ -550,7 +564,11 @@ object UserDataBusClient {
         }.start()
     }
 
-    private fun applyUserPayload(ctx: Context, data: JSONObject) {
+    private fun applyUserPayload(
+        ctx: Context,
+        data: JSONObject,
+        notifyDisplayModeChange: Boolean = true,
+    ) {
         val prefs = Prefs(ctx)
         val serverTime = data.optString("server_time", "").trim()
         if (serverTime.isNotEmpty()) {
@@ -571,17 +589,11 @@ object UserDataBusClient {
         if (uuname.isNotEmpty()) prefs.userHubUsername = uuname
 
         val pic = data.optString("profile_picture", "").trim()
-        prefs.userProfilePictureDataUrl = pic
-
-        val dm = data.optString("user_display_mode", "").trim().lowercase()
-        if (dm == "standalone" || dm == "default") {
-            val wantStandalone = dm == "standalone"
-            val was = prefs.userStandaloneMode
-            if (wantStandalone != was) {
-                AppModeManager.setStandaloneMode(ctx, wantStandalone)
-                ctx.sendBroadcast(Intent(AlertEvents.ACTION_USER_DISPLAY_MODE_FROM_SERVER))
-            }
+        if (pic.isNotEmpty()) {
+            prefs.userProfilePictureDataUrl = pic
         }
+
+        AppModeManager.applyDisplayModeFromUserData(ctx, data, notifyDisplayModeChange)
 
         val medicinesArray = data.optJSONArray("medicines") ?: JSONArray()
         val list = mutableListOf<Map<String, Any?>>()
@@ -602,6 +614,11 @@ object UserDataBusClient {
             list.add(m)
         }
         AdminDemoData.replaceMedicines(ctx, AdminDemoData.fromApiMedicines(list))
+        if (AppRole.isUser(ctx)) {
+            if (list.isEmpty()) {
+                LocalAlertsController.cancelAll(ctx)
+            }
+        }
         val doseLogsFromServer = data.optJSONArray("dose_logs") ?: data.optJSONArray("dose_log")
         val incremental = data.optBoolean("incremental", false)
         // Linked Personal Health: full GET /user/data is non-incremental — mirror server dose_logs so an admin
@@ -618,7 +635,6 @@ object UserDataBusClient {
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
         if (AppRole.isUser(ctx)) {
             UserAlarmScheduler.rescheduleAlarmsOnly(ctx)
-            RelayAutoConnect.enableForLinkedUser(ctx)
         }
     }
 
@@ -679,5 +695,41 @@ object UserDataBusClient {
         if (Prefs(appCtx).awaitingAdminLinkApproval) return
         mainHandler.removeCallbacks(apiFallbackRunnable)
         mainHandler.postDelayed(apiFallbackRunnable, delayMs)
+    }
+
+    /**
+     * Re-open the data bus when [Prefs.databusAccessCode] or credentials change (e.g. admin accepted a link request).
+     * No-op when already connected to the same room.
+     */
+    fun reconnectFromPrefs(context: Context) {
+        val appCtx = context.applicationContext
+        appContext = appCtx
+        val p = Prefs(appCtx)
+        if (p.awaitingAdminLinkApproval) return
+        val code = p.databusAccessCode.trim()
+        val base = p.centralApiUrl.trim().removeSuffix("/")
+        val bid = p.id.trim()
+        val key = p.apiKey.trim()
+        if (code.isEmpty() || base.isEmpty() || bid.isEmpty() || key.isEmpty()) return
+        val ablyKey = p.dataBusAblySubscribeKey.trim()
+        val useAbly = ablyKey.isNotEmpty()
+        val wsUrl = if (useAbly) "ably" else toWsUrl(p.dataBusUrl)
+        synchronized(this) {
+            if (running &&
+                socketConnected &&
+                currentAccessCode == code &&
+                currentApiBase == base &&
+                currentBotId == bid &&
+                currentApiKey == key &&
+                useAblyTransport == useAbly &&
+                currentWsUrl == wsUrl &&
+                (ws != null || ablyRealtime != null)
+            ) {
+                return
+            }
+        }
+        stop()
+        start(appCtx, code, p.dataBusUrl, base, bid, key)
+        scheduleApiFallbackIfDataBusOffline(appCtx)
     }
 }

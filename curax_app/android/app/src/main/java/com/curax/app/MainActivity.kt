@@ -243,8 +243,7 @@ class MainActivity : AppCompatActivity() {
         if (prefs.linkedAdminId.isNotEmpty() && prefs.id.isNotEmpty()) {
             checkUserDeletedByAdmin()
         }
-        if (RelayAutoConnect.userLinkedToAdmin(prefs)) {
-            RelayAutoConnect.enableForLinkedUser(this)
+        if (RelayAutoConnect.shouldAutoRestore(prefs)) {
             try {
                 bindService(
                     Intent(this, AlertConnectionService::class.java),
@@ -501,7 +500,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun runMainConnectWakeAndRelayFlow(id: String, apiKey: String) {
-        prefs.relayAutoConnectEnabled = true
+        RelayAutoConnect.markConnectFlowComplete(this)
         saveCredentialsTimezoneIfLinked(id, apiKey)
         startConnectionService(prefs.serverUrl, id, apiKey)
     }

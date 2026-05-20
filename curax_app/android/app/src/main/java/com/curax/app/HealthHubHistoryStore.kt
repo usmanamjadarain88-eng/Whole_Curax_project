@@ -34,6 +34,10 @@ object HealthHubHistoryStore {
         sp.edit().putString(KEY_SYNC, next.toString()).apply()
     }
 
+    fun clear(context: Context) {
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+    }
+
     fun readSyncEvents(context: Context): List<Pair<Long, String>> {
         val sp = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val arr = try {

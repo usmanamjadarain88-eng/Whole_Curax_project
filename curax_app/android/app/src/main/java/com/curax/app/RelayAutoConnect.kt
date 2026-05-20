@@ -22,16 +22,25 @@ object RelayAutoConnect {
         return true
     }
 
-    /** Keep user relay up for the user↔admin channel (default + standalone when linked). */
-    fun enableForLinkedUser(context: Context) {
+    /**
+     * Called only after the user taps **Connect for alerts** and finishes the permission flow.
+     * Sign-in, admin link, and databus sync must not enable relay auto-restore (multi-account testing).
+     */
+    fun markConnectFlowComplete(context: Context) {
         val app = context.applicationContext
         if (!AppRole.isUser(app)) return
         val prefs = Prefs(app)
-        if (!userLinkedToAdmin(prefs)) return
         if (prefs.id.trim().isEmpty() || prefs.apiKey.trim().isEmpty()) return
         if (prefs.serverUrl.trim().isEmpty()) return
         prefs.relayAutoConnectEnabled = true
-        // Connect only from a visible Activity ([restoreOnAppOpen]) — not here (FGS not allowed at cold start).
+    }
+
+    @Deprecated(
+        "Use markConnectFlowComplete after Connect button only",
+        ReplaceWith("markConnectFlowComplete(context)"),
+    )
+    fun enableForLinkedUser(context: Context) {
+        // Intentionally no-op — prevents sign-in / link from auto-connecting another user's relay.
     }
 
     fun isRelayLive(context: Context, connectionService: AlertConnectionService?): Boolean =

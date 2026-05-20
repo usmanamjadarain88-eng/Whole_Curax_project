@@ -13,6 +13,7 @@ object AdminLinkedUserDirectory {
         val userId: String,
         val displayName: String,
         val email: String,
+        val userDisplayMode: String = "",
     )
 
     @Volatile
@@ -28,7 +29,9 @@ object AdminLinkedUserDirectory {
             val nameRaw = o.optString("name", "").trim()
             val email = o.optString("email", "").trim()
             val display = linkedUserDisplayFromFields(nameRaw, email)
-            list.add(Entry(userId = id, displayName = display, email = email))
+            val dm = o.optString("user_display_mode", "").trim().lowercase(Locale.US)
+            val mode = if (dm == "standalone" || dm == "default") dm else ""
+            list.add(Entry(userId = id, displayName = display, email = email, userDisplayMode = mode))
         }
         entries = list
     }
@@ -40,11 +43,18 @@ object AdminLinkedUserDirectory {
                 userId = m.userId,
                 displayName = dn.ifEmpty { m.name },
                 email = m.email.trim(),
+                userDisplayMode = m.userDisplayMode.trim().lowercase(Locale.US),
             )
         }
     }
 
     fun snapshot(): List<Entry> = entries
+
+    fun displayModeForUserId(userId: String): String {
+        val id = userId.trim()
+        if (id.isEmpty()) return ""
+        return entries.firstOrNull { it.userId == id }?.userDisplayMode?.trim().orEmpty()
+    }
 
     /**
      * Prefer stored relay user line; else infer from roster (single linked user, or name/email substring in message).

@@ -94,7 +94,11 @@ class AdminAlertsFragment : Fragment() {
     private var syncReceiverRegistered = false
     private val syncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) refresh()
+            when (intent?.action) {
+                AlertEvents.ACTION_ADMIN_DATA_SYNCED,
+                AlertEvents.ACTION_CONNECTION_STATE_CHANGED,
+                -> refresh()
+            }
         }
     }
 
@@ -195,7 +199,10 @@ class AdminAlertsFragment : Fragment() {
     override fun onStart() {
         super.onStart()
         if (!syncReceiverRegistered) {
-            val filter = IntentFilter(AlertEvents.ACTION_ADMIN_DATA_SYNCED)
+            val filter = IntentFilter().apply {
+                addAction(AlertEvents.ACTION_ADMIN_DATA_SYNCED)
+                addAction(AlertEvents.ACTION_CONNECTION_STATE_CHANGED)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 requireContext().registerReceiver(syncReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
@@ -621,6 +628,9 @@ class AdminAlertsFragment : Fragment() {
 
     fun refresh() {
         if (!isAdded) return
+        if (::adapter.isInitialized) {
+            adapter.setBulkMutationsAllowed(StandaloneUserMutationGate.allowMutations(requireContext()))
+        }
         if (StandaloneUi.isUserStandalone(requireContext()) && AppRole.isUser(requireContext())) {
             AdminDemoData.seedStandaloneDemoLogsIfNeeded(requireContext())
         }

@@ -52,6 +52,10 @@ object DeletedAlertsStore {
         trimAndSave(app, ids, fps)
     }
 
+    fun clearAll(context: Context) {
+        prefs(context).edit().clear().commit()
+    }
+
     fun filter(context: Context, items: List<AlertItem>): List<AlertItem> {
         if (items.isEmpty()) return items
         val idSet = serverIds(context)
