@@ -32,10 +32,6 @@ class Prefs(context: Context) {
         get() = prefs.getString(KEY_API_KEY, "") ?: ""
         set(value) = prefs.edit().putString(KEY_API_KEY, value).apply()
 
-    var fcmToken: String
-        get() = prefs.getString(KEY_FCM_TOKEN, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_FCM_TOKEN, value).apply()
-
     var themeMode: Int
         get() = prefs.getInt(KEY_THEME_MODE, AppCompatDelegate.MODE_NIGHT_NO)
         set(value) = prefs.edit().putInt(KEY_THEME_MODE, value).apply()
@@ -493,7 +489,6 @@ class Prefs(context: Context) {
         emailForWip: String,
         passwordForWip: String,
         nameForLinkForWip: String,
-        fcmToken: String,
     ): Boolean {
         val ed = prefs.edit()
             .putBoolean(KEY_AWAITING_ADMIN_LINK, true)
@@ -521,7 +516,6 @@ class Prefs(context: Context) {
             .putString(KEY_SIGNUP_WIP_API_KEY, apiKey.trim())
             .putString(KEY_SIGNUP_WIP_NAME, nameForLinkForWip.trim())
             .remove(KEY_CACHED_USER_DATA_JSON)
-        if (fcmToken.isNotEmpty()) ed.putString(KEY_FCM_TOKEN, fcmToken)
         val ok = ed.commit()
         if (ok) {
             UserSessionIsolate.ensureSessionForBotId(appContext, botId)
@@ -609,6 +603,5 @@ class Prefs(context: Context) {
         private const val KEY_SIGNUP_WIP_NAME = "signup_wip_name_for_link"
         private const val KEY_AWAITING_ADMIN_LINK = "awaiting_admin_link_approval"
         private const val KEY_AWAITING_ADMIN_CHOSEN_NAME = "awaiting_admin_chosen_display_name"
-        const val KEY_FCM_TOKEN = "fcm_token"
     }
 }

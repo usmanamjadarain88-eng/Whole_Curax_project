@@ -606,7 +606,6 @@ class SignInActivity : AppCompatActivity() {
                         emailForWip = email,
                         passwordForWip = password,
                         nameForLinkForWip = email,
-                        fcmToken = "",
                     )
                 ) {
                     CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)

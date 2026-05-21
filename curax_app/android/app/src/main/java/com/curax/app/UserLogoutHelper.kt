@@ -21,7 +21,6 @@ object UserLogoutHelper {
         prefs.awaitingAdminChosenDisplayName = ""
         prefs.id = ""
         prefs.apiKey = ""
-        prefs.fcmToken = ""
         prefs.connectionCode = ""
         prefs.databusAccessCode = ""
         prefs.linkedAdminId = ""

@@ -289,7 +289,6 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
                 emailForWip = email,
                 passwordForWip = password,
                 nameForLinkForWip = nameForLink,
-                fcmToken = "",
             )
         ) {
             CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
