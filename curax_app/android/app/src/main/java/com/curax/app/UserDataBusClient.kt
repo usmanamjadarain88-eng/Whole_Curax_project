@@ -501,6 +501,7 @@ object UserDataBusClient {
         }
         synchronized(this) {
             if (fetchInFlight) {
+                pendingFetch = true
                 mainHandler.post { onFetchFinished?.invoke() }
                 return
             }

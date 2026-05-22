@@ -10,6 +10,8 @@ object AlertEvents {
      * Fire after server snapshot/WebSocket sync — not on every local [ACTION_ADMIN_DATA_SYNCED].
      */
     const val ACTION_ADMIN_HUB_REFRESH_METRICS = "com.curax.app.ACTION_ADMIN_HUB_REFRESH_METRICS"
+    /** Linked-user counts changed (Users tab / linked-users HTTP). Hub updates total without waiting on WebSocket. */
+    const val ACTION_ADMIN_ROSTER_COUNTS_UPDATED = "com.curax.app.ACTION_ADMIN_ROSTER_COUNTS_UPDATED"
     /** User GET /user/data fetch started (HTTP in flight). Standalone UI may show sync ripple. */
     const val ACTION_USER_STANDALONE_DATA_FETCH_STARTED = "com.curax.app.ACTION_USER_STANDALONE_DATA_FETCH_STARTED"
     /** User GET /user/data fetch finished (success or failure). Standalone UI returns to idle pulse. */

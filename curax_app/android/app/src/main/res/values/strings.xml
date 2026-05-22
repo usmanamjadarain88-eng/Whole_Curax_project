@@ -634,6 +634,8 @@
     <string name="admin_users_demo_display_name">Jordan Avery</string>
     <string name="admin_users_demo_email">jordan.preview@example.com</string>
     <string name="admin_users_care_mode">Care mode</string>
+    <string name="admin_reminders_need_care_mode">Open a user from the Users tab (Care mode) first — reminders save to that user\'s account, not the hub.</string>
+    <string name="admin_reminders_save_failed">Failed to save reminders</string>
     <string name="admin_users_care_active_label">ACTIVE CARE SESSION</string>
     <string name="admin_users_exit_care">Exit</string>
     <string name="admin_users_refresh">Refresh</string>

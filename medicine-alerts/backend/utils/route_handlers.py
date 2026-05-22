@@ -1752,7 +1752,8 @@ def admin_sync(body, query, headers):
             payload["admin_bot_config"] = data["admin_bot_config"]
         if not db.sync_admin_settings_only(admin_id, payload):
             return (500, {"message": "Failed to save admin settings"})
-    notify_databus(access_code)
+        duid = None
+    notify_databus(access_code, act_as_user_id=str(duid) if duid else None)
     trigger_alert_checks_for_admin(admin_id)
     return (200, {"message": "ok"})
 
@@ -1884,7 +1885,7 @@ def put_admin_medical_reminders(body, query, headers):
     ok = db.upsert_alert_settings(duid, settings)
     if not ok:
         return (500, {"message": "Failed to save"})
-    notify_databus(access_code)
+    notify_databus(access_code, act_as_user_id=str(duid))
     trigger_alert_checks_for_admin(admin_id)
     return (200, {"message": "ok", "medical_reminders": medical_reminders})
 

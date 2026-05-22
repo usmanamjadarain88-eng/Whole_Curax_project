@@ -697,13 +697,12 @@ class CentralDB:
     def upsert_admin_from_bot(self, bot_id, api_key, name=None, email=None, fcm_token=None, desktop_password_plain=None):
         """Insert or update admin by (bot_id, api_key). Returns (admin_id, admin_access_code, connection_code) or (None, None, None).
         New admins get unique admin_access_code and connection_code; existing admins keep their codes.
-        fcm_token: legacy column only; alerts use relay WebSocket (bot_id+api_key).
+        fcm_token arg ignored (relay WebSocket only).
         desktop_password_plain: when set (min length enforced by caller), stores PBKDF2 hash for mobile admin sign-in.
         """
         bot_id = (bot_id or "").strip()
         api_key = (api_key or "").strip()
         email_val = (email or "").strip()
-        fcm = (fcm_token or "").strip() or None
         dp = (desktop_password_plain or "").strip()
         pw_hash = self._hash_signup_password(dp) if len(dp) >= 6 else None
         if not bot_id or not api_key:
@@ -726,20 +725,19 @@ class CentralDB:
             connection_code = self._generate_connection_code()
             cur.execute(
                 """
-                INSERT INTO admins (name, email, bot_id, api_key, admin_access_code, connection_code, fcm_token, is_admin, updated_at, desktop_password_hash)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, true, NOW(), %s)
+                INSERT INTO admins (name, email, bot_id, api_key, admin_access_code, connection_code, is_admin, updated_at, desktop_password_hash)
+                VALUES (%s, %s, %s, %s, %s, %s, true, NOW(), %s)
                 ON CONFLICT (bot_id, api_key)
                 DO UPDATE SET name = COALESCE(EXCLUDED.name, admins.name),
                               email = COALESCE(EXCLUDED.email, admins.email),
                               admin_access_code = COALESCE(admins.admin_access_code, EXCLUDED.admin_access_code),
                               connection_code = COALESCE(admins.connection_code, EXCLUDED.connection_code),
-                              fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), admins.fcm_token),
                               desktop_password_hash = COALESCE(EXCLUDED.desktop_password_hash, admins.desktop_password_hash),
                               is_admin = true,
                               updated_at = NOW()
                 RETURNING id, admin_access_code, connection_code
                 """,
-                (name or "", email_val or "", bot_id, api_key, access_code, connection_code, fcm, pw_hash),
+                (name or "", email_val or "", bot_id, api_key, access_code, connection_code, pw_hash),
             )
             row = cur.fetchone()
             conn.commit()
@@ -760,7 +758,7 @@ class CentralDB:
             cur.close()
 
     def update_admin_bot_by_access_code(self, access_code, bot_id, api_key, name=None, email=None, fcm_token=None, desktop_password_plain=None):
-        """Find admin by access_code and set their bot_id, api_key, name, email, fcm_token (e.g. when app registers).
+        """Find admin by access_code and set their bot_id, api_key, name, email (e.g. when app registers).
         If another admin row has this (bot_id, api_key), delete it first so we keep one admin per access_code.
         Returns (admin_id, admin_access_code, connection_code) or (None, None, None).
         """
@@ -789,17 +787,16 @@ class CentralDB:
                 "DELETE FROM admins WHERE bot_id = %s AND api_key = %s AND id != %s::uuid",
                 (bot_id, api_key, target_id),
             )
-            fcm = (fcm_token or "").strip() or None
             cur.execute(
                 """
                 UPDATE admins SET bot_id = %s, api_key = %s, name = COALESCE(NULLIF(%s, ''), name),
-                email = COALESCE(NULLIF(%s, ''), email), fcm_token = COALESCE(NULLIF(%s, ''), fcm_token),
+                email = COALESCE(NULLIF(%s, ''), email),
                 desktop_password_hash = COALESCE(%s, admins.desktop_password_hash),
                 is_admin = true, updated_at = NOW()
                 WHERE admin_access_code = %s
                 RETURNING id, admin_access_code, connection_code
                 """,
-                (bot_id, api_key, name or "", email_val or "", fcm or "", pw_hash, code),
+                (bot_id, api_key, name or "", email_val or "", pw_hash, code),
             )
             row = cur.fetchone()
             conn.commit()
@@ -820,28 +817,25 @@ class CentralDB:
             cur.close()
 
     def get_admin_bot_by_access_code(self, access_code):
-        """Return { bot_id, api_key, fcm_token } for admin with this access_code, or None.
-        Used when desktop notifies backend; delivery is relay WebSocket to bot_id+api_key."""
+        """Return { bot_id, api_key } for admin with this access_code, or None."""
         code = (access_code or "").strip().upper()
         if not code:
             return None
         conn = self._ensure_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
-            cur.execute("SELECT bot_id, api_key, fcm_token FROM admins WHERE admin_access_code = %s LIMIT 1", (code,))
+            cur.execute("SELECT bot_id, api_key FROM admins WHERE admin_access_code = %s LIMIT 1", (code,))
             row = cur.fetchone()
             if row and hasattr(row, "keys"):
                 bid = (row.get("bot_id") or "").strip()
                 akey = (row.get("api_key") or "").strip()
-                fcm = (row.get("fcm_token") or "").strip() or None
                 if bid and akey:
-                    return {"bot_id": bid, "api_key": akey, "fcm_token": fcm}
+                    return {"bot_id": bid, "api_key": akey}
             if row:
                 bid = (row[0] or "").strip()
                 akey = (row[1] or "").strip()
-                fcm = (row[2] or "").strip() or None if len(row) > 2 else None
                 if bid and akey:
-                    return {"bot_id": bid, "api_key": akey, "fcm_token": fcm}
+                    return {"bot_id": bid, "api_key": akey}
             return None
         except Exception as e:
             print(f"CentralDB get_admin_bot_by_access_code: {e}")
@@ -850,59 +844,15 @@ class CentralDB:
             cur.close()
 
     def get_fcm_token_for_bot(self, bot_id, api_key):
-        """Legacy: fcm_token column. Relay delivery uses bot_id+api_key WebSocket only."""
-        bot_id = (bot_id or "").strip()
-        api_key = (api_key or "").strip()
-        if not bot_id or not api_key:
-            return None
-        conn = self._ensure_conn()
-        cur = conn.cursor()
-        try:
-            cur.execute("SELECT fcm_token FROM admins WHERE bot_id = %s AND api_key = %s LIMIT 1", (bot_id, api_key))
-            row = cur.fetchone()
-            if row and row[0]:
-                t = (row[0] or "").strip()
-                if t:
-                    return t
-            cur.execute("SELECT fcm_token FROM users WHERE bot_id = %s AND api_key = %s LIMIT 1", (bot_id, api_key))
-            row = cur.fetchone()
-            if row and row[0]:
-                t = (row[0] or "").strip()
-                if t:
-                    return t
-            return None
-        except Exception as e:
-            print(f"CentralDB get_fcm_token_for_bot: {e}")
-            return None
-        finally:
-            cur.close()
+        """Deprecated: FCM removed; relay uses bot_id+api_key WebSocket only."""
+        return None
 
     def update_admin_fcm_token_by_access_code(self, access_code, fcm_token):
-        """Update only fcm_token for the admin with this access_code. Used when app gets FCM token after permission grant.
-        Returns True if admin was found and updated."""
-        code = (access_code or "").strip().upper()
-        if not code:
-            return False
-        fcm = (fcm_token or "").strip() or None
-        conn = self._ensure_conn()
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                "UPDATE admins SET fcm_token = %s, updated_at = NOW() WHERE admin_access_code = %s",
-                (fcm or "", code),
-            )
-            conn.commit()
-            return cur.rowcount > 0
-        except Exception as e:
-            conn.rollback()
-            print(f"CentralDB update_admin_fcm_token_by_access_code: {e}")
-            return False
-        finally:
-            cur.close()
+        """Deprecated: FCM column removed."""
+        return False
 
     def get_admin_connection_status(self, access_code):
-        """Return { connected: bool, fcm_token_set: bool } for admin with this access_code, or None if not found.
-        connected = has bot_id and api_key; fcm_token_set is legacy (API always reports false)."""
+        """Return { connected: bool, fcm_token_set: bool } for admin with this access_code, or None if not found."""
         code = (access_code or "").strip().upper()
         if not code:
             return None
@@ -910,7 +860,7 @@ class CentralDB:
         cur = conn.cursor()
         try:
             cur.execute(
-                "SELECT bot_id, api_key, fcm_token FROM admins WHERE admin_access_code = %s LIMIT 1",
+                "SELECT bot_id, api_key FROM admins WHERE admin_access_code = %s LIMIT 1",
                 (code,),
             )
             row = cur.fetchone()
@@ -918,10 +868,9 @@ class CentralDB:
                 return None
             bid = (row[0] or "").strip()
             akey = (row[1] or "").strip()
-            fcm = (row[2] or "").strip() if len(row) > 2 else ""
             return {
                 "connected": bool(bid and akey),
-                "fcm_token_set": bool(fcm),
+                "fcm_token_set": False,
             }
         except Exception as e:
             print(f"CentralDB get_admin_connection_status: {e}")
@@ -1273,7 +1222,7 @@ class CentralDB:
         """Insert or update the user by (bot_id, api_key); links this app to the given admin_id. Returns user id or None.
         If email is provided, any other user rows for the same admin_id + email (previous installs) are deleted first,
         but their medicines, dose_logs, and alert_settings are migrated to the new user to preserve data.
-        fcm_token: when provided, stored for push alerts to this user.
+        fcm_token arg ignored (relay WebSocket only).
         username: optional display handle (e.g. first + last from signup). When omitted, derived from name.
         """
         bot_id = (bot_id or "").strip()
@@ -1285,7 +1234,6 @@ class CentralDB:
         except (ValueError, TypeError):
             return None
         email_clean = (email or "").strip()
-        fcm = (fcm_token or "").strip() or None
         tz = (timezone or "").strip() or None
         if username is not None:
             uname_val = str(username).strip() or None
@@ -1295,23 +1243,22 @@ class CentralDB:
         cur = conn.cursor(cursor_factory=RealDictCursor) if RealDictCursor else conn.cursor()
         try:
             self._ensure_users_timezone_column()
-            # Schema: users may have email, fcm_token, username, timezone columns
+            # Schema: users may have email, username, timezone columns
             try:
                 cur.execute(
                     """
-                    INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, fcm_token, timezone, updated_at)
-                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', %s, %s, NOW())
+                    INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, timezone, updated_at)
+                    VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', %s, NOW())
                     ON CONFLICT (bot_id, api_key)
                     DO UPDATE SET admin_id = EXCLUDED.admin_id,
                                   name = COALESCE(EXCLUDED.name, users.name),
                                   email = COALESCE(EXCLUDED.email, users.email),
                                   username = COALESCE(NULLIF(TRIM(EXCLUDED.username), ''), users.username),
-                                  fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
                                   timezone = COALESCE(NULLIF(TRIM(EXCLUDED.timezone), ''), users.timezone),
                                   updated_at = NOW()
                     RETURNING id
                     """,
-                    (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key, fcm, tz),
+                    (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key, tz),
                 )
             except Exception as e0:
                 conn.rollback()
@@ -1319,34 +1266,32 @@ class CentralDB:
                 if "timezone" in el0:
                     cur.execute(
                         """
-                        INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, fcm_token, updated_at)
-                        VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', %s, NOW())
+                        INSERT INTO users (admin_id, name, email, username, bot_id, api_key, role, updated_at)
+                        VALUES (%s::uuid, %s, %s, %s, %s, %s, 'user', NOW())
                         ON CONFLICT (bot_id, api_key)
                         DO UPDATE SET admin_id = EXCLUDED.admin_id,
                                       name = COALESCE(EXCLUDED.name, users.name),
                                       email = COALESCE(EXCLUDED.email, users.email),
                                       username = COALESCE(NULLIF(TRIM(EXCLUDED.username), ''), users.username),
-                                      fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
                                       updated_at = NOW()
                         RETURNING id
                         """,
-                        (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key, fcm),
+                        (admin_id, name or "", email_clean or None, uname_val, bot_id, api_key),
                     )
                 elif "username" not in el0:
                     raise e0
                 cur.execute(
                     """
-                    INSERT INTO users (admin_id, name, email, bot_id, api_key, role, fcm_token, updated_at)
-                    VALUES (%s::uuid, %s, %s, %s, %s, 'user', %s, NOW())
+                    INSERT INTO users (admin_id, name, email, bot_id, api_key, role, updated_at)
+                    VALUES (%s::uuid, %s, %s, %s, %s, 'user', NOW())
                     ON CONFLICT (bot_id, api_key)
                     DO UPDATE SET admin_id = EXCLUDED.admin_id,
                                   name = COALESCE(EXCLUDED.name, users.name),
                                   email = COALESCE(EXCLUDED.email, users.email),
-                                  fcm_token = COALESCE(NULLIF(TRIM(EXCLUDED.fcm_token), ''), users.fcm_token),
                                   updated_at = NOW()
                     RETURNING id
                     """,
-                    (admin_id, name or "", email_clean or None, bot_id, api_key, fcm),
+                    (admin_id, name or "", email_clean or None, bot_id, api_key),
                 )
             row = cur.fetchone()
             conn.commit()
@@ -1362,8 +1307,7 @@ class CentralDB:
             return None
         except Exception as e:
             conn.rollback()
-            # If email/fcm_token column doesn't exist yet, fallback to insert without them
-            if "email" in str(e).lower() or "column" in str(e).lower() or "fcm_token" in str(e).lower():
+            if "email" in str(e).lower() or "column" in str(e).lower():
                 try:
                     cur.execute(
                         """
@@ -3992,9 +3936,9 @@ class CentralDB:
                 """
                 INSERT INTO admins (
                     name, email, bot_id, api_key, admin_access_code, connection_code,
-                    fcm_token, is_admin, updated_at, desktop_password_hash
+                    is_admin, updated_at, desktop_password_hash
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, NULL, true, NOW(), %s)
+                VALUES (%s, %s, %s, %s, %s, %s, true, NOW(), %s)
                 RETURNING id, admin_access_code, connection_code
                 """,
                 (name_guess, email_n, bot_id, api_key, access_code, connection_code, pw_hash),
@@ -4738,7 +4682,6 @@ class CentralDB:
                     user_bot_id TEXT NOT NULL,
                     user_api_key TEXT NOT NULL,
                     display_name TEXT,
-                    fcm_token TEXT,
                     status TEXT NOT NULL DEFAULT 'pending',
                     created_at TIMESTAMPTZ DEFAULT NOW(),
                     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -4752,6 +4695,10 @@ class CentralDB:
                 WHERE status = 'pending'
                 """
             )
+            try:
+                cur.execute("ALTER TABLE user_admin_link_requests DROP COLUMN IF EXISTS fcm_token")
+            except Exception:
+                pass
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -4907,7 +4854,7 @@ class CentralDB:
             admin_id,
             name=actual_display,
             email=email_n,
-            fcm_token=fcm_token,
+            fcm_token=None,
             username=user_uname,
         )
         if not user_id:
@@ -5093,14 +5040,13 @@ class CentralDB:
             )
             rid = str(uuid.uuid4())
             dn = (name or "").strip()[:200] or None
-            ft = (fcm_token or "").strip() or None
             cur.execute(
                 """
                 INSERT INTO user_admin_link_requests (
-                    id, email_normalized, admin_id, user_bot_id, user_api_key, display_name, fcm_token, status
-                ) VALUES (%s::uuid, %s, %s::uuid, %s, %s, %s, %s, 'pending')
+                    id, email_normalized, admin_id, user_bot_id, user_api_key, display_name, status
+                ) VALUES (%s::uuid, %s, %s::uuid, %s, %s, %s, 'pending')
                 """,
-                (rid, email_n, aid, bot_id, api_key, dn, ft),
+                (rid, email_n, aid, bot_id, api_key, dn),
             )
             conn.commit()
             return {"ok": True, "message": "request_created", "request_id": rid, "admin_name": admin.get("name") or ""}
@@ -5222,7 +5168,7 @@ class CentralDB:
             cur.execute(
                 """
                 SELECT email_normalized, user_bot_id, user_api_key,
-                       COALESCE(display_name, '') AS display_name, COALESCE(fcm_token, '') AS fcm_token
+                       COALESCE(display_name, '') AS display_name
                 FROM user_admin_link_requests
                 WHERE id = %s::uuid AND admin_id = %s::uuid AND status = 'pending'
                 LIMIT 1
@@ -5241,7 +5187,6 @@ class CentralDB:
         bot_id = row["user_bot_id"]
         api_key = row["user_api_key"]
         disp = str((row.get("display_name") or "")).strip()
-        fcm = str((row.get("fcm_token") or "")).strip()
 
         sess = self._signup_load_pending_admin_session(email_n)
         if not sess.get("ok"):
@@ -5256,7 +5201,7 @@ class CentralDB:
             bot_id,
             api_key,
             disp or None,
-            fcm or None,
+            None,
             sess["password_hash"],
             sess["fn"],
             sess["ln"],

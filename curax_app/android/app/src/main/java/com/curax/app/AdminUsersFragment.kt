@@ -118,6 +118,7 @@ class AdminUsersFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         updateManagingBanner()
+        refreshAll()
     }
 
     override fun onDestroyView() {
@@ -231,13 +232,11 @@ class AdminUsersFragment : Fragment() {
                 } else {
                     linkedRows
                 }
-                AdminLinkedUserDirectory.ingestFromUiModels(linkedForUi)
+                AdminHubMetrics.applyFromUiModels(linkedForUi)
                 linkedAdapter.submit(linkedForUi)
                 tvEmptyLinked.visibility = View.GONE
                 updateManagingBanner()
-                if (linkedRows.isNotEmpty()) {
-                    requireContext().sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_HUB_REFRESH_METRICS))
-                }
+                AdminHubMetrics.broadcastRosterCountsUpdated(requireContext())
             }
         }.start()
     }

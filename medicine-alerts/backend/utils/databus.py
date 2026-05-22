@@ -30,17 +30,22 @@ def get_data_bus_url() -> str:
     return "https://databus.vercel.app"
 
 
-def notify_databus(access_code: str) -> None:
+def notify_databus(access_code: str, act_as_user_id: str | None = None) -> None:
+    """Push data_sync to admin:{ACCESS_CODE}. When act_as_user_id is set, Central API returns that user's snapshot (Care mode)."""
     code = (access_code or "").strip()
     if not code:
         return
     base = get_data_bus_url()
     if not base:
         return
+    body = {"access_code": code}
+    act_as = (act_as_user_id or "").strip()
+    if act_as:
+        body["act_as_user_id"] = act_as
     try:
         req = urllib.request.Request(
             base + "/notify_admin",
-            data=json.dumps({"access_code": code}).encode("utf-8"),
+            data=json.dumps(body).encode("utf-8"),
             method="POST",
             headers={"Content-Type": "application/json"},
         )

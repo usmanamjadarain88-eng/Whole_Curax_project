@@ -230,7 +230,12 @@ object AdminDemoData {
     /** Parse medical_reminders JSON from API. */
     fun fromApiMedicalReminders(json: JSONObject?): Map<String, List<Map<String, Any?>>> {
         val out = mutableMapOf<String, List<Map<String, Any?>>>()
-        if (json == null) return out
+        if (json == null) {
+            for (key in listOf("appointments", "prescriptions", "lab_tests", "custom")) {
+                out[key] = emptyList()
+            }
+            return out
+        }
         for (key in listOf("appointments", "prescriptions", "lab_tests", "custom")) {
             val arr = json.optJSONArray(key) ?: JSONArray()
             val list = mutableListOf<Map<String, Any?>>()

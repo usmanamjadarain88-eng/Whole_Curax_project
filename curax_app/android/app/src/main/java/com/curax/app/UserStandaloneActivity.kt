@@ -223,9 +223,7 @@ class UserStandaloneActivity : AppCompatActivity() {
             if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
                 showLoading(false)
                 mainHandler.removeCallbacks(userShellSyncDebounceRunnable)
-                val debounceMs =
-                    if (StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) 0L else 64L
-                mainHandler.postDelayed(userShellSyncDebounceRunnable, debounceMs)
+                mainHandler.post(userShellSyncDebounceRunnable)
             }
         }
     }
@@ -986,7 +984,10 @@ class UserStandaloneActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         UserDataBusClient.setOnUserDataAppliedListener {
-            runOnUiThread { showLoading(false) }
+            runOnUiThread {
+                showLoading(false)
+                refreshAllUserShellFragments()
+            }
         }
         if (!dataSyncReceiverRegistered) {
             val filter = IntentFilter(AlertEvents.ACTION_ADMIN_DATA_SYNCED)
@@ -2007,7 +2008,7 @@ class UserStandaloneActivity : AppCompatActivity() {
                 is DoseTrackingFragment -> f.applyRemoteUserDataSync()
                 is AdminMedicalRemindersFragment ->
                     if (f.isAdded && f.view != null) {
-                        f.view?.post { f.refresh() }
+                        f.view?.post { f.applySyncedRemindersToUi() }
                     }
                 is AdminSettingsFragment ->
                     if (f.isAdded && f.view != null) {

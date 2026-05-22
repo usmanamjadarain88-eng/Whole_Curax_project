@@ -89,8 +89,11 @@ class AdminHubFragment : Fragment() {
                     host.refreshLocalStats()
                     host.refreshVolumeCharts()
                     host.refreshPulseStats()
+                    host.applyRosterCountsToUi()
                     host.scheduleHubMetricsFetchDebounced(force = true)
                 }
+                AlertEvents.ACTION_ADMIN_ROSTER_COUNTS_UPDATED ->
+                    host.applyRosterCountsToUi()
                 AlertEvents.ACTION_ADMIN_HUB_REFRESH_METRICS ->
                     host.scheduleHubMetricsFetchDebounced(force = true)
                 AlertEvents.ACTION_CONNECTION_STATE_CHANGED,
@@ -189,6 +192,7 @@ class AdminHubFragment : Fragment() {
         if (!hubReceiverRegistered) {
             val filter = IntentFilter().apply {
                 addAction(AlertEvents.ACTION_ADMIN_DATA_SYNCED)
+                addAction(AlertEvents.ACTION_ADMIN_ROSTER_COUNTS_UPDATED)
                 addAction(AlertEvents.ACTION_ADMIN_HUB_REFRESH_METRICS)
                 addAction(AlertEvents.ACTION_CONNECTION_STATE_CHANGED)
                 addAction(AlertEvents.ACTION_ALERTS_UPDATED)
@@ -205,7 +209,28 @@ class AdminHubFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         refreshLocalStats()
-        scheduleHubMetricsFetchDebounced(force = false)
+        applyRosterCountsToUi()
+        scheduleHubMetricsFetchDebounced(force = true)
+    }
+
+    /** Same totals as Users tab — no WebSocket required. */
+    fun applyRosterCountsToUi() {
+        if (!this::tvStatUsers.isInitialized) return
+        if (AdminLinkedUserDirectory.hasRosterCounts()) {
+            tvStatUsers.text = AdminLinkedUserDirectory.rosterUsersTotal.toString()
+            applyDonutFromCounts(
+                AdminLinkedUserDirectory.rosterLinked,
+                AdminLinkedUserDirectory.rosterPending,
+            )
+            MetricsCache.recordSuccess(
+                AdminLinkedUserDirectory.rosterUsersTotal,
+                AdminLinkedUserDirectory.rosterLinked,
+                AdminLinkedUserDirectory.rosterPending,
+            )
+            refreshPulseStats()
+            return
+        }
+        restoreHubSummaryFromCache()
     }
 
     override fun onDestroyView() {
@@ -304,7 +329,7 @@ class AdminHubFragment : Fragment() {
                 val data1 = if (body1.isNotBlank()) JSONObject(body1) else JSONObject()
                 val usersFast = data1.optJSONArray("users") ?: JSONArray()
                 if (res1.isSuccessful) {
-                    AdminLinkedUserDirectory.ingestUsersJsonArray(usersFast)
+                    AdminHubMetrics.applyFromUsersArray(usersFast)
                 }
 
                 activity?.runOnUiThread {
@@ -318,18 +343,9 @@ class AdminHubFragment : Fragment() {
                         populateHubDoseTables(loadFailed = true)
                         return@runOnUiThread
                     }
-                    tvStatUsers.text = usersFast.length().toString()
-                    var linked = 0
-                    var pending = 0
-                    for (i in 0 until usersFast.length()) {
-                        val u = usersFast.optJSONObject(i) ?: continue
-                        val botId = u.optString("bot_id", "").trim()
-                        if (botId.isNotEmpty()) linked++ else pending++
-                    }
-                    applyDonutFromCounts(linked, pending)
+                    applyRosterCountsToUi()
                     refreshLocalStats()
                     refreshPulseStats()
-                    MetricsCache.recordSuccess(usersFast.length(), linked, pending)
                     containerHubDoseTables.removeAllViews()
                     tvRosterDosePreviewEmpty.text = getString(R.string.admin_hub_dose_preview_loading)
                     tvRosterDosePreviewEmpty.visibility = View.VISIBLE

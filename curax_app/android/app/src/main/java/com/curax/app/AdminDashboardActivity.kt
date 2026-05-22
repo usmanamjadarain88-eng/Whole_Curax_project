@@ -66,6 +66,7 @@ class AdminDashboardActivity : AppCompatActivity() {
     private var pendingRelayConnectAfterNotificationPermission = false
     private var alertsReceiverRegistered = false
     private var adminDataSyncReceiverRegistered = false
+    private var rosterCountsReceiverRegistered = false
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
 
     /** Throttle sidebar linked/pending HTTP: [ACTION_ADMIN_DATA_SYNCED] can fire very often over WebSocket. */
@@ -78,7 +79,18 @@ class AdminDashboardActivity : AppCompatActivity() {
                     updateReturnToAdminBar()
                     fetchSidebarHealthOverview(force = true)
                     refreshAdminUsersTab()
+                    refreshRosterCountsFromServer()
                 }
+            }
+        }
+    }
+
+    private val rosterCountsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != AlertEvents.ACTION_ADMIN_ROSTER_COUNTS_UPDATED) return
+            runOnUiThread {
+                applySidebarLinkedCountsFromRoster()
+                refreshAdminHubCounts()
             }
         }
     }
@@ -620,6 +632,13 @@ class AdminDashboardActivity : AppCompatActivity() {
             registerReceiver(adminDataSyncReceiver, IntentFilter(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
             adminDataSyncReceiverRegistered = true
         }
+        if (!rosterCountsReceiverRegistered) {
+            registerReceiver(
+                rosterCountsReceiver,
+                IntentFilter(AlertEvents.ACTION_ADMIN_ROSTER_COUNTS_UPDATED),
+            )
+            rosterCountsReceiverRegistered = true
+        }
         // Real-time admin data sync from Data Bus WebSocket (desktop/app changes).
         val accessCode = prefs.adminAccessCode.trim()
         if (accessCode.isNotEmpty()) {
@@ -642,6 +661,13 @@ class AdminDashboardActivity : AppCompatActivity() {
             } catch (_: Exception) {
             }
             adminDataSyncReceiverRegistered = false
+        }
+        if (rosterCountsReceiverRegistered) {
+            try {
+                unregisterReceiver(rosterCountsReceiver)
+            } catch (_: Exception) {
+            }
+            rosterCountsReceiverRegistered = false
         }
         super.onStop()
     }
@@ -791,6 +817,43 @@ class AdminDashboardActivity : AppCompatActivity() {
         (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
             .setPrimaryClip(ClipData.newPlainText("", text))
         CuraxFeedback.success(this, getString(R.string.clipboard_generic_copied))
+    }
+
+    private fun applySidebarLinkedCountsFromRoster() {
+        if (!AdminLinkedUserDirectory.hasRosterCounts()) return
+        tvSidebarStatLinked.text = AdminLinkedUserDirectory.rosterLinked.toString()
+        tvSidebarStatPending.text = AdminLinkedUserDirectory.rosterPending.toString()
+    }
+
+    private fun refreshAdminHubCounts() {
+        val fsa = viewPager?.adapter as? androidx.viewpager2.adapter.FragmentStateAdapter ?: return
+        for (i in 0 until fsa.itemCount) {
+            val tag = "f${fsa.getItemId(i)}"
+            (supportFragmentManager.findFragmentByTag(tag) as? AdminHubFragment)?.applyRosterCountsToUi()
+        }
+    }
+
+    /** Same GET /admin/linked-users as Users tab — keeps dashboard count correct even if Users fragment was never opened. */
+    private fun refreshRosterCountsFromServer() {
+        val accessCode = prefs.adminAccessCode.trim()
+        val base = prefs.centralApiUrl.trim().removeSuffix("/")
+        if (base.isEmpty() || accessCode.isEmpty()) return
+        Thread {
+            try {
+                val url = "$base/admin/linked-users?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
+                val res = http.newCall(Request.Builder().url(url).get().build()).execute()
+                val body = res.body?.string().orEmpty()
+                if (!res.isSuccessful) return@Thread
+                val data = if (body.isNotBlank()) org.json.JSONObject(body) else org.json.JSONObject()
+                val usersArr = data.optJSONArray("users") ?: org.json.JSONArray()
+                AdminHubMetrics.applyFromUsersArray(usersArr)
+                runOnUiThread {
+                    if (isFinishing) return@runOnUiThread
+                    AdminHubMetrics.broadcastRosterCountsUpdated(this@AdminDashboardActivity)
+                }
+            } catch (_: Exception) {
+            }
+        }.start()
     }
 
     private fun refreshAdminUsersTab() {

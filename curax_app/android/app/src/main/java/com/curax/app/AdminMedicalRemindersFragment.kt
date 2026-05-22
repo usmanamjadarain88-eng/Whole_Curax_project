@@ -54,9 +54,12 @@ class AdminMedicalRemindersFragment : Fragment() {
     private var syncReceiverRegistered = false
     private val syncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == AlertEvents.ACTION_ADMIN_DATA_SYNCED) {
+            if (intent?.action != AlertEvents.ACTION_ADMIN_DATA_SYNCED) return
+            if (isUserApp()) {
+                applySyncedRemindersToUi()
+            } else {
                 lastRefreshSignature = null
-                refresh()
+                loadRemindersFromServer()
             }
         }
     }
@@ -108,10 +111,23 @@ class AdminMedicalRemindersFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // Standalone updates come from DataBus sync; avoid refetching on every tab switch.
-        if (isUserApp()) return
-        loadRemindersFromServer()
+        if (isUserApp()) {
+            applySyncedRemindersToUi()
+            if (medicalRemindersAreEmpty()) loadRemindersFromServer()
+        } else {
+            loadRemindersFromServer()
+        }
     }
+
+    /** Databus or pull-to-refresh already updated [AdminDemoData] — repaint list immediately. */
+    fun applySyncedRemindersToUi() {
+        if (!isAdded) return
+        lastRefreshSignature = null
+        refresh()
+    }
+
+    private fun medicalRemindersAreEmpty(): Boolean =
+        REMINDER_KEYS.all { AdminDemoData.getMedicalReminders()[it].orEmpty().isEmpty() }
 
     override fun onStop() {
         super.onStop()
@@ -155,13 +171,7 @@ class AdminMedicalRemindersFragment : Fragment() {
                         val data = JSONObject(body)
                         val medicalRemindersObj = data.optJSONObject("medical_reminders")
                         val incoming = AdminDemoData.fromApiMedicalReminders(medicalRemindersObj)
-                        val currentSig = buildReminderSignature(AdminDemoData.getMedicalReminders())
-                        val newSig = buildReminderSignature(incoming)
-                        if (currentSig != newSig) {
-                            AdminDemoData.replaceMedicalReminders(incoming)
-                        }
-                        // Always repaint: socket may have updated AdminDemoData while this tab was off-screen;
-                        // then currentSig == newSig and UI would stay stale without refresh().
+                        AdminDemoData.replaceMedicalReminders(incoming)
                         lastRefreshSignature = null
                         activity?.runOnUiThread { refresh() }
                     } catch (_: Exception) {}
@@ -710,6 +720,15 @@ class AdminMedicalRemindersFragment : Fragment() {
     }
 
     private fun saveRemindersToApi(reminders: Map<String, List<Map<String, Any?>>>) {
+        val prefs = Prefs(requireContext())
+        if (!isUserApp() && prefs.actAsUserId.trim().isEmpty()) {
+            CuraxFeedback.warn(
+                this,
+                getString(R.string.admin_reminders_need_care_mode),
+                long = true,
+            )
+            return
+        }
         if (isUserApp()) {
             if (StandaloneUi.isUserStandalone(requireContext())) {
                 StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
@@ -723,7 +742,6 @@ class AdminMedicalRemindersFragment : Fragment() {
             }
             return
         }
-        val prefs = Prefs(requireContext())
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) {
@@ -744,10 +762,25 @@ class AdminMedicalRemindersFragment : Fragment() {
                     .build()
                 val res = http.newCall(req).execute()
                 activity?.runOnUiThread {
+                    if (!isAdded) return@runOnUiThread
                     if (res.isSuccessful) {
+                        lastRefreshSignature = null
+                        refresh()
+                        requireContext().sendBroadcast(Intent(AlertEvents.ACTION_ADMIN_DATA_SYNCED))
+                        val actAs = prefs.actAsUserId.trim()
+                        if (!isUserApp() && actAs.isNotEmpty()) {
+                            AdminDataBusClient.fetchAdminSnapshotAsync(requireContext(), null)
+                        }
                         CuraxFeedback.success(this, "Reminders saved")
                     } else {
-                        CuraxFeedback.warn(this, "Failed to save reminders")
+                        val raw = res.body?.string().orEmpty()
+                        val jo = ApiErrorMessages.parseResponseBody(raw, res.code)
+                        CuraxFeedback.warn(
+                            this,
+                            ApiErrorMessages.userMessage(requireContext(), res.code, jo)
+                                .ifEmpty { getString(R.string.admin_reminders_save_failed) },
+                            long = true,
+                        )
                     }
                 }
             } catch (e: Exception) {

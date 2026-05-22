@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS admins (
     api_key VARCHAR(255) NOT NULL,
     admin_access_code VARCHAR(32),
     connection_code VARCHAR(32),
-    fcm_token VARCHAR(255),
     is_admin BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -89,7 +88,6 @@ CREATE TABLE IF NOT EXISTS users (
     bot_id VARCHAR(255) NOT NULL,
     api_key VARCHAR(255) NOT NULL,
     role VARCHAR(20) NOT NULL DEFAULT 'user',
-    fcm_token VARCHAR(255),
     account_status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     email_verified_at TIMESTAMPTZ DEFAULT NULL,
     status_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -239,6 +237,9 @@ CREATE TABLE IF NOT EXISTS alert_settings (
 
 CREATE INDEX IF NOT EXISTS idx_alert_settings_user_id ON alert_settings(user_id);
 
+COMMENT ON TABLE alert_settings IS
+    'Per-user JSON settings. Medical reminders (appointments, prescriptions, lab_tests, custom) live in settings.medical_reminders — not on users table.';
+
 CREATE TABLE IF NOT EXISTS alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -266,6 +267,13 @@ CREATE TABLE IF NOT EXISTS deleted_user_notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_deleted_user_notifications_lookup ON deleted_user_notifications(bot_id, api_key);
+
+-- ---------------------------------------------------------------------------
+-- Legacy FCM push removed (relay WebSocket only)
+-- ---------------------------------------------------------------------------
+ALTER TABLE admins DROP COLUMN IF EXISTS fcm_token;
+ALTER TABLE users DROP COLUMN IF EXISTS fcm_token;
+ALTER TABLE user_admin_link_requests DROP COLUMN IF EXISTS fcm_token;
 
 -- ---------------------------------------------------------------------------
 -- Optional maintenance (uncomment if you want one-off cleanup; not required per deploy)

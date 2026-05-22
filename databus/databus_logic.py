@@ -22,11 +22,14 @@ def normalize_access_code(code: str) -> str:
     return (code or "").strip().upper()
 
 
-def fetch_admin_data(access_code: str) -> tuple[bool, dict]:
+def fetch_admin_data(access_code: str, act_as_user_id: str | None = None) -> tuple[bool, dict]:
     base = _central_api_url()
     if not base or not access_code:
         return False, {}
     url = f"{base}/admin/data?access_code={urllib.parse.quote(access_code)}"
+    act_as = (act_as_user_id or "").strip()
+    if act_as:
+        url += f"&act_as_user_id={urllib.parse.quote(act_as)}"
     try:
         req = urllib.request.Request(url, method="GET")
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -85,8 +88,9 @@ def process_notify_admin(body_bytes: bytes) -> tuple[int, dict]:
     access_code = (body.get("access_code") or "").strip()
     if not access_code:
         return 400, {"ok": False, "error": "access_code required"}
+    act_as_user_id = (body.get("act_as_user_id") or "").strip()
     code = normalize_access_code(access_code)
-    ok, data = fetch_admin_data(access_code)
+    ok, data = fetch_admin_data(access_code, act_as_user_id=act_as_user_id or None)
     if not ok:
         msg = data.get("message", "Failed to fetch from Central API") if isinstance(data, dict) else "fetch failed"
         return 502, {"ok": False, "error": msg}

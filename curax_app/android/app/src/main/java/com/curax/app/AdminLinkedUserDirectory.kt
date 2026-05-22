@@ -19,9 +19,25 @@ object AdminLinkedUserDirectory {
     @Volatile
     private var entries: List<Entry> = emptyList()
 
+    @Volatile
+    var rosterUsersTotal: Int = -1
+        private set
+
+    @Volatile
+    var rosterLinked: Int = 0
+        private set
+
+    @Volatile
+    var rosterPending: Int = 0
+        private set
+
+    fun hasRosterCounts(): Boolean = rosterUsersTotal >= 0
+
     fun ingestUsersJsonArray(arr: JSONArray?) {
         if (arr == null) return
         val list = mutableListOf<Entry>()
+        var linked = 0
+        var pending = 0
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
             val id = o.optString("id", "").trim()
@@ -32,11 +48,19 @@ object AdminLinkedUserDirectory {
             val dm = o.optString("user_display_mode", "").trim().lowercase(Locale.US)
             val mode = if (dm == "standalone" || dm == "default") dm else ""
             list.add(Entry(userId = id, displayName = display, email = email, userDisplayMode = mode))
+            if (o.optString("bot_id", "").trim().isNotEmpty()) linked++ else pending++
         }
         entries = list
+        rosterUsersTotal = list.size
+        rosterLinked = linked
+        rosterPending = pending
     }
 
     fun ingestFromUiModels(models: List<AdminLinkedUserUiModel>) {
+        val linked = models.count { it.desktopLinked }
+        rosterUsersTotal = models.size
+        rosterLinked = linked
+        rosterPending = (models.size - linked).coerceAtLeast(0)
         entries = models.map { m ->
             val dn = m.name.trim().ifEmpty { emailLocalPart(m.email) }
             Entry(
