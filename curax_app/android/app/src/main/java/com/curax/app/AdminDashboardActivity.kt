@@ -71,6 +71,8 @@ class AdminDashboardActivity : AppCompatActivity() {
 
     /** Throttle sidebar linked/pending HTTP: [ACTION_ADMIN_DATA_SYNCED] can fire very often over WebSocket. */
     private var lastSidebarLinkedOverviewFetchAtMs: Long = 0L
+    /** Throttle roster count HTTP on databus bursts (Users tab still pushes counts immediately). */
+    private var lastRosterCountsFetchAtMs: Long = 0L
 
     private val adminDataSyncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -834,10 +836,20 @@ class AdminDashboardActivity : AppCompatActivity() {
     }
 
     /** Same GET /admin/linked-users as Users tab — keeps dashboard count correct even if Users fragment was never opened. */
-    private fun refreshRosterCountsFromServer() {
+    private fun refreshRosterCountsFromServer(force: Boolean = false) {
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) return
+        val now = System.currentTimeMillis()
+        if (!force &&
+            lastRosterCountsFetchAtMs > 0L &&
+            now - lastRosterCountsFetchAtMs < ROSTER_COUNTS_MIN_INTERVAL_MS
+        ) {
+            applySidebarLinkedCountsFromRoster()
+            refreshAdminHubCounts()
+            return
+        }
+        lastRosterCountsFetchAtMs = now
         Thread {
             try {
                 val url = "$base/admin/linked-users?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
@@ -881,5 +893,6 @@ class AdminDashboardActivity : AppCompatActivity() {
         private const val STATE_HUB_TAB = "admin_hub_vp_tab"
         /** Throttle sidebar linked/pending counts over frequent [ACTION_ADMIN_DATA_SYNCED] (WebSocket). */
         private const val SIDEBAR_LINKED_OVERVIEW_MIN_INTERVAL_MS = 90_000L
+        private const val ROSTER_COUNTS_MIN_INTERVAL_MS = 8_000L
     }
 }

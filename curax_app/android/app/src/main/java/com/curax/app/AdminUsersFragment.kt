@@ -227,52 +227,17 @@ class AdminUsersFragment : Fragment() {
                     return@runOnUiThread
                 }
 
-                val linkedForUi = if (linkedRows.isEmpty() && prefs.actAsUserId.isEmpty()) {
-                    demoLinkedUsers()
+                AdminHubMetrics.applyFromUiModels(linkedRows)
+                linkedAdapter.submit(linkedRows)
+                if (linkedRows.isEmpty()) {
+                    tvEmptyLinked.visibility = View.VISIBLE
+                    tvEmptyLinked.text = getString(R.string.admin_users_empty)
                 } else {
-                    linkedRows
+                    tvEmptyLinked.visibility = View.GONE
                 }
-                AdminHubMetrics.applyFromUiModels(linkedForUi)
-                linkedAdapter.submit(linkedForUi)
-                tvEmptyLinked.visibility = View.GONE
                 updateManagingBanner()
                 AdminHubMetrics.broadcastRosterCountsUpdated(requireContext())
             }
         }.start()
     }
-
-    private fun demoLinkedUsers(): List<AdminLinkedUserUiModel> = listOf(
-        AdminLinkedUserUiModel(
-            userId = "demo_usman",
-            name = getString(R.string.admin_demo_name_usman),
-            email = "usman.preview@example.com",
-            desktopLinked = true,
-            isDemo = true,
-            userDisplayMode = "default",
-        ),
-        AdminLinkedUserUiModel(
-            userId = "demo_hamad",
-            name = getString(R.string.admin_demo_name_hamad),
-            email = "hamad.preview@example.com",
-            desktopLinked = true,
-            isDemo = true,
-            userDisplayMode = "standalone",
-        ),
-        AdminLinkedUserUiModel(
-            userId = "demo_abdullah",
-            name = getString(R.string.admin_demo_name_abdullah),
-            email = "abdullah.preview@example.com",
-            desktopLinked = true,
-            isDemo = true,
-            userDisplayMode = "default",
-        ),
-        AdminLinkedUserUiModel(
-            userId = "demo_zara",
-            name = getString(R.string.admin_demo_name_zara),
-            email = "zara.preview@example.com",
-            desktopLinked = true,
-            isDemo = true,
-            userDisplayMode = "standalone",
-        ),
-    )
 }
