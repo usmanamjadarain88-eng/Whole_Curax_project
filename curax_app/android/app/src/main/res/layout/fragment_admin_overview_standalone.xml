@@ -211,6 +211,12 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <include
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            layout="@layout/include_dashboard_today_strip" />
+
         <HorizontalScrollView
             android:id="@+id/hsv_health_hub_insights"
             android:layout_width="match_parent"

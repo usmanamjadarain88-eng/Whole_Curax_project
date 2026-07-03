@@ -100,7 +100,7 @@ object DeletedAlertsStore {
         prefs(context).edit()
             .putString(KEY_SERVER_IDS, JSONArray(idList).toString())
             .putString(KEY_FINGERPRINTS, JSONArray(fpList).toString())
-            .apply()
+            .commit()
     }
 
     private fun prefs(context: Context) =

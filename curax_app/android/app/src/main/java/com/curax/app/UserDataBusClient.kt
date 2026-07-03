@@ -491,6 +491,8 @@ object UserDataBusClient {
         broadcastFetchUi: Boolean = true,
         /** When false, mode is applied silently (sign-in before home opens — no Default→Standalone relaunch flash). */
         notifyDisplayModeChange: Boolean = true,
+        /** When true, server display_mode always wins (sign-in before home). */
+        bootstrapSignIn: Boolean = false,
     ) {
         val base = apiBase.trim().removeSuffix("/")
         val bid = botId.trim()
@@ -518,7 +520,7 @@ object UserDataBusClient {
                             val data = JSONObject(bodyStr.ifBlank { "{}" })
                             val appCtx = context.applicationContext
                             try {
-                                applyUserPayload(appCtx, data, notifyDisplayModeChange)
+                                applyUserPayload(appCtx, data, notifyDisplayModeChange, bootstrapSignIn)
                                 persistUserSnapshot(appCtx, data)
                             } catch (e: Exception) {
                                 Log.w(TAG, "apply user payload failed", e)
@@ -569,6 +571,7 @@ object UserDataBusClient {
         ctx: Context,
         data: JSONObject,
         notifyDisplayModeChange: Boolean = true,
+        bootstrapSignIn: Boolean = false,
     ) {
         val prefs = Prefs(ctx)
         val serverTime = data.optString("server_time", "").trim()
@@ -594,7 +597,7 @@ object UserDataBusClient {
             prefs.userProfilePictureDataUrl = pic
         }
 
-        AppModeManager.applyDisplayModeFromUserData(ctx, data, notifyDisplayModeChange)
+        AppModeManager.applyDisplayModeFromUserData(ctx, data, notifyDisplayModeChange, bootstrapSignIn)
 
         val medicinesArray = data.optJSONArray("medicines") ?: JSONArray()
         val list = mutableListOf<Map<String, Any?>>()
@@ -636,6 +639,7 @@ object UserDataBusClient {
         AdminDemoData.replaceAlertSettings(AdminDemoData.fromApiAlertSettings(data.optJSONObject("alert_settings")))
         if (AppRole.isUser(ctx)) {
             UserAlarmScheduler.rescheduleAlarmsOnly(ctx)
+            CuraxNextDoseWidgetProvider.updateAll(ctx)
         }
     }
 

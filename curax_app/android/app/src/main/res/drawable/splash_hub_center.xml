@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Light splash hub: same launcher inset as before. Night uses drawable-night-nodpi/splash_hub_center.png -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:inset="12%"
+    android:drawable="@drawable/ic_launcher" />

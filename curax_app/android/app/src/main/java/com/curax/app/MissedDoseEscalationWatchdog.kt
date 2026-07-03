@@ -19,6 +19,7 @@ object MissedDoseEscalationWatchdog {
     const val TYPE = "escalation_watchdog"
     private const val ALARM_ID = "escalation_watchdog"
     private const val INTERVAL_MS = 15L * 60_000L
+    private fun pendingRequestCode(): Int = ALARM_ID.hashCode()
 
     fun scheduleNext(context: Context) {
         val app = context.applicationContext
@@ -33,7 +34,7 @@ object MissedDoseEscalationWatchdog {
         LocalAlertsController.putPayload(app, ALARM_ID, payload)
         val pi = PendingIntent.getBroadcast(
             app,
-            0,
+            pendingRequestCode(),
             watchdogIntent(app),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -53,9 +54,9 @@ object MissedDoseEscalationWatchdog {
         val am = app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val pi = PendingIntent.getBroadcast(
             app,
-            0,
+            pendingRequestCode(),
             watchdogIntent(app),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
         )
         try {
             am.cancel(pi)

@@ -58,7 +58,7 @@ class AdminSettingsFragment : Fragment() {
     }
 
     companion object {
-        private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
+        private val http = AdminNetwork.http
     }
 
     override fun onCreateView(
@@ -107,7 +107,6 @@ class AdminSettingsFragment : Fragment() {
                 view.findViewById<CompoundButton>(R.id.cb_plan_15_before)?.setOnCheckedChangeListener(linkedPlanPersist)
                 view.findViewById<CompoundButton>(R.id.cb_plan_exact)?.setOnCheckedChangeListener(linkedPlanPersist)
                 disableInputs(view, userEditableIds)
-                bindEsp32DevicePasswordSection(view)
             }
         } else if (isAdminCare()) {
             val saveMedicine: (View) -> Unit = {
@@ -249,9 +248,6 @@ class AdminSettingsFragment : Fragment() {
             return
         }
         fetchSettingsFromServer()
-        if (!CareUi.effectiveStandaloneShell(requireContext())) {
-            view?.let { refreshEsp32BleHint(it) }
-        }
     }
 
     private fun fetchSettingsFromServer() {
@@ -263,6 +259,7 @@ class AdminSettingsFragment : Fragment() {
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (!AdminNetwork.isOnline(requireContext())) return
 
         Thread {
             try {
@@ -320,67 +317,25 @@ class AdminSettingsFragment : Fragment() {
         R.id.cb_plan_exact,
         R.id.switch_gmail_alerts,
         R.id.et_gmail_recipients,
-        R.id.etEsp32PwdCurrent,
-        R.id.etEsp32PwdNew,
-        R.id.etEsp32PwdConfirm,
     )
 
-    private fun refreshEsp32BleHint(root: View) {
-        val tv = root.findViewById<TextView>(R.id.tvEsp32BleHint) ?: return
-        tv.text = if (CuraxEsp32BleLink.isConnected()) {
-            val name = CuraxEsp32BleLink.connectedDeviceName().ifBlank { "device" }
-            "Connected to $name. PIN change uses BLE (same as desktop USB)."
-        } else {
-            "Not connected. Open Dose tracking and connect to your ESP32 first."
-        }
-    }
-
-    private fun bindEsp32DevicePasswordSection(view: View) {
-        view.findViewById<View>(R.id.cardEsp32DevicePassword)?.visibility = View.VISIBLE
-        CuraxEsp32BleLink.init(requireContext())
-        refreshEsp32BleHint(view)
-        view.findViewById<MaterialButton>(R.id.btnEsp32ApplyPassword)?.setOnClickListener {
-            val curEt = view.findViewById<EditText>(R.id.etEsp32PwdCurrent)
-            val newEt = view.findViewById<EditText>(R.id.etEsp32PwdNew)
-            val cfmEt = view.findViewById<EditText>(R.id.etEsp32PwdConfirm)
-            val cur = curEt?.text?.toString()?.filter { it.isDigit() } ?: ""
-            val neu = newEt?.text?.toString()?.filter { it.isDigit() } ?: ""
-            val cfm = cfmEt?.text?.toString()?.filter { it.isDigit() } ?: ""
-            if (neu != cfm) {
-                Toast.makeText(requireContext(), "New PIN and confirmation do not match", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (!CuraxEsp32BleLink.isConnected()) {
-                Toast.makeText(requireContext(), "Connect to the device from Dose tracking first", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            CuraxEsp32BleLink.requestSetPassword(cur, neu) { ok, msg ->
-                if (!isAdded) return@requestSetPassword
-                Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
-                if (ok) {
-                    Prefs(requireContext()).esp32CachedDevicePin = neu
-                    CareDevicePinSync.postIfUserLinked(requireContext(), neu)
-                    curEt?.text?.clear()
-                    newEt?.text?.clear()
-                    cfmEt?.text?.clear()
-                }
-            }
-        }
-    }
-
-    /** Linked user: persist Health Hub plan phases locally and sync full `alert_settings` (merged from store) to the server. */
+    /** Linked user: persist Health Hub plan phases + mirror to medicine dose phases; reschedule alarms. */
     private fun persistLinkedPlanAlertsFromUi() {
         if (!isAdded || !isUserApp() || StandaloneUi.isUserStandalone(requireContext())) return
         val cur = AdminDemoData.getAlertSettings().toMutableMap()
         @Suppress("UNCHECKED_CAST")
         val nested = ((cur["alert_settings"] as? Map<String, Any?>) ?: emptyMap()).toMutableMap()
-        nested["plan_alerts"] = mapOf(
+        val phases = mapOf(
             "30_min_before" to (view?.findViewById<CompoundButton>(R.id.cb_plan_30_before)?.isChecked != false),
             "15_min_before" to (view?.findViewById<CompoundButton>(R.id.cb_plan_15_before)?.isChecked != false),
             "exact_time" to (view?.findViewById<CompoundButton>(R.id.cb_plan_exact)?.isChecked != false),
         )
+        nested["plan_alerts"] = phases
+        nested["medicine_alerts"] = phases
         cur["alert_settings"] = nested
         AdminDemoData.replaceAlertSettings(cur)
+        LocalAlertsController.reschedule(requireContext().applicationContext)
+        CuraxNextDoseWidgetProvider.updateAll(requireContext())
 
         val prefs = Prefs(requireContext().applicationContext)
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
@@ -402,19 +357,23 @@ class AdminSettingsFragment : Fragment() {
         }.start()
     }
 
-    /** Standalone user can toggle Health Hub plan reminder phases; merged into [AdminDemoData] and persisted. */
+    /** Standalone user: plan + medicine phase toggles; reschedule immediately on any change. */
     private fun persistStandalonePlanAlertsFromUi() {
         if (!isAdded || !isUserApp() || !StandaloneUi.isUserStandalone(requireContext())) return
         val ctx = requireContext().applicationContext
         val cur = AdminDemoData.getAlertSettings().toMutableMap()
         val nested = ((cur["alert_settings"] as? Map<String, Any?>) ?: emptyMap()).toMutableMap()
-        nested["plan_alerts"] = mapOf(
+        val phases = mapOf(
             "30_min_before" to (view?.findViewById<CompoundButton>(R.id.cb_plan_30_before)?.isChecked != false),
             "15_min_before" to (view?.findViewById<CompoundButton>(R.id.cb_plan_15_before)?.isChecked != false),
             "exact_time" to (view?.findViewById<CompoundButton>(R.id.cb_plan_exact)?.isChecked != false),
         )
+        nested["plan_alerts"] = phases
+        nested["medicine_alerts"] = phases
         cur["alert_settings"] = nested
         AdminDemoData.replaceAlertSettings(cur)
+        LocalAlertsController.reschedule(ctx)
+        CuraxNextDoseWidgetProvider.updateAll(ctx)
         StandaloneOfflineMirror.persistMergedSnapshot(ctx)
     }
 

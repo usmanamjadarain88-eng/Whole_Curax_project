@@ -22,15 +22,20 @@ import java.util.UUID
 
 /**
  * BLE UART bridge to ESP32 using Nordic UART Service (common ESP32 Arduino BLE UART UUIDs).
- * Line protocol matches desktop USB serial: LED_ON:B1, LED_OFF:B1, LED_ALL_OFF, TEMP_SET:...
+ * Line protocol: SERVO_OPEN/CLOSE, TEMP_SET, TEMP_QUERY.
+ * Box unlock is hardware keypad only — the app does not send PIN_UNLOCK.
  */
 object CuraxEsp32BleLink {
 
     private const val TAG = "CuraxEsp32Ble"
 
     const val ACTION_CONNECTION_STATE = "com.curax.app.ESP32_BLE_CONNECTION_STATE"
+    const val ACTION_UART_LINE = "com.curax.app.ESP32_BLE_UART_LINE"
+    const val ACTION_TELEMETRY = "com.curax.app.ESP32_BLE_TELEMETRY"
     const val EXTRA_CONNECTED = "connected"
     const val EXTRA_DEVICE_NAME = "device_name"
+    const val EXTRA_LINE = "line"
+    const val TEMP_HYSTERESIS_C = 1.0f
 
     private val UART_SERVICE: UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
     private val UART_RX: UUID = UUID.fromString("6E400002-B5A3-F393-E0A9-E50E24DCCA9E")
@@ -56,11 +61,21 @@ object CuraxEsp32BleLink {
     private var writeInFlight = false
 
     private val uartRxBuffer = StringBuilder()
-    private var passwordResultCallback: ((Boolean, String) -> Unit)? = null
-    private var passwordTimeoutRunnable: Runnable? = null
 
     @Volatile
-    private var awaitingPasswordResponse = false
+    var tempZone1C: Float? = null
+        private set
+
+    @Volatile
+    var tempZone2C: Float? = null
+        private set
+
+    @Volatile
+    var humidityPct: Float? = null
+        private set
+
+    @Volatile
+    private var lastTelemetryMs: Long = 0L
 
     fun init(context: Context) {
         if (appContext == null) {
@@ -75,9 +90,19 @@ object CuraxEsp32BleLink {
         return Prefs(ctx).esp32BleDeviceName.trim()
     }
 
+    fun lastTelemetryMs(): Long = lastTelemetryMs
+
+    private fun clearTelemetry() {
+        tempZone1C = null
+        tempZone2C = null
+        humidityPct = null
+        lastTelemetryMs = 0L
+        broadcastTelemetry()
+    }
+
     @SuppressLint("MissingPermission")
     fun disconnect() {
-        clearPasswordPending("Disconnected", notify = true)
+        clearTelemetry()
         synchronized(uartRxBuffer) { uartRxBuffer.clear() }
         writesReady = false
         rxCharacteristic = null
@@ -133,86 +158,47 @@ object CuraxEsp32BleLink {
         connect(context, addr)
     }
 
-    fun sendLedOn(boxId: String) {
-        val id = boxId.trim().uppercase()
+    fun sendServoOpen(boxId: String) {
+        val id = boxId.trim().uppercase(Locale.US)
         if (!id.matches(Regex("B[1-6]"))) return
-        enqueueLine("LED_ON:$id")
+        enqueueLine("SERVO_OPEN:$id")
     }
 
-    fun sendLedOff(boxId: String) {
-        val id = boxId.trim().uppercase()
+    fun sendServoClose(boxId: String) {
+        val id = boxId.trim().uppercase(Locale.US)
         if (!id.matches(Regex("B[1-6]"))) return
-        enqueueLine("LED_OFF:$id")
+        enqueueLine("SERVO_CLOSE:$id")
     }
 
-    fun sendLedAllOff() {
-        enqueueLine("LED_ALL_OFF")
+    fun sendServoAllClose() {
+        enqueueLine("SERVO_ALL_CLOSE")
     }
 
-    fun sendTempSet(peltierId: String, enabled: Boolean, minC: Float, maxC: Float) {
+    /** Bare-board test: ESP32 replies with OK:HELLO (or READY on connect). */
+    fun sendPing(): Boolean {
+        if (!isConnected()) return false
+        enqueueLine("PING")
+        return true
+    }
+
+    fun sendTempSet(peltierId: String, enabled: Boolean, targetC: Float) {
         val pid = peltierId.trim().lowercase()
         if (pid != "peltier1" && pid != "peltier2") return
-        enqueueLine("TEMP_SET:$pid,$enabled,$minC,$maxC")
+        val target = String.format(Locale.US, "%.1f", targetC)
+        enqueueLine("TEMP_SET:$pid,$enabled,$target")
     }
 
-    /**
-     * Same line protocol as desktop serial [controller.change_device_password].
-     * Result is parsed from Nordic UART TX notifications.
-     */
-    fun requestSetPassword(current: String, newPin: String, timeoutMs: Long = 3500, onResult: (Boolean, String) -> Unit) {
-        val ctx = appContext
-        if (ctx == null) {
-            onResult(false, "Not initialized")
-            return
-        }
-        init(ctx)
-        if (!isConnected()) {
-            onResult(false, "Not connected to device")
-            return
-        }
-        val cur = current.filter { it.isDigit() }
-        val neu = newPin.filter { it.isDigit() }
-        if (cur.isEmpty() || neu.isEmpty()) {
-            onResult(false, "Enter current and new PIN")
-            return
-        }
-        if (neu.length < 4) {
-            onResult(false, "New PIN must be at least 4 digits")
-            return
-        }
-        clearPasswordPending(reason = "", notify = false)
-        awaitingPasswordResponse = true
-        passwordResultCallback = onResult
-        val timeout = Runnable {
-            if (!awaitingPasswordResponse) return@Runnable
-            awaitingPasswordResponse = false
-            passwordResultCallback = null
-            onResult(false, "No response from device")
-        }
-        passwordTimeoutRunnable = timeout
-        mainHandler.postDelayed(timeout, timeoutMs)
-        enqueueLine("SET_PASSWORD:$cur,$neu")
+    /** Push saved T-adjustment thresholds to ESP32 (fans Z1, cooler Z2 auto control). */
+    fun syncPeltierThresholds(context: Context) {
+        if (!isConnected()) return
+        val prefs = Prefs(context.applicationContext)
+        sendTempSet("peltier1", prefs.peltier1Enabled, prefs.peltier1TargetC)
+        sendTempSet("peltier2", prefs.peltier2Enabled, prefs.peltier2TargetC)
     }
 
-    private fun clearPasswordPending(reason: String, notify: Boolean) {
-        passwordTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        passwordTimeoutRunnable = null
-        if (!awaitingPasswordResponse && passwordResultCallback == null) return
-        awaitingPasswordResponse = false
-        val cb = passwordResultCallback
-        passwordResultCallback = null
-        if (notify && cb != null && reason.isNotEmpty()) {
-            mainHandler.post { cb(false, reason) }
-        }
-    }
-
-    private fun finishPasswordResult(ok: Boolean, msg: String) {
-        awaitingPasswordResponse = false
-        passwordTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        passwordTimeoutRunnable = null
-        val cb = passwordResultCallback
-        passwordResultCallback = null
-        cb?.let { mainHandler.post { it(ok, msg) } }
+    fun sendTempQuery() {
+        if (!isConnected()) return
+        enqueueLine("TEMP_QUERY")
     }
 
     private fun appendUartRx(bytes: ByteArray) {
@@ -227,23 +213,50 @@ object CuraxEsp32BleLink {
                 val line = s.substring(0, n).trim()
                 uartRxBuffer.delete(0, n + 1)
                 if (line.isNotEmpty()) {
-                    handleUartLine(line)
+                    parseTelemetryFromLine(line)
                 }
             }
         }
     }
 
-    private fun handleUartLine(line: String) {
-        if (passwordResultCallback == null) return
-        val up = line.uppercase(Locale.US)
-        when {
-            listOf("PASSWORD_OK", "PWD_OK", "SUCCESS").any { tok -> tok in up } ->
-                finishPasswordResult(true, "Device password updated. Use the new PIN next time.")
-            "PASSWORD_FAIL_OLD" in up -> finishPasswordResult(false, "Current password is incorrect")
-            "PASSWORD_FAIL_FORMAT" in up -> finishPasswordResult(false, "Invalid password format")
-            "FAIL" in up -> finishPasswordResult(false, line.ifBlank { "Device rejected change" })
-            else -> { /* ignore unrelated chatter until timeout */ }
+    private fun parseTelemetryFromLine(line: String) {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) return
+
+        fun parseAfter(vararg prefixes: String): Float? {
+            for (prefix in prefixes) {
+                val idx = trimmed.indexOf(prefix, ignoreCase = true)
+                if (idx < 0) continue
+                var rest = trimmed.substring(idx + prefix.length).trim()
+                if (rest.startsWith(":")) rest = rest.drop(1).trim()
+                val token = rest.split(",", " ", ";", "\t").firstOrNull()?.trim().orEmpty()
+                token.toFloatOrNull()?.let { return it }
+            }
+            return null
         }
+
+        var changed = false
+        parseAfter("TEMP1", "TEMPERATURE1")?.let {
+            tempZone1C = it
+            changed = true
+        }
+        parseAfter("TEMP2", "TEMPERATURE2")?.let {
+            tempZone2C = it
+            changed = true
+        }
+        parseAfter("HUM", "HUMIDITY", "RH")?.let {
+            humidityPct = it
+            changed = true
+        }
+        if (changed) {
+            lastTelemetryMs = System.currentTimeMillis()
+            broadcastTelemetry()
+        }
+    }
+
+    private fun broadcastTelemetry() {
+        val ctx = appContext ?: return
+        ctx.sendBroadcast(Intent(ACTION_TELEMETRY))
     }
 
     private fun enqueueLine(line: String) {
@@ -302,6 +315,9 @@ object CuraxEsp32BleLink {
 
     private fun broadcastState(connected: Boolean, name: String) {
         val ctx = appContext ?: return
+        if (connected) {
+            Prefs(ctx).esp32BleEverConnected = true
+        }
         ctx.sendBroadcast(
             Intent(ACTION_CONNECTION_STATE).apply {
                 putExtra(EXTRA_CONNECTED, connected)
@@ -318,7 +334,7 @@ object CuraxEsp32BleLink {
                     return
                 }
                 if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    clearPasswordPending(reason = "Disconnected", notify = true)
+                    clearTelemetry()
                     synchronized(uartRxBuffer) { uartRxBuffer.clear() }
                     writesReady = false
                     rxCharacteristic = null

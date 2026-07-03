@@ -674,6 +674,32 @@ class BackendAlertScheduler:
                             except Exception as e:
                                 print(f"[AlertScheduler] missed dose log error: {e}")
 
+    def _allow_medical_reminder_once(self, state, key):
+        """Fire each medical reminder offset at most once (survives for process lifetime)."""
+        cond = state["condition_alert"]
+        if cond.get(key):
+            return False
+        cond[key] = {"count": 1, "next_ts": time.time() + 365 * 24 * 3600}
+        return True
+
+    def _medical_reminder_cond_key(self, category, idx, r, offset_label):
+        date_str = (r.get("date") or r.get("expiry_date") or "").strip()
+        time_str = (r.get("time") or "09:00").strip()
+        title = r.get("title", r.get("doctor", r.get("medicine", r.get("test_name", "Reminder"))))
+        return f"med_rem:{category}:{idx}:{date_str}:{time_str}:{title}:{offset_label}"
+
+    def _try_send_medical_reminder(self, ctx, state, category, idx, r, offset_label, trigger_dt, now, msg, email_subject):
+        if now < trigger_dt:
+            return
+        # Only deliver near the scheduled offset — not days later on scheduler restart.
+        if (now - trigger_dt).total_seconds() > 7200:
+            return
+        cond_key = self._medical_reminder_cond_key(category, idx, r, offset_label)
+        if not self._allow_medical_reminder_once(state, cond_key):
+            return
+        self._send_gmail(ctx["gmail_config"], email_subject, msg)
+        self._send_user_alerts(ctx, "reminder", msg)
+
     # ---- Check: medical reminders ----
 
     def _check_medical_reminders(self, ctx, state):
@@ -683,8 +709,8 @@ class BackendAlertScheduler:
         for key in ["appointments", "prescriptions", "lab_tests", "custom"]:
             lst = reminders_data.get(key, [])
             for idx, r in enumerate(lst):
-                date_str = r.get("date", "")
-                time_str = r.get("time", "09:00")
+                date_str = (r.get("date") or r.get("expiry_date") or "").strip()
+                time_str = (r.get("time") or "09:00").strip()
                 if not date_str:
                     continue
                 try:
@@ -696,27 +722,43 @@ class BackendAlertScheduler:
                         continue
 
                 reminders = r.get("reminders", {})
+                if reminders.get("alert") is False:
+                    continue
                 title = r.get("title", r.get("doctor", r.get("medicine", r.get("test_name", "Reminder"))))
+                when_str = dt.strftime("%Y-%m-%d %H:%M")
 
-                if reminders.get("24h"):
-                    t24 = dt - datetime.timedelta(hours=24)
-                    if abs((t24 - now).total_seconds()) < 90 and (key, idx, "24h") not in state["sent_reminder"]:
-                        state["sent_reminder"].add((key, idx, "24h"))
-                        msg = f"Reminder: {title} in 24 hours (at {dt.strftime('%Y-%m-%d %H:%M')})"
-                        self._send_gmail(ctx["gmail_config"], f"24 hours before: {title}", msg)
-                        self._send_user_alerts(ctx, "reminder", msg)
-
-                if reminders.get("2h"):
-                    t2 = dt - datetime.timedelta(hours=2)
-                    if abs((t2 - now).total_seconds()) < 90 and (key, idx, "2h") not in state["sent_reminder"]:
-                        state["sent_reminder"].add((key, idx, "2h"))
-                        msg = f"Reminder: {title} in 2 hours (at {dt.strftime('%Y-%m-%d %H:%M')})"
-                        self._send_gmail(ctx["gmail_config"], f"2 hours before: {title}", msg)
-                        self._send_user_alerts(ctx, "reminder", msg)
-
-                if now > dt + datetime.timedelta(minutes=5):
-                    state["sent_reminder"].discard((key, idx, "24h"))
-                    state["sent_reminder"].discard((key, idx, "2h"))
+                if key == "prescriptions":
+                    if reminders.get("7d"):
+                        t7 = dt - datetime.timedelta(days=7)
+                        msg = f"Reminder: {title} in 7 days (at {when_str})"
+                        self._try_send_medical_reminder(
+                            ctx, state, key, idx, r, "7d", t7, now, msg, f"7 days before: {title}",
+                        )
+                    if reminders.get("3d"):
+                        t3 = dt - datetime.timedelta(days=3)
+                        msg = f"Reminder: {title} in 3 days (at {when_str})"
+                        self._try_send_medical_reminder(
+                            ctx, state, key, idx, r, "3d", t3, now, msg, f"3 days before: {title}",
+                        )
+                    if reminders.get("1d"):
+                        t1 = dt - datetime.timedelta(days=1)
+                        msg = f"Reminder: {title} tomorrow (at {when_str})"
+                        self._try_send_medical_reminder(
+                            ctx, state, key, idx, r, "1d", t1, now, msg, f"1 day before: {title}",
+                        )
+                else:
+                    if reminders.get("24h"):
+                        t24 = dt - datetime.timedelta(hours=24)
+                        msg = f"Reminder: {title} in 24 hours (at {when_str})"
+                        self._try_send_medical_reminder(
+                            ctx, state, key, idx, r, "24h", t24, now, msg, f"24 hours before: {title}",
+                        )
+                    if reminders.get("2h"):
+                        t2 = dt - datetime.timedelta(hours=2)
+                        msg = f"Reminder: {title} in 2 hours (at {when_str})"
+                        self._try_send_medical_reminder(
+                            ctx, state, key, idx, r, "2h", t2, now, msg, f"2 hours before: {title}",
+                        )
 
     # ---- Check: expiry alerts ----
 

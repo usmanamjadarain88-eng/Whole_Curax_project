@@ -40,10 +40,7 @@ class AdminConnectedUsersFragment : Fragment() {
     }
 
     companion object {
-        private val http = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .build()
+        private val http = AdminNetwork.http
     }
 
     override fun onCreateView(
@@ -134,6 +131,12 @@ class AdminConnectedUsersFragment : Fragment() {
         if (base.isEmpty() || accessCode.isEmpty()) {
             view?.findViewById<android.widget.TextView>(R.id.tvConnectedUsersInfo)?.text =
                 "Set API URL and sign in as admin in Settings."
+            stopConnectedSwipeRefresh()
+            return
+        }
+        if (!AdminNetwork.isOnline(requireContext())) {
+            view?.findViewById<android.widget.TextView>(R.id.tvConnectedUsersInfo)?.text =
+                getString(R.string.error_network_unreachable)
             stopConnectedSwipeRefresh()
             return
         }

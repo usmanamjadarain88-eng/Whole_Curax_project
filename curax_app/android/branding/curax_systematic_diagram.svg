@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="520" viewBox="0 0 1000 520" font-family="Segoe UI, Calibri, Arial, sans-serif">
+  <defs>
+    <marker id="arrBlue" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#1F3864"/>
+    </marker>
+    <marker id="arrGreen" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#2E7D32"/>
+    </marker>
+    <marker id="arrOrange" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+      <polygon points="0 0, 9 3.5, 0 7" fill="#E65100"/>
+    </marker>
+    <filter id="sh" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="500" y="34" text-anchor="middle" font-size="20" font-weight="700" fill="#1F3864">CuraX Systematic Diagram</text>
+  <text x="500" y="54" text-anchor="middle" font-size="12" fill="#666">End-to-end data and control flow across cloud, mobile apps, and smart medicine box</text>
+
+  <!-- Users -->
+  <rect x="40" y="78" width="150" height="44" rx="8" fill="#E8F4FC" stroke="#1F3864" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="115" y="105" text-anchor="middle" font-size="13" font-weight="700" fill="#1F3864">Caregiver</text>
+
+  <rect x="810" y="78" width="150" height="44" rx="8" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.6" filter="url(#sh)"/>
+  <text x="885" y="105" text-anchor="middle" font-size="13" font-weight="700" fill="#1B5E20">Patient</text>
+
+  <!-- Cloud -->
+  <rect x="300" y="88" width="400" height="96" rx="10" fill="#F5F9FF" stroke="#1F3864" stroke-width="2" filter="url(#sh)"/>
+  <text x="500" y="114" text-anchor="middle" font-size="15" font-weight="700" fill="#1F3864">Cloud Backend</text>
+  <rect x="320" y="126" width="88" height="28" rx="5" fill="#fff" stroke="#1F3864"/>
+  <text x="364" y="145" text-anchor="middle" font-size="10" font-weight="600" fill="#1F3864">REST API</text>
+  <rect x="418" y="126" width="88" height="28" rx="5" fill="#fff" stroke="#1F3864"/>
+  <text x="462" y="145" text-anchor="middle" font-size="10" font-weight="600" fill="#1F3864">PostgreSQL</text>
+  <rect x="516" y="126" width="88" height="28" rx="5" fill="#fff" stroke="#1F3864"/>
+  <text x="560" y="145" text-anchor="middle" font-size="10" font-weight="600" fill="#1F3864">DataBus</text>
+  <rect x="614" y="126" width="72" height="28" rx="5" fill="#fff" stroke="#1F3864"/>
+  <text x="650" y="145" text-anchor="middle" font-size="10" font-weight="600" fill="#1F3864">Alerts</text>
+
+  <!-- Admin app -->
+  <rect x="40" y="200" width="210" height="88" rx="9" fill="#E8F4FC" stroke="#1F3864" stroke-width="1.8" filter="url(#sh)"/>
+  <text x="145" y="226" text-anchor="middle" font-size="14" font-weight="700" fill="#1F3864">Admin Dashboard</text>
+  <text x="145" y="246" text-anchor="middle" font-size="10" fill="#444">Users · Alerts · Reports</text>
+  <text x="145" y="264" text-anchor="middle" font-size="10" fill="#444">Remote monitoring</text>
+  <text x="145" y="280" text-anchor="middle" font-size="10" fill="#444">Medicine &amp; schedule setup</text>
+
+  <!-- Patient app -->
+  <rect x="750" y="200" width="210" height="88" rx="9" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1.8" filter="url(#sh)"/>
+  <text x="855" y="226" text-anchor="middle" font-size="14" font-weight="700" fill="#1B5E20">Patient Android App</text>
+  <text x="855" y="246" text-anchor="middle" font-size="10" fill="#444">Dose tracking · Reminders</text>
+  <text x="855" y="264" text-anchor="middle" font-size="10" fill="#444">Temp control · Intake logs</text>
+  <text x="855" y="280" text-anchor="middle" font-size="10" fill="#444">Default or Standalone mode</text>
+
+  <!-- Smart box -->
+  <rect x="330" y="330" width="340" height="130" rx="10" fill="#FFF8E1" stroke="#E65100" stroke-width="2" filter="url(#sh)"/>
+  <text x="500" y="358" text-anchor="middle" font-size="15" font-weight="700" fill="#E65100">CuraX Smart Medicine Box</text>
+  <text x="500" y="376" text-anchor="middle" font-size="11" fill="#555">ESP32 controller</text>
+  <rect x="350" y="390" width="92" height="52" rx="6" fill="#fff" stroke="#E65100"/>
+  <text x="396" y="412" text-anchor="middle" font-size="10" font-weight="600" fill="#333">T sensors</text>
+  <text x="396" y="428" text-anchor="middle" font-size="9" fill="#555">Zone 1 &amp; 2</text>
+  <rect x="454" y="390" width="92" height="52" rx="6" fill="#fff" stroke="#E65100"/>
+  <text x="500" y="412" text-anchor="middle" font-size="10" font-weight="600" fill="#333">6× Servo</text>
+  <text x="500" y="428" text-anchor="middle" font-size="9" fill="#555">Guided drawers</text>
+  <rect x="558" y="390" width="92" height="52" rx="6" fill="#fff" stroke="#E65100"/>
+  <text x="604" y="412" text-anchor="middle" font-size="10" font-weight="600" fill="#333">Cooling</text>
+  <text x="604" y="428" text-anchor="middle" font-size="9" fill="#555">Fans · Zone control</text>
+
+  <!-- Arrows -->
+  <line x1="115" y1="122" x2="115" y2="198" stroke="#1F3864" stroke-width="2" marker-end="url(#arrBlue)"/>
+  <line x1="885" y1="122" x2="885" y2="198" stroke="#2E7D32" stroke-width="2" marker-end="url(#arrGreen)"/>
+
+  <line x1="250" y1="244" x2="298" y2="170" stroke="#1F3864" stroke-width="2" marker-end="url(#arrBlue)"/>
+  <text x="255" y="200" font-size="9" fill="#1F3864">HTTPS / WS</text>
+
+  <line x1="700" y1="170" x2="752" y2="244" stroke="#2E7D32" stroke-width="2" marker-end="url(#arrGreen)"/>
+  <text x="708" y="200" font-size="9" fill="#2E7D32">sync data</text>
+
+  <line x1="500" y1="184" x2="500" y2="328" stroke="#1F3864" stroke-width="2" marker-end="url(#arrBlue)"/>
+  <text x="510" y="260" font-size="9" fill="#1F3864">schedules · logs · alerts</text>
+
+  <line x1="855" y1="288" x2="855" y2="318" stroke="#2E7D32" stroke-width="2"/>
+  <line x1="855" y1="318" x2="620" y2="380" stroke="#2E7D32" stroke-width="2" marker-end="url(#arrGreen)"/>
+  <text x="760" y="312" font-size="9" fill="#2E7D32">BLE (Nordic UART)</text>
+  <text x="700" y="328" font-size="9" fill="#2E7D32">TEMP · SERVO commands</text>
+
+  <path d="M 620 244 L 580 244 L 580 300 L 500 300 L 500 328" fill="none" stroke="#2E7D32" stroke-width="1.6" stroke-dasharray="5,4" marker-end="url(#arrGreen)"/>
+  <text x="540" y="292" font-size="9" fill="#2E7D32">dose confirmed</text>
+
+  <path d="M 250 270 L 290 270 L 290 420 L 328 420" fill="none" stroke="#1F3864" stroke-width="1.6" marker-end="url(#arrBlue)"/>
+  <text x="255" y="360" font-size="9" fill="#1F3864">adherence view</text>
+
+  <!-- Standalone note -->
+  <rect x="750" y="330" width="210" height="56" rx="8" fill="#F5F5F5" stroke="#888" stroke-width="1.4" stroke-dasharray="4,3"/>
+  <text x="855" y="352" text-anchor="middle" font-size="11" font-weight="700" fill="#555">Standalone mode</text>
+  <text x="855" y="370" text-anchor="middle" font-size="9" fill="#666">App-only reminders &amp; logs</text>
+  <text x="855" y="384" text-anchor="middle" font-size="9" fill="#666">No smart box required</text>
+
+  <!-- Legend -->
+  <line x1="60" y1="488" x2="95" y2="488" stroke="#1F3864" stroke-width="3"/>
+  <text x="105" y="492" font-size="10" fill="#333">Cloud / admin path</text>
+  <line x1="240" y1="488" x2="275" y2="488" stroke="#2E7D32" stroke-width="3"/>
+  <text x="285" y="492" font-size="10" fill="#333">Patient / BLE path</text>
+  <line x1="420" y1="488" x2="455" y2="488" stroke="#888" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="465" y="492" font-size="10" fill="#333">Optional app-only use</text>
+</svg>

@@ -9,8 +9,8 @@ import android.content.Context
  * Relay WebSocket auto-connect runs only when a home [Activity] is in the foreground
  * ([RelayAutoConnect.restoreOnAppOpen]) — never from [Application.onCreate] (Android 12+ FGS crash).
  *
- * Personal Health (standalone) users use on-device [LocalAlertsController] for dose/stock/expiry.
- * Default (Smart System) uses relay/server popups with notification sound only.
+ * Personal Health (standalone) and Smart System (default) users use on-device [LocalAlertsController]
+ * for dose/stock/expiry when medicines and saved alert settings are present.
  * Alert relay (WebSocket) carries user→admin escalations (+15/+30), stock, and expiry to the admin app.
  */
 object MobileReliabilityCoordinator {

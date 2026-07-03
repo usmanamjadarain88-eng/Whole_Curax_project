@@ -440,10 +440,26 @@ class Prefs(context: Context) {
         get() = prefs.getString(KEY_ESP32_BLE_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_ESP32_BLE_NAME, value.trim()).apply()
 
-    /** Last device PIN after successful SET_PASSWORD over BLE (digits only); convenience only. */
-    var esp32CachedDevicePin: String
-        get() = prefs.getString(KEY_ESP32_CACHED_PIN, "") ?: ""
-        set(value) = prefs.edit().putString(KEY_ESP32_CACHED_PIN, value.filter { it.isDigit() }).apply()
+    /** Set after first successful ESP32 BLE link; disables ambient demo permanently. */
+    var esp32BleEverConnected: Boolean
+        get() = prefs.getBoolean(KEY_ESP32_BLE_EVER_CONNECTED, false)
+        set(value) = prefs.edit().putBoolean(KEY_ESP32_BLE_EVER_CONNECTED, value).apply()
+
+    var peltier1TargetC: Float
+        get() = prefs.getFloat(KEY_PELTIER1_TARGET_C, 20f)
+        set(value) = prefs.edit().putFloat(KEY_PELTIER1_TARGET_C, value).apply()
+
+    var peltier2TargetC: Float
+        get() = prefs.getFloat(KEY_PELTIER2_TARGET_C, 6.5f)
+        set(value) = prefs.edit().putFloat(KEY_PELTIER2_TARGET_C, value).apply()
+
+    var peltier1Enabled: Boolean
+        get() = prefs.getBoolean(KEY_PELTIER1_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_PELTIER1_ENABLED, value).apply()
+
+    var peltier2Enabled: Boolean
+        get() = prefs.getBoolean(KEY_PELTIER2_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_PELTIER2_ENABLED, value).apply()
 
     /**
      * In-memory-only [SignUpFlowState] is lost when the process dies. Persist email verified → link-admin
@@ -490,6 +506,11 @@ class Prefs(context: Context) {
         passwordForWip: String,
         nameForLinkForWip: String,
     ): Boolean {
+        val accountHasMode = UserModeSheetPrefs.hasCompletedForAccount(
+            appContext,
+            botId.trim(),
+            emailForWip,
+        )
         val ed = prefs.edit()
             .putBoolean(KEY_AWAITING_ADMIN_LINK, true)
             .putString(KEY_AWAITING_ADMIN_CHOSEN_NAME, chosenAdminDisplayName.trim())
@@ -500,12 +521,12 @@ class Prefs(context: Context) {
             .putString(KEY_CONNECTION_CODE, "")
             .putString(KEY_DATABUS_ACCESS_CODE, "")
             .putBoolean(KEY_HAS_EVER_CONNECTED, false)
-            .putBoolean(
-                KEY_USER_INITIAL_MODE_SHEET,
-                !UserModeSheetPrefs.hasCompletedForBot(appContext, botId.trim()),
-            )
+            .putBoolean(KEY_USER_INITIAL_MODE_SHEET, !accountHasMode)
             .putBoolean(KEY_USER_STANDALONE_DATA_READY, false)
-            .putBoolean(KEY_USER_STANDALONE_MODE, false)
+        if (!accountHasMode) {
+            ed.putBoolean(KEY_USER_STANDALONE_MODE, false)
+        }
+        ed
             .putString(KEY_USER_HUB_FIRST_NAME, "")
             .putString(KEY_USER_HUB_FULL_NAME, "")
             .putString(KEY_USER_HUB_USERNAME, "")
@@ -522,6 +543,9 @@ class Prefs(context: Context) {
             // Directory-request home must not show the previous account's reminders / alerts / logs.
             UserSessionIsolate.clearUserScopedData(appContext)
             Prefs(appContext).lastActiveSessionBotId = botId.trim()
+            if (accountHasMode) {
+                AppModeManager.restoreSavedAccountMode(appContext, emailForWip, botId.trim())
+            }
         }
         return ok
     }
@@ -545,6 +569,11 @@ class Prefs(context: Context) {
     var awaitingAdminChosenDisplayName: String
         get() = prefs.getString(KEY_AWAITING_ADMIN_CHOSEN_NAME, "") ?: ""
         set(value) = prefs.edit().putString(KEY_AWAITING_ADMIN_CHOSEN_NAME, value.trim()).apply()
+
+    /** Connection code captured from an invite link (signup link-admin pre-fill). */
+    var pendingInviteConnectionCode: String
+        get() = prefs.getString(KEY_PENDING_INVITE_CONNECTION_CODE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_PENDING_INVITE_CONNECTION_CODE, value.trim()).apply()
 
     companion object {
         private const val DEFAULT_SERVER_URL = "https://curax-relay.onrender.com"
@@ -595,7 +624,11 @@ class Prefs(context: Context) {
         private const val KEY_STANDALONE_DEVICE_SETUP_COMPLETED = "standalone_device_setup_completed"
         private const val KEY_ESP32_BLE_ADDR = "esp32_ble_device_address"
         private const val KEY_ESP32_BLE_NAME = "esp32_ble_device_name"
-        private const val KEY_ESP32_CACHED_PIN = "esp32_cached_device_pin"
+        private const val KEY_ESP32_BLE_EVER_CONNECTED = "esp32_ble_ever_connected"
+        private const val KEY_PELTIER1_TARGET_C = "peltier1_target_c"
+        private const val KEY_PELTIER2_TARGET_C = "peltier2_target_c"
+        private const val KEY_PELTIER1_ENABLED = "peltier1_enabled"
+        private const val KEY_PELTIER2_ENABLED = "peltier2_enabled"
         private const val KEY_SIGNUP_WIP_EMAIL = "signup_wip_email"
         private const val KEY_SIGNUP_WIP_PASSWORD = "signup_wip_password"
         private const val KEY_SIGNUP_WIP_BOT_ID = "signup_wip_bot_id"
@@ -603,5 +636,6 @@ class Prefs(context: Context) {
         private const val KEY_SIGNUP_WIP_NAME = "signup_wip_name_for_link"
         private const val KEY_AWAITING_ADMIN_LINK = "awaiting_admin_link_approval"
         private const val KEY_AWAITING_ADMIN_CHOSEN_NAME = "awaiting_admin_chosen_display_name"
+        private const val KEY_PENDING_INVITE_CONNECTION_CODE = "pending_invite_connection_code"
     }
 }

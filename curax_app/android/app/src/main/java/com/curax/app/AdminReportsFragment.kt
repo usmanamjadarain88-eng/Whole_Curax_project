@@ -19,7 +19,6 @@ import android.widget.TextView
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
@@ -29,7 +28,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 class AdminReportsFragment : Fragment() {
 
@@ -53,10 +51,7 @@ class AdminReportsFragment : Fragment() {
     private var reportUserName = ""
 
     companion object {
-        private val http = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .build()
+        private val http = AdminNetwork.http
     }
 
     override fun onCreateView(
@@ -158,6 +153,10 @@ class AdminReportsFragment : Fragment() {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val accessCode = prefs.adminAccessCode.trim()
         if (base.isEmpty() || accessCode.isEmpty()) return
+        if (!AdminNetwork.isOnline(requireContext())) {
+            view?.let { bindMetrics(it) }
+            return
+        }
         Thread {
             try {
                 val url = "$base/admin/linked-users?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
@@ -181,65 +180,45 @@ class AdminReportsFragment : Fragment() {
                 }
                 if (list.isNotEmpty()) {
                     AdminLinkedUserDirectory.ingestUsersJsonArray(arr)
-                } else {
-                    AdminLinkedUserDirectory.ingestFromUiModels(
-                        demoReportUserPairs().mapIndexed { index, (id, name) ->
-                            AdminLinkedUserUiModel(
-                                userId = id,
-                                name = name,
-                                email = "",
-                                desktopLinked = true,
-                                isDemo = true,
-                                userDisplayMode = if (index % 2 == 0) "default" else "standalone",
-                            )
-                        },
-                    )
                 }
                 activity?.runOnUiThread {
-                    val finalList = if (list.isEmpty()) demoReportUserPairs() else list
-                    linkedUsers = finalList
+                    if (!isAdded) return@runOnUiThread
+                    linkedUsers = list
                     view?.findViewById<View>(R.id.panelReportUserNav)?.visibility =
-                        if (finalList.isEmpty()) View.GONE else View.VISIBLE
-                    if (finalList.isNotEmpty()) {
+                        if (list.isEmpty()) View.GONE else View.VISIBLE
+                    if (list.isNotEmpty()) {
                         selectedReportIndex = 0
                         view?.findViewById<TextView>(R.id.tvReportForUser)?.text =
-                            "Report for: Loading… (1 of ${finalList.size})"
-                        fetchUserReportData(finalList[0].first, finalList[0].second)
+                            "Report for: Loading… (1 of ${list.size})"
+                        fetchUserReportData(list[0].first, list[0].second)
                     } else {
-                        bindMetrics(view!!)
+                        reportMedicines = emptyList()
+                        reportAlerts = emptyList()
+                        reportUserName = ""
+                        view?.findViewById<TextView>(R.id.tvReportForUser)?.text =
+                            getString(R.string.admin_reports_no_linked_users)
+                        view?.let { bindMetrics(it) }
                     }
                 }
             } catch (_: Exception) {}
         }.start()
     }
 
-    private fun demoReportUserPairs(): List<Pair<String, String>> = listOf(
-        "demo_usman" to getString(R.string.admin_demo_name_usman),
-        "demo_hamad" to getString(R.string.admin_demo_name_hamad),
-        "demo_abdullah" to getString(R.string.admin_demo_name_abdullah),
-        "demo_zara" to getString(R.string.admin_demo_name_zara),
-    )
-
     private fun fetchUserReportData(userId: String, userName: String) {
-        if (userId.startsWith("demo_")) {
-            val meds = AdminDemoData.adminPreviewMedicinesForReport(userId.hashCode())
-            val alerts = AdminDemoData.adminPreviewAlertsForReport(userName)
-            activity?.runOnUiThread {
-                reportMedicines = meds
-                reportAlerts = alerts
-                reportUserName = userName
-                val idx = selectedReportIndex + 1
-                val total = linkedUsers.size.coerceAtLeast(1)
-                view?.findViewById<TextView>(R.id.tvReportForUser)?.text =
-                    "Report for: $userName ($idx of $total)"
-                view?.let { bindMetrics(it) }
-            }
-            return
-        }
         val prefs = Prefs(requireContext())
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val accessCode = prefs.adminAccessCode.trim()
         if (base.isEmpty() || accessCode.isEmpty()) return
+        if (!AdminNetwork.isOnline(requireContext())) {
+            activity?.runOnUiThread {
+                if (!isAdded) return@runOnUiThread
+                reportUserName = userName
+                view?.findViewById<TextView>(R.id.tvReportForUser)?.text =
+                    getString(R.string.error_network_unreachable)
+                view?.let { bindMetrics(it) }
+            }
+            return
+        }
         Thread {
             try {
                 val url = "$base/admin/data?access_code=${URLEncoder.encode(accessCode, "UTF-8")}&act_as_user_id=${URLEncoder.encode(userId, "UTF-8")}"

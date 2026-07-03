@@ -69,6 +69,13 @@ class LocalAlertReceiver : BroadcastReceiver() {
                 return
             }
 
+            if (type == LocalAlertsController.TYPE_DAILY_RESCHEDULE) {
+                if (!localAlarms) return
+                LocalAlertsController.clearPayload(app, id)
+                MobileReliabilityCoordinator.onAppStart(app)
+                return
+            }
+
             val adminOnlyTypes = setOf(
                 "missed_dose_30",
                 "missed_dose_15_admin",
@@ -82,6 +89,11 @@ class LocalAlertReceiver : BroadcastReceiver() {
             )
 
             if (type !in adminOnlyTypes) {
+                if (type == "reminder" && !MedicalReminderAlertDedupe.tryClaim(app, id)) {
+                    AlertFlowLog.record(app, type, box, slot, dayKey, "skipped", "reminder dedupe")
+                    LocalAlertsController.clearPayload(app, id)
+                    return
+                }
                 val title = payload.optString("title", "CuraX")
                 val message = payload.optString("message", "")
                 val combined = if (title.isNotBlank() && title != message) "$title — $message" else message
@@ -145,6 +157,9 @@ class LocalAlertReceiver : BroadcastReceiver() {
                 MissedDoseEscalationController.clearPayload(app, id)
             }
             MobileReliabilityCoordinator.onAppStart(app)
+            if (AppRole.isUser(app)) {
+                CuraxNextDoseWidgetProvider.updateAll(app)
+            }
         } finally {
             try {
                 wakeLock?.let { if (it.isHeld) it.release() }

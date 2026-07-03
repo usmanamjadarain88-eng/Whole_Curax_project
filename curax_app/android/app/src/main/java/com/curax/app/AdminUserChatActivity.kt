@@ -113,6 +113,11 @@ class AdminUserChatActivity : AppCompatActivity() {
             onReady?.invoke()
             return
         }
+        if (!AdminNetwork.isOnline(this)) {
+            bindUsers(AdminChatUserStore.snapshot())
+            onReady?.invoke()
+            return
+        }
         btnSend.isEnabled = false
         Thread {
             var list = AdminChatUserStore.snapshot()
@@ -120,8 +125,7 @@ class AdminUserChatActivity : AppCompatActivity() {
                 try {
                     val url =
                         "$base/admin/linked-users?access_code=${java.net.URLEncoder.encode(accessCode, "UTF-8")}"
-                    val client = okhttp3.OkHttpClient()
-                    val res = client.newCall(okhttp3.Request.Builder().url(url).get().build()).execute()
+                    val res = AdminNetwork.http.newCall(okhttp3.Request.Builder().url(url).get().build()).execute()
                     val body = res.body?.string().orEmpty()
                     if (res.isSuccessful && body.isNotBlank()) {
                         AdminChatUserStore.ingestUsersArray(org.json.JSONObject(body).optJSONArray("users"))
@@ -180,6 +184,10 @@ class AdminUserChatActivity : AppCompatActivity() {
         val code = prefs.adminAccessCode.trim()
         if (base.isEmpty() || code.isEmpty()) {
             CuraxFeedback.warn(this, getString(R.string.admin_hub_need_sign_in))
+            return
+        }
+        if (!AdminNetwork.isOnline(this)) {
+            CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
             return
         }
         btnSend.isEnabled = false

@@ -42,8 +42,9 @@ object AdminDataBusClient {
     private var reconnectDelayMs = 3000L
     private var reconnectRunnable: Runnable? = null
     private val snapshotHttp = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(12, TimeUnit.SECONDS)
         .build()
 
     fun start(context: Context, accessCode: String, rawUrl: String) {
@@ -83,6 +84,11 @@ object AdminDataBusClient {
     private fun connect() {
         if (!running || currentAccessCode.isEmpty()) return
         if (!useAblyTransport && currentWsUrl.isEmpty()) return
+        val ctx = appContext
+        if (ctx != null && !PendingSyncCoordinator.isOnline(ctx)) {
+            scheduleReconnect()
+            return
+        }
         cancelReconnect()
         if (useAblyTransport) {
             connectAbly()
@@ -249,6 +255,10 @@ object AdminDataBusClient {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         val accessCode = prefs.adminAccessCode.trim()
         if (base.isEmpty() || accessCode.isEmpty()) {
+            mainHandler.post { onComplete?.invoke(SnapshotResult.FAILED) }
+            return
+        }
+        if (!PendingSyncCoordinator.isOnline(app)) {
             mainHandler.post { onComplete?.invoke(SnapshotResult.FAILED) }
             return
         }

@@ -5,19 +5,22 @@ import android.content.Context
 /**
  * On-device medicine / plan / reminder alarms ([LocalAlertsController]).
  *
- * **Personal Health (standalone) only** — AlarmManager + optional custom tone.
- * **Default (Smart System)** — popup via relay / server; system notification sound only (no device dose alarm schedule).
+ * **Personal Health (standalone)** and **Smart System (default, linked)** schedule dose times on this phone
+ * via [AlarmManager] so 30 / 15 min before and exact-time alerts work when the app is closed.
+ * Custom alert tones remain standalone-only; default mode uses the system notification sound.
  */
 object LocalAlertsUi {
 
     /**
-     * Personal Health shell only. Not used while awaiting admin approval (no stale dose alarms).
+     * Schedule medicine/plan/reminder alarms on-device. Not used while awaiting admin approval.
      */
     fun usesOnDeviceMedicineAlarms(context: Context): Boolean {
         if (!AppRole.isUser(context)) return false
-        if (!StandaloneUi.isUserStandalone(context)) return false
-        if (Prefs(context).awaitingAdminLinkApproval) return false
-        return true
+        val p = Prefs(context)
+        if (p.awaitingAdminLinkApproval) return false
+        if (StandaloneUi.isUserStandalone(context)) return true
+        // Default mode: need signed-in user credentials (medicines + settings sync from admin/server).
+        return p.id.trim().isNotEmpty() && p.apiKey.trim().isNotEmpty()
     }
 
     /** Custom ringtone picker is standalone-only; default mode uses system notification sound. */

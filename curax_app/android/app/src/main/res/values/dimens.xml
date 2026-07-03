@@ -44,4 +44,6 @@
     <dimen name="dose_history_table_row_height">40dp</dimen>
     <!-- Default-mode panels: visible but not heavy -->
     <dimen name="panel_stroke_width">1.5dp</dimen>
+    <!-- Today strip cards: match KPI row (Total/Low/Expiring/Refill) compact height -->
+    <dimen name="today_strip_row_min_height">50dp</dimen>
 </resources>

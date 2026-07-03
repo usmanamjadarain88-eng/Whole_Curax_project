@@ -117,6 +117,10 @@ class SignInActivity : AppCompatActivity() {
             CuraxFeedback.warn(this, msg, long = true)
             intent.removeExtra(EXTRA_SESSION_INVALIDATED_MESSAGE)
         }
+        if (intent.getBooleanExtra(EXTRA_FROM_INVITE_LINK, false)) {
+            CuraxFeedback.info(this, getString(R.string.sign_in_from_invite_toast))
+            intent.removeExtra(EXTRA_FROM_INVITE_LINK)
+        }
 
         etEmail = findViewById(R.id.etEmail)
         etPassword = findViewById(R.id.etPassword)
@@ -596,6 +600,7 @@ class SignInActivity : AppCompatActivity() {
         botId: String,
         apiKey: String,
         pendingAdminName: String,
+        jo: JSONObject,
     ) {
         runOnUiThread {
                 UserLogoutHelper.disconnectRealtimeTransport(this@SignInActivity)
@@ -611,12 +616,14 @@ class SignInActivity : AppCompatActivity() {
                     CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)
                     return@runOnUiThread
                 }
-                UserModeSheetPrefs.syncGlobalFlagFromBot(this@SignInActivity, botId)
+                UserModeSheetPrefs.syncGlobalFlagFromAccount(this@SignInActivity, botId, email)
                 SignUpFlowState.clear()
                 if (!store.saveUserCommitted(email, password, LocalUserStore.ROLE_USER)) {
                     CuraxFeedback.warn(this@SignInActivity, getString(R.string.request_failed), long = true)
                     return@runOnUiThread
                 }
+                AppModeManager.restoreSavedAccountMode(this@SignInActivity, email)
+                AppModeManager.applyDisplayModeFromAuthJson(this@SignInActivity, jo, notifyRelaunch = false)
                 CuraxFeedback.successThen(
                     this@SignInActivity,
                     getString(R.string.sign_in_success),
@@ -667,7 +674,6 @@ class SignInActivity : AppCompatActivity() {
                 val botId = jo.optString("bot_id", "").trim()
                 val apiKey = jo.optString("api_key", "").trim()
                 val pendingAdminName = jo.optString("pending_admin_name", "").trim()
-                AppModeManager.applyDisplayModeFromAuthJson(this, jo, notifyRelaunch = false)
                 if (botId.isNotEmpty() && apiKey.isNotEmpty()) {
                     resumePendingAdminDirectorySession(
                         resolvedEmail,
@@ -675,6 +681,7 @@ class SignInActivity : AppCompatActivity() {
                         botId,
                         apiKey,
                         pendingAdminName,
+                        jo,
                     )
                     return
                 }
@@ -721,6 +728,7 @@ class SignInActivity : AppCompatActivity() {
     companion object {
         /** Set when returning from UserDataBusClient after server rejects bot_id/api_key (deleted user, etc.). */
         const val EXTRA_SESSION_INVALIDATED_MESSAGE = "extra_session_invalidated_message"
+        const val EXTRA_FROM_INVITE_LINK = "extra_from_invite_link"
 
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }

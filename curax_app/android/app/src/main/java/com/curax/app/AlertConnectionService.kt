@@ -61,12 +61,19 @@ class AlertConnectionService : Service() {
                 val serverUrl = intent.getStringExtra(EXTRA_SERVER_URL) ?: return START_STICKY
                 val botId = intent.getStringExtra(EXTRA_BOT_ID) ?: ""
                 val apiKey = intent.getStringExtra(EXTRA_API_KEY) ?: ""
-                lastServerUrl = serverUrl
-                lastBotId = botId
-                lastApiKey = apiKey
                 reconnectBackoffMs = 2000L
                 cancelReconnect()
                 acquireWakeLock()
+                if (isAlreadyLinked(serverUrl, botId, apiKey)) {
+                    startForeground(NOTIF_ID, createNotification(true))
+                    sendRegister(botId, apiKey)
+                    relayConnectedHint = true
+                    runOnMain { notifyRelayConnectionUi(true) }
+                    return START_STICKY
+                }
+                lastServerUrl = serverUrl
+                lastBotId = botId
+                lastApiKey = apiKey
                 startForeground(NOTIF_ID, createNotification(false))
                 connect(serverUrl, botId, apiKey)
             }
@@ -172,9 +179,21 @@ class AlertConnectionService : Service() {
     }
 
     private fun connect(serverUrl: String, botId: String, apiKey: String) {
+        if (isAlreadyLinked(serverUrl, botId, apiKey)) {
+            relayConnectedHint = true
+            sendRegister(botId, apiKey)
+            runOnMain {
+                notifyRelayConnectionUi(true)
+                updateNotification(true)
+            }
+            return
+        }
         if (isConnecting) return
+        lastServerUrl = serverUrl
+        lastBotId = botId
+        lastApiKey = apiKey
         relayConnectedHint = false
-        disconnect()
+        disconnectSocketOnly()
         val wsUrl = buildWsUrl(serverUrl)
         isConnecting = true
         runOnMain { notifyRelayConnectionUi(false) }
@@ -205,7 +224,24 @@ class AlertConnectionService : Service() {
                 Log.d(TAG, "Alert: $text")
                 try {
                     val obj = JSONObject(text)
-                    if (obj.has("action") && obj.optString("action") == "alert") return
+                    val action = obj.optString("action", "")
+                    if (action == "alert") {
+                        val type = obj.optString("type", "alert")
+                        val message = obj.optString("message", text)
+                        val userName = parseRelayUserName(obj)
+                        runOnMain {
+                            RelayIncomingAlertDeliver.deliver(
+                                this@AlertConnectionService,
+                                type,
+                                message,
+                                userName,
+                            )
+                            onAlertReceived?.invoke(type, message, userName)
+                            updateNotification(true)
+                        }
+                        return
+                    }
+                    if (obj.has("action")) return
                     val type = obj.optString("type", "alert")
                     val message = obj.optString("message", text)
                     val userName = parseRelayUserName(obj)
@@ -284,6 +320,13 @@ class AlertConnectionService : Service() {
     }
 
     private fun disconnect() {
+        disconnectSocketOnly()
+        relayConnectedHint = false
+        runOnMain { notifyRelayConnectionUi(false) }
+    }
+
+    /** Close socket only — do not broadcast disconnected while opening a new socket. */
+    private fun disconnectSocketOnly() {
         try {
             webSocket?.close(1000, null)
         } catch (_: Exception) {
@@ -291,8 +334,14 @@ class AlertConnectionService : Service() {
         webSocket = null
         client = null
         isConnecting = false
-        relayConnectedHint = false
-        runOnMain { notifyRelayConnectionUi(false) }
+    }
+
+    private fun isAlreadyLinked(serverUrl: String, botId: String, apiKey: String): Boolean {
+        if (!isConnected()) return false
+        val url = serverUrl.trim()
+        return url.equals(lastServerUrl?.trim(), ignoreCase = true) &&
+            botId == lastBotId &&
+            apiKey == lastApiKey
     }
 
     private fun acquireWakeLock() {

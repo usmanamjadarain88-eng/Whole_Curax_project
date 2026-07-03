@@ -77,6 +77,10 @@ class UserStandaloneActivity : AppCompatActivity() {
         const val EXTRA_RELAUNCH_TAB = "user_standalone_relaunch_tab"
         /** Sign-in prefetch applied user data — restore snapshot before first frame. */
         const val EXTRA_WARM_FROM_SIGN_IN = "user_standalone_warm_from_sign_in"
+        /** Dashboard tab index (Default and Standalone user shells). */
+        const val TAB_DASHBOARD = 0
+        /** Dose tracking tab index (same in Default and Standalone user shells). */
+        const val TAB_DOSE_TRACKING = 2
         /** Toolbar action order: lower = further left (theme → mode → overflow). */
         private const val MENU_ORDER_THEME = 1
         private const val MENU_ORDER_MODE = 2
@@ -159,17 +163,18 @@ class UserStandaloneActivity : AppCompatActivity() {
     private val ambientSidebarPreviewRunnable = object : Runnable {
         override fun run() {
             if (isFinishing || StandaloneUi.isUserStandalone(this@UserStandaloneActivity)) return
-            ambientPreviewTickSeq += 1
-            val f = AmbientDemoReadout.format(this@UserStandaloneActivity, ambientPreviewTickSeq)
-            findViewById<TextView>(R.id.tvSidebarAmbientTemp1)?.text = f.tempZone1
-            findViewById<TextView>(R.id.tvSidebarAmbientTemp2)?.text = f.tempZone2
-            findViewById<TextView>(R.id.tvSidebarAmbientHumidity)?.text = f.humidity
-            mainHandler.postDelayed(this, 2000L)
+            if (AmbientReadout.shouldShowDemo(this@UserStandaloneActivity)) {
+                ambientPreviewTickSeq += 1
+            } else if (CuraxEsp32BleLink.isConnected()) {
+                CuraxEsp32BleLink.sendTempQuery()
+            }
+            refreshSidebarAmbientPreview(ambientPreviewTickSeq)
+            mainHandler.postDelayed(this, 2500L)
         }
     }
     private val sidebarSectionExpanded = BooleanArray(4)
     private lateinit var loadingOverlay: View
-    /** Personal Health only: on-device dose alarm reschedule (default mode uses relay popups, not AlarmManager). */
+    /** On-device dose alarm reschedule after sync / resume (standalone + default linked). */
     private val userLocalAlertsResumeRunnable = Runnable {
         if (isFinishing) return@Runnable
         val app = applicationContext
@@ -244,8 +249,13 @@ class UserStandaloneActivity : AppCompatActivity() {
     private var esp32BleReceiverRegistered = false
     private val esp32BleConnectionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == CuraxEsp32BleLink.ACTION_CONNECTION_STATE && !isFinishing) {
-                refreshSidebarEsp32BleUi()
+            if (isFinishing) return
+            when (intent?.action) {
+                CuraxEsp32BleLink.ACTION_CONNECTION_STATE -> {
+                    refreshSidebarEsp32BleUi()
+                    refreshSidebarAmbientPreview()
+                }
+                CuraxEsp32BleLink.ACTION_TELEMETRY -> refreshSidebarAmbientPreview()
             }
         }
     }
@@ -270,6 +280,7 @@ class UserStandaloneActivity : AppCompatActivity() {
         if (botOnCreate.isNotEmpty()) {
             UserSessionIsolate.ensureSessionForBotId(this, botOnCreate)
         }
+        AppModeManager.ensureAccountModeBeforeHome(this)
         val store = LocalUserStore(this)
         if (store.role != LocalUserStore.ROLE_USER) {
             startActivity(Intent(this, MainActivity::class.java))
@@ -652,7 +663,7 @@ class UserStandaloneActivity : AppCompatActivity() {
     private fun shellDp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun scheduleDeferredHomeDialogs() {
-        UserModeSheetPrefs.syncGlobalFlagFromBot(this, prefs.id.trim())
+        UserModeSheetPrefs.syncGlobalFlagFromAccount(this, prefs.id.trim(), LocalUserStore(this).email)
         deferredHomeUiRunnable?.let { r ->
             try {
                 window.decorView.removeCallbacks(r)
@@ -1020,7 +1031,10 @@ class UserStandaloneActivity : AppCompatActivity() {
             displayModeReceiverRegistered = true
         }
         if (!esp32BleReceiverRegistered) {
-            val ef = IntentFilter(CuraxEsp32BleLink.ACTION_CONNECTION_STATE)
+            val ef = IntentFilter().apply {
+                addAction(CuraxEsp32BleLink.ACTION_CONNECTION_STATE)
+                addAction(CuraxEsp32BleLink.ACTION_TELEMETRY)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(esp32BleConnectionReceiver, ef, Context.RECEIVER_NOT_EXPORTED)
             } else {
@@ -1685,6 +1699,15 @@ class UserStandaloneActivity : AppCompatActivity() {
         }
     }
 
+    private fun refreshSidebarAmbientPreview(tick: Int = ambientPreviewTickSeq) {
+        if (StandaloneUi.isUserStandalone(this)) return
+        CuraxEsp32BleLink.init(applicationContext)
+        val f = AmbientReadout.format(this, tick)
+        findViewById<TextView>(R.id.tvSidebarAmbientTemp1)?.text = f.tempZone1
+        findViewById<TextView>(R.id.tvSidebarAmbientTemp2)?.text = f.tempZone2
+        findViewById<TextView>(R.id.tvSidebarAmbientHumidity)?.text = f.humidity
+    }
+
     private fun refreshSidebarEsp32BleUi() {
         if (!::tvSidebarEsp32BleStatus.isInitialized) return
         if (StandaloneUi.isUserStandalone(this)) return
@@ -1780,7 +1803,12 @@ class UserStandaloneActivity : AppCompatActivity() {
         cardPersonal.setOnClickListener { applyFirstModeCardSelection(smartSelected = false) }
         btnContinue.setOnClickListener {
             AppModeManager.setStandaloneMode(this, wantStandalone)
-            UserModeSheetPrefs.markCompletedForBot(this, prefs.id.trim())
+            UserModeSheetPrefs.markCompletedForAccount(
+                this,
+                prefs.id.trim(),
+                LocalUserStore(this).email,
+                wantStandalone,
+            )
             UserDisplayModeApi.postDisplayModeAsync(this, wantStandalone)
             sheet.dismiss()
             // Overview layout is chosen once in onCreateView; without a fresh activity, Dashboard stays on
@@ -1984,6 +2012,12 @@ class UserStandaloneActivity : AppCompatActivity() {
         val frag = supportFragmentManager.findFragmentByTag(tag) ?: return false
         val scrollable = firstVerticalScrollableIn(frag.view)
         return scrollable?.canScrollVertically(-1) == true
+    }
+
+    fun openTab(index: Int) {
+        if (!::viewPager.isInitialized) return
+        val cap = userShellTabCount() - 1
+        viewPager.setCurrentItem(index.coerceIn(0, cap), true)
     }
 
     private fun refreshAllUserShellFragments() {

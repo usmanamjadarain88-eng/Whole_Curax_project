@@ -29,10 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
 /** Linked roster; invite code lives under Connections. */
 class AdminUsersFragment : Fragment() {
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+    private val http = AdminNetwork.http
 
     private lateinit var prefs: Prefs
     private lateinit var progress: ProgressBar
@@ -163,6 +160,16 @@ class AdminUsersFragment : Fragment() {
             linkedAdapter.submit(emptyList())
             tvEmptyLinked.visibility = View.VISIBLE
             tvEmptyLinked.text = getString(R.string.admin_hub_need_sign_in)
+            return
+        }
+
+        if (!AdminNetwork.isOnline(requireContext())) {
+            progress.visibility = View.GONE
+            tvError.visibility = View.VISIBLE
+            tvError.text = getString(R.string.error_network_unreachable)
+            btnRetry.visibility = View.VISIBLE
+            linkedAdapter.submit(emptyList())
+            tvEmptyLinked.visibility = View.GONE
             return
         }
 

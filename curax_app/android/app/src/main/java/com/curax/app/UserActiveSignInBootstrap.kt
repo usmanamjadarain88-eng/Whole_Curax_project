@@ -39,7 +39,7 @@ object UserActiveSignInBootstrap {
 
         prefs.id = botId
         prefs.apiKey = apiKey
-        UserModeSheetPrefs.syncGlobalFlagFromBot(activity, botId)
+        UserModeSheetPrefs.syncGlobalFlagFromAccount(activity, botId, email)
         prefs.connectionCode = jo.optString("connection_code", "").trim()
         prefs.databusAccessCode = jo.optString("databus_access_code", "").trim()
         prefs.linkedAdminId = jo.optString("admin_id", "").trim()
@@ -49,6 +49,7 @@ object UserActiveSignInBootstrap {
         SignUpFlowState.clear()
         prefs.clearSignupWipLink()
 
+        AppModeManager.restoreSavedAccountMode(activity, email)
         AppModeManager.applyDisplayModeFromAuthJson(activity, jo, notifyRelaunch = false)
 
         val adminId = prefs.linkedAdminId.trim()
@@ -96,6 +97,7 @@ object UserActiveSignInBootstrap {
             apiKey,
             broadcastFetchUi = false,
             notifyDisplayModeChange = false,
+            bootstrapSignIn = true,
             onSuccess = { postSignInSuccessThenHome() },
             onFetchFinished = {
                 activity.runOnUiThread {

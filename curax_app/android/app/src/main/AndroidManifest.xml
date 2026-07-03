@@ -145,6 +145,30 @@
             android:windowSoftInputMode="adjustNothing" />
 
         <activity
+            android:name=".JoinInviteActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Curax">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="join"
+                    android:scheme="curax" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="curax.app"
+                    android:pathPrefix="/join"
+                    android:scheme="https" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".AdminRegistrationActivity"
             android:exported="false"
             android:parentActivityName=".LaunchActivity"
@@ -183,11 +207,6 @@
             android:exported="false"
             android:theme="@style/Theme.Curax"
             android:windowSoftInputMode="adjustPan" />
-
-        <activity
-            android:name=".UserDashboardActivity"
-            android:exported="false"
-            android:theme="@style/Theme.Curax" />
 
         <activity
             android:name=".UserStandaloneActivity"
@@ -284,6 +303,18 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".CuraxNextDoseWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_next_dose_title">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.curax.app.action.WIDGET_NEXT_DOSE_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/curax_next_dose_widget_info" />
         </receiver>
     </application>
 </manifest>

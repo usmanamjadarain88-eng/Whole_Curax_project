@@ -112,18 +112,8 @@ object AdminDemoData {
         }
     }
 
-    /**
-     * Same basis as Admin Alerts tab totals: synced API alerts + local relay DB rows.
-     * When admin has no linked data yet (empty API + empty inbox), use preview list size so counts
-     * match the dummy rows on screen — not a single row accidentally inserted from detail.
-     */
     fun totalAdminAlertsVisibleCount(isAdmin: Boolean, localDbAlertCount: Int): Int {
-        val api = getApiAlerts().size
-        return if (isAdmin && api == 0 && localDbAlertCount == 0) {
-            adminPreviewAlerts().size
-        } else {
-            api + localDbAlertCount
-        }
+        return getApiAlerts().size + localDbAlertCount
     }
 
     fun replaceApiAlerts(items: List<AlertItem>) {
@@ -275,6 +265,31 @@ object AdminDemoData {
         alertSettingsStore.putAll(map)
     }
 
+    /** True when at least one medicine has stock and a schedule time (from server or local). */
+    fun hasSchedulableMedicines(): Boolean =
+        medicines.any { it.stock > 0 && it.effectiveScheduleTimes().isNotEmpty() }
+
+    /** Dose alerts require saved alert_settings with medicine or plan phase toggles from server/UI. */
+    fun hasSavedDoseAlertSettings(): Boolean {
+        val settings = getAlertSettings()
+        if (settings.isEmpty()) return false
+        fun section(key: String): Map<*, *>? {
+            val nested = settings["alert_settings"] as? Map<*, *>
+            return (nested?.get(key) as? Map<*, *>) ?: (settings[key] as? Map<*, *>)
+        }
+        val ma = section("medicine_alerts")
+        val pa = section("plan_alerts")
+        return (ma != null && ma.isNotEmpty()) || (pa != null && pa.isNotEmpty())
+    }
+
+    /** Rebuild on-device dose alarms after medicines or settings change (both app modes). */
+    fun notifyUserScheduleDataChanged(context: Context) {
+        val app = context.applicationContext
+        if (!AppRole.isUser(app)) return
+        UserAlarmScheduler.rescheduleAlarmsOnly(app)
+        CuraxNextDoseWidgetProvider.updateAll(app)
+    }
+
     /** Parse alert_settings JSON from API (may contain alert_settings, gmail_config, etc.). */
     fun fromApiAlertSettings(json: JSONObject?): Map<String, Any?> {
         if (json == null) return emptyMap()
@@ -327,7 +342,7 @@ object AdminDemoData {
             else dosePerAdministration()
     }
 
-    /** Empty until API/sync; admin care preview uses [adminPreviewAlerts] / server fetch — not hardcoded rows here. */
+    /** Empty until API/sync; admin care uses server fetch only. */
     private val medicineStore = mutableListOf<Medicine>()
 
     val medicines: List<Medicine>
@@ -350,6 +365,7 @@ object AdminDemoData {
         medicineScheduleTouchEpochMs.keys.retainAll(next.keys)
         medicineStore.clear()
         medicineStore.addAll(items)
+        notifyUserScheduleDataChanged(app)
     }
 
     /** Merge updated medicines from incremental API response (by box_id: update or add). */
@@ -561,38 +577,5 @@ object AdminDemoData {
             Activity Logs
             ${logs().joinToString("\n")}
         """.trimIndent()
-    }
-
-    /** Sample alerts for admin Alerts tab + dashboard until real relay/API alerts exist (not persisted in apiAlertsStore). */
-    fun adminPreviewAlerts(now: Long = System.currentTimeMillis()): List<AlertItem> {
-        val hour = 3_600_000L
-        val day = 86_400_000L
-        return listOf(
-            AlertItem(-8_010_000_000_001L, "dose_taken", "Dose marked taken: Panadol from box B1", now - hour, "Usman"),
-            AlertItem(-8_010_000_000_002L, "dose_missed", "Missed dose reminder: Metformin from box B2", now - hour * 3, "Hamad"),
-            AlertItem(-8_010_000_000_003L, "dose_taken", "Dose marked taken: Amoxil from box A1", now - day / 2, "Abdullah"),
-            AlertItem(-8_010_000_000_004L, "refill_reminder", "Refill soon: Vitamin D from box B4", now - day, "Zara"),
-            AlertItem(-8_010_000_000_005L, "dose_taken", "Dose marked taken: Insulin from box B3", now - day - hour, "Usman"),
-            AlertItem(-8_010_000_000_006L, "sync", "Handoff sync completed for linked device", now - day - hour * 2, "System"),
-        )
-    }
-
-    fun adminPreviewMedicinesForReport(seed: Int): List<Medicine> {
-        val base = medicineStore.toList()
-        if (base.isEmpty()) return emptyList()
-        return base.mapIndexed { i, m ->
-            val shift = (seed + i * 3) % 7
-            m.copy(stock = (m.stock + shift - 3).coerceIn(0, 120))
-        }
-    }
-
-    fun adminPreviewAlertsForReport(userLabel: String, now: Long = System.currentTimeMillis()): List<AlertItem> {
-        val hour = 3_600_000L
-        val day = 86_400_000L
-        return listOf(
-            AlertItem(-8_020_000_000_001L, "dose_taken", "Dose marked taken: Panadol from box B1", now - hour, userLabel),
-            AlertItem(-8_020_000_000_002L, "dose_missed", "Missed dose: evening Metformin", now - day / 3, userLabel),
-            AlertItem(-8_020_000_000_003L, "dose_taken", "Dose marked taken: Vitamin D from box B4", now - day, userLabel),
-        )
     }
 }

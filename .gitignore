@@ -1,18 +1,33 @@
 # =============================================================================
-# Work/ monorepo — private, machine-local, and generated files (all 3 projects)
+# Work/ monorepo — private, machine-local, and generated files (all projects)
 # =============================================================================
 
 # Standalone Git repo + Vercel app (do not track here — use c:\Work\3d-model\.git)
 3d-model/
+
+# --- Nested .git folders (single repo at Work/ root only) ---
+**/.git/
+!/.git/
 
 # --- Local backup of old per-folder .git (never push — huge + wrong history) ---
 **/.git.bak/
 
 # --- Secrets & environment (never commit) ---
 .env
+.env.*
+!.env.example
 .env.local
 .env.*.local
-!.env.example
+*.pem
+*.p12
+**/credentials.json
+**/service-account*.json
+**/google-services.json
+**/GoogleService-Info.plist
+
+# --- Personal / non-code files ---
+*.docx
+*.doc
 
 # --- medicine-alerts: backend URLs / DB connection on disk ---
 medicine-alerts/backend/.env

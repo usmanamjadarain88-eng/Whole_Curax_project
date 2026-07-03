@@ -18,35 +18,16 @@
         android:orientation="vertical"
         android:padding="14dp">
 
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/tvMainDashboardTitle"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@color/summary_card"
-            app:cardCornerRadius="16dp"
-            app:strokeColor="@color/summary_stroke"
-            app:strokeWidth="@dimen/panel_stroke_width">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Main Dashboard"
-                    android:textColor="@color/text_primary"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Tap any box to view medicine details"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+            android:layout_marginBottom="10dp"
+            android:text="@string/main_dashboard_title"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
         <GridLayout
             android:layout_width="match_parent"
@@ -151,6 +132,12 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </GridLayout>
+
+        <include
+            layout="@layout/include_dashboard_today_strip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp" />
 
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"

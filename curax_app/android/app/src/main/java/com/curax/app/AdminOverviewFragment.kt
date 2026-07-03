@@ -128,7 +128,7 @@ class AdminOverviewFragment : Fragment() {
     private var lastDonutTotal: Int = -1
     private var donutPulseAnim: ValueAnimator? = null
     private var alertsReceiverRegistered = false
-    private val http = OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build()
+    private val http = AdminNetwork.http
     private val mainHandler = Handler(Looper.getMainLooper())
     private var adminPollRunnable: Runnable? = null
     private var adminPollInFlight: Boolean = false
@@ -324,6 +324,7 @@ class AdminOverviewFragment : Fragment() {
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (!AdminNetwork.isOnline(requireContext())) return
         if (!isUserApp()) {
             val now = SystemClock.elapsedRealtime()
             if (lastAdminCareDashboardFetchElapsedMs != 0L &&
@@ -568,6 +569,7 @@ class AdminOverviewFragment : Fragment() {
         refreshInventoryList(v)
         refreshDashboard(v)
         adherenceChart?.data = computeAdherenceData()
+        CuraxNextDoseWidgetProvider.updateAll(requireContext())
         // Do not persist snapshot here: tab switches call this every resume and would rewrite prefs +
         // reschedule all local alarms on the main thread (jank). Persist runs after real data changes/sync.
     }
@@ -1266,6 +1268,17 @@ class AdminOverviewFragment : Fragment() {
             formatStandaloneSyncLabel(Prefs(requireContext()).lastSyncTime)
 
         updateTrendFromInventory(view)
+        view.findViewById<TextView>(R.id.tvMainDashboardTitle)?.visibility =
+            if (isUserApp() && !StandaloneUi.isUserStandalone(requireContext())) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
+        if (isUserApp()) {
+            TodayStripUi.bind(view, this)
+        } else {
+            view.findViewById<View>(R.id.containerTodayDoseStrip)?.visibility = View.GONE
+        }
         if (isUserApp() || CareUi.useStandaloneLayoutsInCare(requireContext())) {
             applyStandaloneMedicineBoxGoldTheme(view)
         }

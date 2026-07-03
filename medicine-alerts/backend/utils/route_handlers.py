@@ -476,6 +476,7 @@ def signup_sign_in(body, query, headers):
             "admin_name",
             "databus_access_code",
             "connection_code",
+            "user_display_mode",
         ):
             out[k] = r.get(k) or ""
     if phase == "pending_admin":

@@ -127,8 +127,8 @@
     <string name="local_alert_plan_title">Planned item</string>
     <string name="local_alert_reminder_title">Reminder</string>
     <string name="local_alert_missed_title">Missed dose</string>
-    <string name="local_alert_phase_30_before">30 min before</string>
-    <string name="local_alert_phase_15_before">15 min before</string>
+    <string name="local_alert_phase_30_before">Take your medicine soon 😊 — %1$s at %3$s (%2$s)</string>
+    <string name="local_alert_phase_15_before">Almost time! Take your medicine 😊 — %1$s at %3$s (%2$s)</string>
     <string name="local_alert_phase_exact">Due now</string>
     <string name="local_alert_phase_5_after">5 min after (reminder)</string>
     <string name="local_alert_phase_15_after">15 min after (urgent)</string>
@@ -202,26 +202,31 @@
     <string name="user_ambient_title">Ambient monitor</string>
     <string name="user_ambient_subtitle">Live readings from your hardware will appear here.</string>
     <string name="user_ambient_demo_banner">Demo values — hardware connection is not active yet.</string>
+    <string name="user_ambient_not_connected">Connect ESP32 via Bluetooth for live readings.</string>
+    <string name="user_ambient_live_banner">Live readings from ESP32.</string>
     <string name="user_ambient_zone1_label">Zone 1 (B1–B4)</string>
     <string name="user_ambient_zone2_label">Zone 2 (B5–B6)</string>
     <string name="user_ambient_humidity_label">Humidity</string>
     <string name="user_ambient_last_updated">Last updated: %1$s</string>
     <string name="tab_temp_adjustment">T Adjustment</string>
-    <string name="user_temp_adjust_screen_title">Temperature adjustment</string>
-    <string name="user_temp_adjust_intro">Set target ranges for each Peltier zone (same as desktop). Commands will be sent when hardware is linked.</string>
+    <string name="user_temp_adjust_screen_title">Temperature control</string>
+    <string name="user_temp_adjust_intro">Set a target temperature for each Peltier zone. Cooling turns on above target + 1 °C and off below target − 1 °C when ESP32 is linked.</string>
     <string name="admin_logs_screen_title">Logs</string>
     <string name="admin_logs_screen_subtitle">Each alert received via relay WebSocket appears here as a log entry.</string>
     <string name="user_temp_peltier1_title">Peltier 1 — boxes B1–B4</string>
     <string name="user_temp_peltier2_title">Peltier 2 — boxes B5–B6</string>
-    <string name="user_temp_range_c">Range (°C)</string>
-    <string name="user_temp_min_hint">Min</string>
-    <string name="user_temp_max_hint">Max</string>
+    <string name="user_temp_target_control">Target temperature control</string>
+    <string name="user_temp_target_hint">Target temperature (°C)</string>
+    <string name="user_temp_applied_target">Applied target: %1$s °C</string>
+    <string name="user_temp_applied_target_none">Applied target: —</string>
+    <string name="user_temp_hysteresis_note">Cooling ON above target + 1 °C · OFF below target − 1 °C</string>
     <string name="user_temp_current_reading">Current: %1$s °C</string>
+    <string name="user_temp_current_reading_none">Current: — °C</string>
     <string name="user_temp_enable_zone">Enable zone</string>
     <string name="user_temp_apply_zone">Apply</string>
     <string name="user_temp_apply_both">Apply both</string>
-    <string name="user_temp_hardware_pending">Hardware link not active yet — settings are device-only for now.</string>
-    <string name="user_temp_invalid_range">Enter valid min and max (min must be less than max).</string>
+    <string name="user_temp_hardware_pending">Hardware link not active yet — settings saved on this device only.</string>
+    <string name="user_temp_invalid_target">Enter a valid target temperature.</string>
     <string name="ble_picker_title">Choose ESP32 (Bluetooth)</string>
     <string name="ble_picker_hint">Tap your CuraX box when it appears. Uses Nordic UART service (same as many ESP32 BLE examples).</string>
     <string name="ble_picker_empty">No devices found yet — ensure ESP32 is powered and BLE is on.</string>
@@ -525,6 +530,7 @@
     <string name="admin_tab_alerts">Alerts</string>
     <string name="admin_tab_users">Users</string>
     <string name="admin_tab_reports">Reports</string>
+    <string name="admin_reports_no_linked_users">No linked users yet — reports will show per-user data once users connect.</string>
     <string name="admin_tab_connections">Connections</string>
     <string name="admin_tab_messages">Messages</string>
     <string name="admin_messages_subtitle">Tap a linked user to send a message. Long-press a message to delete it from this device.</string>
@@ -571,6 +577,8 @@
     <string name="admin_hub_dose_preview_footer">From your relay server. Open a user in Care mode to edit medicines and schedules.</string>
     <string name="admin_hub_dose_preview_load_failed">Could not load dose activity.</string>
     <string name="admin_hub_dose_preview_loading">Loading dose activity…</string>
+    <string name="admin_hub_dose_preview_offline">No internet — dose activity will load when you are back online.</string>
+    <string name="admin_hub_offline_cached">No internet. Showing cached dashboard where available.</string>
     <string name="admin_hub_clear_dose_history_cd">Clear dose history for this user</string>
     <string name="admin_hub_clear_dose_history_title">Clear dose history?</string>
     <string name="admin_hub_clear_dose_history_message">Remove all dose log rows for %1$s from the server? This cannot be undone.</string>
@@ -948,6 +956,49 @@
     <string name="plan_update_failed">Could not update plan</string>
     <string name="health_hub_sheet_alerts_prompt">Review alerts and medicines below</string>
     <string name="health_hub_sheet_sync_prompt">Successful syncs are listed below</string>
+
+    <string name="main_dashboard_title">Main Dashboard</string>
+    <string name="today_dose_strip_title">Doses</string>
+    <string name="today_dose_due_label">Due now</string>
+    <string name="today_dose_next_label">Next</string>
+    <string name="today_dose_missed_label">Missed</string>
+    <string name="today_dose_next_due_fmt">%1$s · %2$s</string>
+    <string name="today_dose_next_upcoming_fmt">%1$s · %2$s</string>
+    <string name="today_dose_next_none">All done for now</string>
+    <string name="today_dose_no_medicines">No schedule yet</string>
+    <string name="today_dose_hint_no_medicines">Add medicines from your care team to see today\'s doses.</string>
+    <string name="today_dose_hint_missed_tap">Tap Missed for full list · Tap card for Dose tab</string>
+    <string name="today_dose_hint_due_now">Dose window open — open Dose tab to mark taken</string>
+    <string name="today_dose_hint_default">Tap card to open Dose tracking</string>
+    <string name="today_dose_recent_missed_line">%1$s (%2$s) · %3$s · %4$s</string>
+    <string name="today_dose_missed_none">No missed doses in the last two weeks.</string>
+    <string name="today_dose_missed_dialog_title">Missed doses</string>
+    <string name="today_dose_missed_list_line">%1$s · %2$s · %3$s · %4$s</string>
+    <string name="today_dose_open_dose_tab">Open Dose tab</string>
+
+    <string name="widget_next_dose_title">Next dose</string>
+    <string name="widget_next_dose_description">Shows your next scheduled medicine dose.</string>
+    <string name="widget_next_dose_empty">No upcoming dose</string>
+    <string name="widget_next_dose_empty_sub">Nothing scheduled for today.</string>
+    <string name="widget_next_dose_sub_line_fmt">%1$s · Box %2$s</string>
+    <string name="widget_next_dose_status_due">Due now</string>
+    <string name="widget_next_dose_status_in_min">In %1$d min</string>
+    <string name="widget_next_dose_box_fmt">Box %1$s</string>
+
+    <string name="invite_link_share">Share invite link</string>
+    <string name="invite_link_share_message">Join my CuraX care hub. Open this link on your phone:\n%1$s</string>
+    <string name="widget_next_dose_time_tomorrow_fmt">Tomorrow %1$s</string>
+    <string name="invite_link_share_hint">Share this link so patients can join without typing the code.</string>
+    <string name="invite_link_invalid">Invalid invite link.</string>
+    <string name="invite_link_admin_use_patient_app">Invite links are for patient accounts. Sign in with the user app.</string>
+    <string name="invite_link_already_linked_title">Already linked</string>
+    <string name="invite_link_already_linked_body">You are already linked to %1$s.</string>
+    <string name="invite_link_connect_title">Connect to admin?</string>
+    <string name="invite_link_connect_body">Link your account using invite code %1$s?</string>
+    <string name="invite_link_need_sign_in">Sign in first, then open the invite link again.</string>
+    <string name="invite_link_connected_ok">Connected to your admin.</string>
+    <string name="invite_link_sign_in_hint">You have an invite link — sign in or sign up to connect.</string>
+    <string name="sign_in_from_invite_toast">After sign-in, your admin code will be filled automatically.</string>
 </resources>
 
 

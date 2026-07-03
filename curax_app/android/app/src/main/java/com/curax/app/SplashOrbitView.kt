@@ -22,7 +22,7 @@ private data class DoctorSlot(val angleDeg: Float, val drawableRes: Int)
 
 /**
  * Three stroked rings; clinical icons only on middle + outer rings (inner stays clear around hub);
- * PNG doctors sit outside the outer ring; launcher in the center.
+ * PNG doctors sit outside the outer ring; hub logo in the center (light: launcher, dark: branding PNG).
  */
 class SplashOrbitView @JvmOverloads constructor(
     context: Context,
@@ -60,6 +60,8 @@ class SplashOrbitView @JvmOverloads constructor(
         MedRingSlot(2, 210f, R.drawable.ic_splash_med_cardiology),
     )
 
+    private val hubDrawableRes = R.drawable.splash_hub_center
+
     /** ~310° ≈ top-right on screen; new crossed-arms asset there. */
     private val doctorSlots = listOf(
         DoctorSlot(70f, R.drawable.splash_doctor_male_wave),
@@ -77,8 +79,6 @@ class SplashOrbitView @JvmOverloads constructor(
             invalidate()
         }
     }
-
-    private val launcherDrawable = ContextCompat.getDrawable(context, R.drawable.ic_launcher_inset)
 
     init {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -236,15 +236,7 @@ class SplashOrbitView @JvmOverloads constructor(
         hubClipPath.addCircle(cx, cy, insetInner, Path.Direction.CW)
         canvas.save()
         canvas.clipPath(hubClipPath)
-        launcherDrawable?.let { ld ->
-            ld.setBounds(
-                (cx - insetInner).toInt(),
-                (cy - insetInner).toInt(),
-                (cx + insetInner).toInt(),
-                (cy + insetInner).toInt(),
-            )
-            ld.draw(canvas)
-        }
+        drawDrawablePreservingAspect(canvas, cx, cy, insetInner * 2f, hubDrawableRes)
         canvas.restore()
         canvas.restore()
     }

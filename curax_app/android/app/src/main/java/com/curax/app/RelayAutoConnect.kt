@@ -59,7 +59,8 @@ object RelayAutoConnect {
             onConnected(isRelayLive(activity, connectionService))
             return
         }
-        if (!isRelayLive(activity, connectionService)) {
+        val live = isRelayLive(activity, connectionService)
+        if (!live) {
             onConnecting()
         }
         try {
@@ -70,7 +71,11 @@ object RelayAutoConnect {
             )
         } catch (_: Exception) {
         }
-        ConnectionManager.ensureRelayLiveOnAppOpen(activity)
+        if (!live) {
+            ConnectionManager.ensureRelayLiveOnAppOpen(activity)
+        } else {
+            ConnectionManager.requestReconnectRelayNow(activity)
+        }
         onConnected(isRelayLive(activity, connectionService))
     }
 }

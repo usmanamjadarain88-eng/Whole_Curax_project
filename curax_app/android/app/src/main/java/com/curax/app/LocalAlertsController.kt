@@ -31,15 +31,17 @@ object LocalAlertsController {
 
     const val ACTION_LOCAL_STANDALONE_ALERT = "com.curax.app.action.LOCAL_STANDALONE_ALERT"
     const val TYPE_STOCK_EXPIRY_SCAN = "stock_expiry_scan"
+    const val TYPE_DAILY_RESCHEDULE = "daily_alarm_reschedule"
 
     private const val PREFS = "curax_standalone_local_alarm_state"
     private const val KEY_IDS = "alarm_ids_json"
 
     /** Single rolling alarm: run stock/expiry evaluation, then reschedule. */
     private const val DAILY_SCAN_ID = "daily_stock_expiry"
+    private const val DAILY_RESCHEDULE_ID = "daily_alarm_reschedule"
 
     /** How many calendar days ahead to place medicine / reminder phase alarms. */
-    private const val DAY_WINDOW = 7
+    const val DAY_WINDOW = 7
 
     /** Extra slack so e.g. “tomorrow 08:00” daily scan stays inside [horizonMs]. */
     private const val HORIZON_EXTRA_DAYS = 1
@@ -112,6 +114,10 @@ object LocalAlertsController {
         MissedDoseEscalationController.cancelAll(app)
         cancelAll(app)
         val am = app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+
+        val canScheduleMedicineAlarms =
+            AdminDemoData.hasSchedulableMedicines() && AdminDemoData.hasSavedDoseAlertSettings()
+
         val ids = JSONArray()
         val now = System.currentTimeMillis()
         val dayMs = 24L * 60L * 60L * 1000L
@@ -127,9 +133,15 @@ object LocalAlertsController {
         val ea = sectionMap(settings, "expiry_alerts")
         val pa = sectionMap(settings, "plan_alerts")
 
-        val med30 = boolOrDefault(ma["30_min_before"], true)
-        val med15 = boolOrDefault(ma["15_min_before"], true)
-        val medExact = boolOrDefault(ma["exact_time"], true)
+        fun phaseToggle(key: String): Boolean {
+            if (ma.containsKey(key)) return boolOrDefault(ma[key], false)
+            if (pa.containsKey(key)) return boolOrDefault(pa[key], false)
+            return false
+        }
+
+        val med30 = phaseToggle("30_min_before")
+        val med15 = phaseToggle("15_min_before")
+        val medExact = phaseToggle("exact_time")
         val missed5 = boolOrDefault(esc["5_min_reminder"], true)
         val missed15 = boolOrDefault(esc["15_min_urgent"], true)
         val missed30 = boolOrDefault(esc["30_min_family"], true)
@@ -144,10 +156,20 @@ object LocalAlertsController {
             trigger: Long,
             payload: JSONObject,
             horizonEnd: Long = horizonMedMs,
+            /** When set, still schedule if [trigger] passed but dose/event time is still in the future. */
+            validUntil: Long? = null,
         ) {
             if (count >= MAX_ALARMS) return
-            if (trigger <= now || trigger > horizonEnd) return
-            statePrefs(app).edit().putString("p_$alarmId", payload.toString()).apply()
+            var effectiveTrigger = trigger
+            if (effectiveTrigger <= now) {
+                if (validUntil != null && validUntil > now) {
+                    effectiveTrigger = now + 1_500L
+                } else {
+                    return
+                }
+            }
+            if (effectiveTrigger > horizonEnd) return
+            statePrefs(app).edit().putString("p_$alarmId", payload.toString()).commit()
             val pi = PendingIntent.getBroadcast(
                 app,
                 pendingRequestCode(alarmId),
@@ -163,17 +185,17 @@ object LocalAlertsController {
             try {
                 when {
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-                        am.setAlarmClock(AlarmManager.AlarmClockInfo(trigger, show), pi)
+                        am.setAlarmClock(AlarmManager.AlarmClockInfo(effectiveTrigger, show), pi)
                     }
                     else -> {
                         @Suppress("DEPRECATION")
-                        am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi)
+                        am.setExact(AlarmManager.RTC_WAKEUP, effectiveTrigger, pi)
                     }
                 }
                 ids.put(alarmId)
                 count++
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to schedule alarm id=$alarmId at $trigger", e)
+                Log.w(TAG, "Failed to schedule alarm id=$alarmId at $effectiveTrigger", e)
             }
         }
 
@@ -204,9 +226,10 @@ object LocalAlertsController {
                     JSONObject().apply {
                         put("type", "medicine_pre_30")
                         put("title", app.getString(R.string.local_alert_med_title))
-                        put("message", medLabel(app.getString(R.string.local_alert_phase_30_before), name, box, hms))
+                        put("message", app.getString(R.string.local_alert_phase_30_before, name, box, hms.take(5)))
                         medFields().invoke(this)
                     },
+                    validUntil = base,
                 )
             }
             if (med15) {
@@ -216,9 +239,10 @@ object LocalAlertsController {
                     JSONObject().apply {
                         put("type", "medicine_pre_15")
                         put("title", app.getString(R.string.local_alert_med_title))
-                        put("message", medLabel(app.getString(R.string.local_alert_phase_15_before), name, box, hms))
+                        put("message", app.getString(R.string.local_alert_phase_15_before, name, box, hms.take(5)))
                         medFields().invoke(this)
                     },
+                    validUntil = base,
                 )
             }
             if (medExact) {
@@ -291,18 +315,24 @@ object LocalAlertsController {
             }
         }
 
-        // Medicines: per day window, only when stock > 0 and a valid schedule time exists (no default time).
-        for (m in AdminDemoData.medicines) {
-            if (m.stock <= 0) continue
-            for (slot in m.effectiveScheduleTimes()) {
-                val nh = normalizeTimeHms(MedicineSchedule.toHhMmSs(MedicineSchedule.normalizeToHhMm(slot))) ?: continue
-                val slotDisp = MedicineSchedule.normalizeToHhMm(slot)
-                val tag = nh.replace(":", "")
-                for (dayOff in 0 until DAY_WINDOW) {
-                    val dayKey = dayKeyFromOffset(dayOff)
-                    if (DoseTrackingLocalStore.isTakenForSlot(app, m.box, dayKey, slotDisp)) continue
-                    val base = millisForLocalTimeOnDayOffset(nh, dayOff) ?: continue
-                    scheduleMedicinePhases(m.box, dayKey, m.name, slotDisp, base, tag)
+        // Medicines: per day window — only when saved medicines + alert phase settings exist.
+        if (canScheduleMedicineAlarms) {
+            for (m in AdminDemoData.medicines) {
+                if (m.stock <= 0) continue
+                for (slot in m.effectiveScheduleTimes()) {
+                    val nh = normalizeTimeHms(MedicineSchedule.toHhMmSs(MedicineSchedule.normalizeToHhMm(slot))) ?: continue
+                    val slotDisp = MedicineSchedule.normalizeToHhMm(slot)
+                    val tag = nh.replace(":", "")
+                    for (dayOff in 0 until DAY_WINDOW) {
+                        val dayKey = dayKeyFromOffset(dayOff)
+                        if (DoseTrackingLocalStore.isTakenForSlot(app, m.box, dayKey, slotDisp)) continue
+                        val base = millisForLocalTimeOnDayOffset(nh, dayOff) ?: continue
+                        if (dayOff == 0) {
+                            val touch = AdminDemoData.medicineScheduleTouchMs(m.box)
+                            if (touch > base) continue
+                        }
+                        scheduleMedicinePhases(m.box, dayKey, m.name, slotDisp, base, tag)
+                    }
                 }
             }
         }
@@ -327,6 +357,7 @@ object LocalAlertsController {
                         )
                     },
                     horizonLongMs,
+                    validUntil = exact,
                 )
             }
             if (plan15) {
@@ -342,6 +373,7 @@ object LocalAlertsController {
                         )
                     },
                     horizonLongMs,
+                    validUntil = exact,
                 )
             }
             if (planExact) {
@@ -390,7 +422,16 @@ object LocalAlertsController {
             )
         }
 
-        statePrefs(app).edit().putString(KEY_IDS, ids.toString()).apply()
+        val nextReschedule = nextDailyScanMillis(0, 5, now)
+        scheduleIfOk(
+            DAILY_RESCHEDULE_ID,
+            nextReschedule,
+            JSONObject().apply { put("type", TYPE_DAILY_RESCHEDULE) },
+            horizonLongMs,
+        )
+
+        statePrefs(app).edit().putString(KEY_IDS, ids.toString()).commit()
+        MissedDoseEscalationWatchdog.scheduleNext(app)
     }
 
     /**
@@ -644,12 +685,9 @@ object LocalAlertsController {
     private fun reminderSendAlertEnabled(row: Map<String, Any?>): Boolean =
         boolOrDefault(rowReminderOptions(row)["alert"], true)
 
-    /** Same local clock time, shifted by whole days (for prescription 7d / 3d / 1d before expiry). */
-    private fun millisDaysOffsetSameClock(baseMs: Long, dayDelta: Int): Long {
-        val cal = Calendar.getInstance(TimeZone.getDefault()).apply { timeInMillis = baseMs }
-        cal.add(Calendar.DAY_OF_YEAR, dayDelta)
-        return cal.timeInMillis
-    }
+    /** Exact hour offset before event time (3 days = 72 × 1 hour). */
+    private fun millisHoursBefore(baseMs: Long, hours: Long): Long =
+        baseMs - hours * 60L * 60L * 1000L
 
     /**
      * Local alarms for one medical reminder row — matches Reminders tab checkboxes
@@ -686,43 +724,49 @@ object LocalAlertsController {
             .replace(Regex("[^a-zA-Z0-9_.-]"), "_")
             .take(72)
 
+        fun scheduleReminderOnce(suffix: String, triggerMs: Long, message: String) {
+            val alarmId = "${idBase}_$suffix"
+            if (MedicalReminderAlertDedupe.hasFired(app, alarmId)) return
+            scheduleOne(alarmId, triggerMs, remPayload(message))
+        }
+
         when (categoryKey) {
             "prescriptions" -> {
                 if (boolOrDefault(rem["7d"], true)) {
-                    scheduleOne(
-                        "${idBase}_rx7d",
-                        millisDaysOffsetSameClock(base, -7),
-                        remPayload(app.getString(R.string.local_alert_reminder_7d, label, whenStr)),
+                    scheduleReminderOnce(
+                        "rx7d",
+                        millisHoursBefore(base, 7L * 24L),
+                        app.getString(R.string.local_alert_reminder_7d, label, whenStr),
                     )
                 }
                 if (boolOrDefault(rem["3d"], true)) {
-                    scheduleOne(
-                        "${idBase}_rx3d",
-                        millisDaysOffsetSameClock(base, -3),
-                        remPayload(app.getString(R.string.local_alert_reminder_3d, label, whenStr)),
+                    scheduleReminderOnce(
+                        "rx3d",
+                        millisHoursBefore(base, 3L * 24L),
+                        app.getString(R.string.local_alert_reminder_3d, label, whenStr),
                     )
                 }
                 if (boolOrDefault(rem["1d"], true)) {
-                    scheduleOne(
-                        "${idBase}_rx1d",
-                        millisDaysOffsetSameClock(base, -1),
-                        remPayload(app.getString(R.string.local_alert_reminder_1d, label, whenStr)),
+                    scheduleReminderOnce(
+                        "rx1d",
+                        millisHoursBefore(base, 1L * 24L),
+                        app.getString(R.string.local_alert_reminder_1d, label, whenStr),
                     )
                 }
             }
             else -> {
                 if (boolOrDefault(rem["24h"], true)) {
-                    scheduleOne(
-                        "${idBase}_24h",
+                    scheduleReminderOnce(
+                        "24h",
                         base - 24L * 60L * 60L * 1000L,
-                        remPayload(app.getString(R.string.local_alert_reminder_24h, label, whenStr)),
+                        app.getString(R.string.local_alert_reminder_24h, label, whenStr),
                     )
                 }
                 if (boolOrDefault(rem["2h"], true)) {
-                    scheduleOne(
-                        "${idBase}_2h",
+                    scheduleReminderOnce(
+                        "2h",
                         base - 2L * 60L * 60L * 1000L,
-                        remPayload(app.getString(R.string.local_alert_reminder_2h, label, whenStr)),
+                        app.getString(R.string.local_alert_reminder_2h, label, whenStr),
                     )
                 }
             }

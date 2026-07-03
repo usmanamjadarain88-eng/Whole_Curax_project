@@ -67,7 +67,8 @@ class AdminDashboardActivity : AppCompatActivity() {
     private var alertsReceiverRegistered = false
     private var adminDataSyncReceiverRegistered = false
     private var rosterCountsReceiverRegistered = false
-    private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
+    private var relayConnectionReceiverRegistered = false
+    private val http = AdminNetwork.http
 
     /** Throttle sidebar linked/pending HTTP: [ACTION_ADMIN_DATA_SYNCED] can fire very often over WebSocket. */
     private var lastSidebarLinkedOverviewFetchAtMs: Long = 0L
@@ -97,6 +98,14 @@ class AdminDashboardActivity : AppCompatActivity() {
         }
     }
 
+    private val relayConnectionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != AlertEvents.ACTION_CONNECTION_STATE_CHANGED) return
+            val connected = intent.getBooleanExtra(AlertEvents.EXTRA_CONNECTED, false)
+            runOnUiThread { refreshRelayConnectionUi(connected) }
+        }
+    }
+
     private val alertsUpdatedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == AlertEvents.ACTION_ALERTS_UPDATED) {
@@ -119,9 +128,9 @@ class AdminDashboardActivity : AppCompatActivity() {
                 }
             }
             connectionService?.onConnectionStateChanged = { connected ->
-                runOnUiThread { updateConnectionUi(connected) }
+                runOnUiThread { refreshRelayConnectionUi(connected) }
             }
-            runOnUiThread { updateConnectionUi(connectionService?.isConnected() == true) }
+            runOnUiThread { refreshRelayConnectionUi(RelayAutoConnect.isRelayLive(this@AdminDashboardActivity, connectionService)) }
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -262,6 +271,10 @@ class AdminDashboardActivity : AppCompatActivity() {
             tvSidebarStatPending.text = placeholder
             return
         }
+        if (!AdminNetwork.isOnline(this)) {
+            applySidebarLocalStats()
+            return
+        }
         val now = System.currentTimeMillis()
         if (!force &&
             lastSidebarLinkedOverviewFetchAtMs > 0L &&
@@ -307,7 +320,9 @@ class AdminDashboardActivity : AppCompatActivity() {
         super.onResume()
         updateReturnToAdminBar()
         applySidebarLocalStats()
-        fetchAdminSnapshotFromServer()
+        if (PendingSyncCoordinator.isOnline(this)) {
+            fetchAdminSnapshotFromServer()
+        }
         restoreRelayOnHomeOpen()
     }
 
@@ -324,17 +339,8 @@ class AdminDashboardActivity : AppCompatActivity() {
                     ContextCompat.getColor(this, R.color.sidebar_status_warn),
                 )
             },
-            onConnected = { updateConnectionUi(it) },
+            onConnected = { refreshRelayConnectionUi(it) },
         )
-        if (RelayAutoConnect.shouldAutoRestore(prefs) &&
-            !RelayAutoConnect.isRelayLive(this, connectionService)
-        ) {
-            val id = prefs.id.trim()
-            val apiKey = prefs.apiKey.trim()
-            if (id.isNotEmpty() && apiKey.isNotEmpty()) {
-                startConnectionService(prefs.serverUrl, id, apiKey)
-            }
-        }
         applySidebarLocalStats()
     }
 
@@ -443,8 +449,10 @@ class AdminDashboardActivity : AppCompatActivity() {
         DoseTrackingLocalStore.clear(applicationContext)
         refreshTabsForActAsUser()
         updateReturnToAdminBar()
-        fetchSidebarHealthOverview(force = true)
-        fetchAdminSnapshotFromServer()
+        if (AdminNetwork.isOnline(this)) {
+            fetchSidebarHealthOverview(force = true)
+            fetchAdminSnapshotFromServer()
+        }
     }
 
     private fun updateToolbarSubtitle() {
@@ -641,6 +649,13 @@ class AdminDashboardActivity : AppCompatActivity() {
             )
             rosterCountsReceiverRegistered = true
         }
+        if (!relayConnectionReceiverRegistered) {
+            registerReceiver(
+                relayConnectionReceiver,
+                IntentFilter(AlertEvents.ACTION_CONNECTION_STATE_CHANGED),
+            )
+            relayConnectionReceiverRegistered = true
+        }
         // Real-time admin data sync from Data Bus WebSocket (desktop/app changes).
         val accessCode = prefs.adminAccessCode.trim()
         if (accessCode.isNotEmpty()) {
@@ -670,6 +685,13 @@ class AdminDashboardActivity : AppCompatActivity() {
             } catch (_: Exception) {
             }
             rosterCountsReceiverRegistered = false
+        }
+        if (relayConnectionReceiverRegistered) {
+            try {
+                unregisterReceiver(relayConnectionReceiver)
+            } catch (_: Exception) {
+            }
+            relayConnectionReceiverRegistered = false
         }
         super.onStop()
     }
@@ -794,24 +816,39 @@ class AdminDashboardActivity : AppCompatActivity() {
         )
     }
 
-    fun isAdminConnected(): Boolean = connectionService?.isConnected() == true
+    fun isAdminConnected(): Boolean = RelayAutoConnect.isRelayLive(this, connectionService)
+
+    private fun refreshRelayConnectionUi(connectedFromEvent: Boolean) {
+        val live = connectedFromEvent || RelayAutoConnect.isRelayLive(this, connectionService)
+        updateConnectionUi(live)
+    }
 
     private fun updateConnectionUi(connected: Boolean) {
-        if (connected) prefs.hasEverConnected = true
         if (connected) {
+            prefs.hasEverConnected = true
             btnAdminConnect.visibility = View.GONE
             tvAdminConnectionStatus.text = getString(R.string.connected)
             tvAdminConnectionStatus.setTextColor(
                 ContextCompat.getColor(this, R.color.sidebar_status_ok),
             )
-        } else {
-            btnAdminConnect.visibility = View.VISIBLE
-            btnAdminConnect.text = getString(R.string.connect)
-            tvAdminConnectionStatus.text = getString(R.string.disconnected)
-            tvAdminConnectionStatus.setTextColor(
-                ContextCompat.getColor(this, R.color.sidebar_status_err),
-            )
+            applySidebarLocalStats()
+            return
         }
+        if (RelayAutoConnect.shouldAutoRestore(prefs)) {
+            btnAdminConnect.visibility = View.GONE
+            tvAdminConnectionStatus.text = getString(R.string.connecting)
+            tvAdminConnectionStatus.setTextColor(
+                ContextCompat.getColor(this, R.color.sidebar_status_warn),
+            )
+            applySidebarLocalStats()
+            return
+        }
+        btnAdminConnect.visibility = View.VISIBLE
+        btnAdminConnect.text = getString(R.string.connect)
+        tvAdminConnectionStatus.text = getString(R.string.disconnected)
+        tvAdminConnectionStatus.setTextColor(
+            ContextCompat.getColor(this, R.color.sidebar_status_err),
+        )
         applySidebarLocalStats()
     }
 
@@ -840,6 +877,11 @@ class AdminDashboardActivity : AppCompatActivity() {
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) return
+        if (!AdminNetwork.isOnline(this)) {
+            applySidebarLinkedCountsFromRoster()
+            refreshAdminHubCounts()
+            return
+        }
         val now = System.currentTimeMillis()
         if (!force &&
             lastRosterCountsFetchAtMs > 0L &&

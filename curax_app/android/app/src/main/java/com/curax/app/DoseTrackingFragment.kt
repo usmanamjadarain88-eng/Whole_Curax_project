@@ -27,8 +27,8 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Dose tracking: **Standalone** uses the same B1–B6 chip row as the medicine inventory; **default mode**
- * uses the 6-box grid plus optional BLE `LED_ON`/`LED_OFF` when a box is selected.
+ * Dose tracking: **Standalone** uses the B1–B6 chip row; **default mode** uses the 6-box grid
+ * and opens the box servo over BLE when connected, medicine is stocked, and the dose window is active.
  */
 class DoseTrackingFragment : Fragment() {
 
@@ -82,8 +82,8 @@ class DoseTrackingFragment : Fragment() {
     private var historyAdapter: DoseHistoryRowsAdapter? = null
     private var selectedMedicine: AdminDemoData.Medicine? = null
 
-    /** Last box we lit on ESP32 (default mode BLE only). */
-    private var lastEsp32LedBox: String? = null
+    /** Box whose drawer is open on ESP32 (default mode BLE only). */
+    private var lastEsp32ServoBox: String? = null
 
     private val syncReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -146,8 +146,8 @@ class DoseTrackingFragment : Fragment() {
 
     override fun onPause() {
         if (bleBridgeEnabled()) {
-            CuraxEsp32BleLink.sendLedAllOff()
-            lastEsp32LedBox = null
+            CuraxEsp32BleLink.sendServoAllClose()
+            lastEsp32ServoBox = null
         }
         super.onPause()
     }
@@ -158,20 +158,45 @@ class DoseTrackingFragment : Fragment() {
         return !StandaloneUi.isUserStandalone(ctx)
     }
 
-    /** Mirror desktop: selecting a chip turns that box LED on (and turns previous off). */
-    private fun pushEsp32LedForBox(boxUpper: String?) {
+    private fun isDoseMarkWindowActive(m: AdminDemoData.Medicine): Boolean {
+        val phase = DoseIntakeClassifier.markContext(m).phase
+        return phase == DoseIntakeClassifier.SlotPhase.ON_TIME ||
+            phase == DoseIntakeClassifier.SlotPhase.LATE
+    }
+
+    /** BLE connected + stocked + dose window (ON_TIME/LATE). Unlock the box on the hardware keypad first. */
+    private fun isEsp32ServoReady(m: AdminDemoData.Medicine?): Boolean {
+        if (!bleBridgeEnabled()) return false
+        if (m == null || m.stock <= 0) return false
+        if (!CuraxEsp32BleLink.isConnected()) return false
+        return isDoseMarkWindowActive(m)
+    }
+
+    /** Open drawer when ready; close if user picks a non-ready box. */
+    private fun handleEsp32ServoForSelection(boxUpper: String?, medicine: AdminDemoData.Medicine?) {
         if (!bleBridgeEnabled()) return
-        val b = boxUpper?.trim()?.uppercase(Locale.US)?.takeIf { it in doseSlotSet() }
-            ?: run {
-                lastEsp32LedBox?.let { CuraxEsp32BleLink.sendLedOff(it) }
-                lastEsp32LedBox = null
-                return
+        val b = boxUpper?.trim()?.uppercase(Locale.US)?.takeIf { it in doseSlotSet() } ?: return
+        val m = medicine ?: AdminDemoData.medicines.find { it.box.equals(b, ignoreCase = true) }
+        if (!isEsp32ServoReady(m)) {
+            lastEsp32ServoBox?.let { prev ->
+                CuraxEsp32BleLink.sendServoClose(prev)
+                lastEsp32ServoBox = null
             }
-        lastEsp32LedBox?.let { prev ->
-            if (prev != b) CuraxEsp32BleLink.sendLedOff(prev)
+            return
         }
-        CuraxEsp32BleLink.sendLedOn(b)
-        lastEsp32LedBox = b
+        if (lastEsp32ServoBox == b) return
+        lastEsp32ServoBox?.let { prev ->
+            if (prev != b) CuraxEsp32BleLink.sendServoClose(prev)
+        }
+        CuraxEsp32BleLink.sendServoOpen(b)
+        lastEsp32ServoBox = b
+    }
+
+    private fun closeEsp32ServoForBox(boxUpper: String?) {
+        if (!bleBridgeEnabled()) return
+        val b = boxUpper?.trim()?.uppercase(Locale.US) ?: return
+        CuraxEsp32BleLink.sendServoClose(b)
+        if (lastEsp32ServoBox == b) lastEsp32ServoBox = null
     }
 
     private fun bindDoseBoxGrid(view: View) {
@@ -188,17 +213,16 @@ class DoseTrackingFragment : Fragment() {
                 }
                 rebuildDoseUi(view)
                 updateMarkButtonState(view)
-                pushEsp32LedForBox(doseSelectedBoxUpper)
+                handleEsp32ServoForSelection(doseSelectedBoxUpper, selectedMedicine)
             }
         }
     }
 
     private fun rebuildDoseBoxGrid(v: View) {
         val ctx = requireContext()
-        val primaryBorder = ContextCompat.getColor(ctx, R.color.button_primary_bg)
+        val strokeGrey = ContextCompat.getColor(ctx, R.color.dose_tracking_box_stroke)
+        val strokeGreen = ContextCompat.getColor(ctx, R.color.dose_tracking_box_stroke_selected)
         val fillClear = Color.TRANSPARENT
-        // Mild “hover” on selected: same outline colour as Mark Dose button + soft tint inside
-        val fillSelected = ColorUtils.setAlphaComponent(primaryBorder, 32)
         val primaryText = ContextCompat.getColor(ctx, R.color.text_primary)
         val secondaryText = ContextCompat.getColor(ctx, R.color.text_secondary)
         val d = resources.displayMetrics.density
@@ -225,9 +249,12 @@ class DoseTrackingFragment : Fragment() {
                 nameTv.setTextColor(secondaryText)
                 qtyTv.setTextColor(secondaryText)
             }
+            val ready = isEsp32ServoReady(m)
             val sel = doseSelectedBoxUpper == box.uppercase(Locale.US)
+            val borderColor = if (ready) strokeGreen else strokeGrey
+            val fillSelected = ColorUtils.setAlphaComponent(borderColor, if (ready) 32 else 20)
             card.strokeWidth = if (sel) strokeSel else strokeNorm
-            card.strokeColor = primaryBorder
+            card.strokeColor = borderColor
             card.setCardBackgroundColor(if (sel) fillSelected else fillClear)
             card.cardElevation = 0f
             card.clipToOutline = true
@@ -267,7 +294,7 @@ class DoseTrackingFragment : Fragment() {
                 }
                 rebuildDoseUi(v)
                 updateMarkButtonState(v)
-                pushEsp32LedForBox(doseSelectedBoxUpper)
+                handleEsp32ServoForSelection(doseSelectedBoxUpper, selectedMedicine)
             },
             onPlaceholderClick = {},
             showBoxLabelWhenPlaceholder = true,
@@ -276,7 +303,6 @@ class DoseTrackingFragment : Fragment() {
                 doseSelectedBoxUpper = item.box.trim().takeIf { it.isNotEmpty() }?.uppercase(Locale.US)
                 rebuildDoseUi(v)
                 updateMarkButtonState(v)
-                pushEsp32LedForBox(doseSelectedBoxUpper)
             },
         )
     }
@@ -330,7 +356,7 @@ class DoseTrackingFragment : Fragment() {
         v.findViewById<RecyclerView>(R.id.rvDoseHistory)?.requestLayout()
         updateMarkButtonState(v)
         if (bleBridgeEnabled()) {
-            pushEsp32LedForBox(doseSelectedBoxUpper)
+            handleEsp32ServoForSelection(doseSelectedBoxUpper, selectedMedicine)
         }
     }
 
@@ -497,8 +523,7 @@ class DoseTrackingFragment : Fragment() {
                 )
                 if (bleBridgeEnabled()) {
                     val bx = m.box.trim().uppercase(Locale.US)
-                    CuraxEsp32BleLink.sendLedOff(bx)
-                    lastEsp32LedBox = null
+                    closeEsp32ServoForBox(bx)
                 }
                 val msg = if (ctxMark.phase == DoseIntakeClassifier.SlotPhase.ON_TIME) {
                     getString(R.string.dose_tracking_saved_on_time)
@@ -506,6 +531,7 @@ class DoseTrackingFragment : Fragment() {
                     getString(R.string.dose_tracking_saved_late)
                 }
                 CuraxFeedback.success(this, msg)
+                CuraxNextDoseWidgetProvider.updateAll(requireContext())
                 }
             }
         }

@@ -30,8 +30,7 @@ object UserLogoutHelper {
         prefs.actAsUserId = ""
         prefs.actAsUserName = ""
         prefs.actAsUserDisplayMode = ""
-        AppModeManager.setStandaloneMode(app, false)
-        // Mode sheet completion is per bot_id ([UserModeSheetPrefs]) — do not reset on logout.
+        // Mode lives in [UserModeSheetPrefs] per account — restored in [AppModeManager.ensureAccountModeBeforeHome].
         prefs.userHomeColdStartCount = 0
         prefs.pinDeferredAutoPromptShown = false
         prefs.userStandaloneDataReady = false
@@ -41,7 +40,6 @@ object UserLogoutHelper {
         prefs.hasRequestedConnectWakePermissions = false
         prefs.standaloneDeviceSetupCompleted = false
         prefs.userProfilePictureDataUrl = ""
-        prefs.esp32CachedDevicePin = ""
         UserSessionIsolate.clearSessionIdentity(app)
         UserSessionIsolate.clearUserScopedData(app)
         AppLockState.grantUnlock()

@@ -72,6 +72,12 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
         etAdminConnectionCode.doOnTextChanged { _, _, _, _ -> syncConnectButtonState() }
         syncConnectButtonState()
 
+        val pendingInvite = prefs.pendingInviteConnectionCode.trim()
+        if (pendingInvite.isNotEmpty()) {
+            etAdminConnectionCode.setText(pendingInvite)
+            syncConnectButtonState()
+        }
+
         btnLinkAdmin.setOnClickListener { onLinkAdminClicked() }
         tvChooseAdminLink.setOnClickListener {
             hideKeyboard()
@@ -294,12 +300,13 @@ class SignUpLinkAdminActivity : AppCompatActivity() {
             CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
             return
         }
-        UserModeSheetPrefs.syncGlobalFlagFromBot(this, botId)
+        UserModeSheetPrefs.syncGlobalFlagFromAccount(this, botId, email)
         SignUpFlowState.clear()
         if (!store.saveUserCommitted(email, password, LocalUserStore.ROLE_USER)) {
             CuraxFeedback.warn(this, getString(R.string.request_failed), long = true)
             return
         }
+        AppModeManager.restoreSavedAccountMode(this, email)
 
         CuraxFeedback.successThen(
             this,

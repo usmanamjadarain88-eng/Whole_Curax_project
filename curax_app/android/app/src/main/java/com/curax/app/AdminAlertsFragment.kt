@@ -256,7 +256,11 @@ class AdminAlertsFragment : Fragment() {
                 refresh()
             }
         } else if (AppRole.isAdmin(ctx)) {
-            AdminDataBusClient.fetchAdminSnapshotAsync(ctx) { refresh() }
+            if (AdminNetwork.isOnline(ctx)) {
+                AdminDataBusClient.fetchAdminSnapshotAsync(ctx) { refresh() }
+            } else {
+                refresh()
+            }
         } else {
             refresh()
         }
@@ -448,11 +452,7 @@ class AdminAlertsFragment : Fragment() {
         val query = etSearch.text?.toString()?.trim()?.lowercase().orEmpty()
         val api = AdminDemoData.getApiAlerts()
         val db = alertDb.getAllAlerts()
-        val apiForUi = if (AppRole.isAdmin(requireContext()) && api.isEmpty() && db.isEmpty()) {
-            AdminDemoData.adminPreviewAlerts()
-        } else {
-            api
-        }
+        val apiForUi = api
         val combined = dedupeAlerts(apiForUi + db).filter { item ->
             !DeletedAlertsStore.isDeleted(requireContext(), item)
         }.let { raw ->
@@ -621,8 +621,11 @@ class AdminAlertsFragment : Fragment() {
             AdminDemoData.appendApiAlerts(apiItems)
         }
         refresh()
-        if (AppRole.isUser(requireContext()) && StandaloneUi.isUserStandalone(requireContext())) {
-            StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
+        if (AppRole.isUser(requireContext())) {
+            UserAlertsSnapshot.persistAlerts(requireContext())
+            if (StandaloneUi.isUserStandalone(requireContext())) {
+                StandaloneOfflineMirror.persistMergedSnapshot(requireContext())
+            }
         }
     }
 

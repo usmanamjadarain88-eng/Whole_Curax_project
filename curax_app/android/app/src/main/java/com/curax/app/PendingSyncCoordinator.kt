@@ -20,7 +20,9 @@ object PendingSyncCoordinator {
             ?: return false
         val net = cm.activeNetwork ?: return false
         val caps = cm.getNetworkCapabilities(net) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return false
+        // Wi‑Fi with no route (captive portal / airplane-with-wifi) still reports INTERNET; VALIDATED avoids long HTTP hangs.
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     fun requestFlush(context: Context) {

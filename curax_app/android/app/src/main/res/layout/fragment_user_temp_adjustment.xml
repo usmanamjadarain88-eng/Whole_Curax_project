@@ -23,18 +23,10 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="16dp"
-            android:text="@string/user_temp_adjust_intro"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
-
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:layout_marginBottom="12dp"
             app:cardBackgroundColor="@color/summary_card"
             app:cardCornerRadius="14dp"
@@ -87,54 +79,24 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
+                    android:text="@string/user_temp_current_reading_none"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
 
-                <TextView
+                <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="@string/user_temp_range_c"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13sp" />
+                    android:hint="@string/user_temp_target_hint"
+                    app:endIconMode="none">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="0dp"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etPeltier1Target"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:hint="@string/user_temp_min_hint"
-                        app:endIconMode="none">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etPeltier1Min"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="numberDecimal|numberSigned"
-                            android:text="15" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="@string/user_temp_max_hint"
-                        app:endIconMode="none">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etPeltier1Max"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="numberDecimal|numberSigned"
-                            android:text="20" />
-                    </com.google.android.material.textfield.TextInputLayout>
-                </LinearLayout>
+                        android:inputType="numberDecimal|numberSigned"
+                        android:text="20" />
+                </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnApplyPeltier1"
@@ -202,54 +164,24 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
+                    android:text="@string/user_temp_current_reading_none"
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
 
-                <TextView
+                <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="@string/user_temp_range_c"
-                    android:textColor="@color/text_primary"
-                    android:textSize="13sp" />
+                    android:hint="@string/user_temp_target_hint"
+                    app:endIconMode="none">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:orientation="horizontal">
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="0dp"
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etPeltier2Target"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:hint="@string/user_temp_min_hint"
-                        app:endIconMode="none">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etPeltier2Min"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="numberDecimal|numberSigned"
-                            android:text="5" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="@string/user_temp_max_hint"
-                        app:endIconMode="none">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etPeltier2Max"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="numberDecimal|numberSigned"
-                            android:text="8" />
-                    </com.google.android.material.textfield.TextInputLayout>
-                </LinearLayout>
+                        android:inputType="numberDecimal|numberSigned"
+                        android:text="6.5" />
+                </com.google.android.material.textfield.TextInputLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnApplyPeltier2"

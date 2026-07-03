@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.Intent
 
 object UserHomeIntent {
-    /** Same tabbed home for Default and Standalone for now; [AppModeManager] is preference only. */
-    fun forSignedInUser(context: Context): Intent =
-        Intent(context, UserStandaloneActivity::class.java)
+    /** Same tabbed home for Default and Standalone; restores saved mode before activity starts. */
+    fun forSignedInUser(context: Context): Intent {
+        AppModeManager.ensureAccountModeBeforeHome(context)
+        return Intent(context, UserStandaloneActivity::class.java)
+    }
 
     /**
      * Sign-in → home: keep one task, slide transition, no [CLEAR_TASK] blank flash.

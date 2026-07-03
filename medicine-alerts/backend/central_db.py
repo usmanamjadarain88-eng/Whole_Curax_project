@@ -3700,7 +3700,8 @@ class CentralDB:
                        COALESCE(a.name, '') AS admin_name,
                        COALESCE(a.admin_access_code, '') AS databus_access_code,
                        COALESCE(a.connection_code, '') AS connection_code,
-                       COALESCE(u.email, '') AS email
+                       COALESCE(u.email, '') AS email,
+                       COALESCE(u.user_display_mode, '') AS user_display_mode
                 FROM users u
                 INNER JOIN admins a ON a.id = u.admin_id
                 WHERE LOWER(TRIM(COALESCE(u.email, ''))) = %s
@@ -3716,6 +3717,7 @@ class CentralDB:
         if not urow:
             return {"ok": False, "error": "user_missing"}
         if hasattr(urow, "keys"):
+            dm = str(urow.get("user_display_mode") or "").strip().lower()
             return {
                 "ok": True,
                 "email": (urow.get("email") or "").strip() or email_n,
@@ -3725,7 +3727,9 @@ class CentralDB:
                 "admin_name": str(urow.get("admin_name") or "").strip(),
                 "databus_access_code": str(urow.get("databus_access_code") or "").strip(),
                 "connection_code": str(urow.get("connection_code") or "").strip(),
+                "user_display_mode": dm if dm in ("standalone", "default") else "",
             }
+        dm = str(urow[7] or "").strip().lower() if len(urow) > 7 else ""
         return {
             "ok": True,
             "email": (urow[6] or "").strip() or email_n,
@@ -3735,6 +3739,7 @@ class CentralDB:
             "admin_name": str(urow[3] or "").strip(),
             "databus_access_code": str(urow[4] or "").strip(),
             "connection_code": str(urow[5] or "").strip(),
+            "user_display_mode": dm if dm in ("standalone", "default") else "",
         }
 
     def signup_sign_in_verify_otp(self, email, otp):

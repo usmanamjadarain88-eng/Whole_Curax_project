@@ -53,14 +53,17 @@ class AdminMessagesFragment : Fragment() {
             bindUsers(emptyList())
             return
         }
+        if (!AdminNetwork.isOnline(requireContext())) {
+            bindUsers(AdminChatUserStore.snapshot())
+            return
+        }
         Thread {
             var list = AdminChatUserStore.snapshot()
             if (list.isEmpty()) {
                 try {
                     val url =
                         "$base/admin/linked-users?access_code=${URLEncoder.encode(accessCode, "UTF-8")}"
-                    val client = OkHttpClient()
-                    val res = client.newCall(Request.Builder().url(url).get().build()).execute()
+                    val res = AdminNetwork.http.newCall(Request.Builder().url(url).get().build()).execute()
                     val body = res.body?.string().orEmpty()
                     if (res.isSuccessful && body.isNotBlank()) {
                         AdminChatUserStore.ingestUsersArray(JSONObject(body).optJSONArray("users"))

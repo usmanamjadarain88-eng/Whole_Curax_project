@@ -42,7 +42,7 @@ class AdminMedicalRemindersFragment : Fragment() {
     companion object {
         private val REMINDER_KEYS = listOf("appointments", "prescriptions", "lab_tests", "custom")
         private val REMINDER_LABELS = listOf("Appointments", "Prescriptions", "Lab Tests", "Custom")
-        private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
+        private val http = AdminNetwork.http
     }
 
     private var containerAppointments: LinearLayout? = null
@@ -152,6 +152,7 @@ class AdminMedicalRemindersFragment : Fragment() {
         val botId = prefs.id.trim()
         val apiKey = prefs.apiKey.trim()
         if (isUserApp() && (botId.isEmpty() || apiKey.isEmpty())) return
+        if (!AdminNetwork.isOnline(requireContext())) return
 
         Thread {
             try {
@@ -746,6 +747,10 @@ class AdminMedicalRemindersFragment : Fragment() {
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) {
             CuraxFeedback.warn(this, "Not signed in as admin")
+            return
+        }
+        if (!AdminNetwork.isOnline(requireContext())) {
+            CuraxFeedback.warn(this, getString(R.string.error_network_unreachable), long = true)
             return
         }
         Thread {

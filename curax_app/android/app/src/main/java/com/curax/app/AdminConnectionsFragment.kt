@@ -1,7 +1,5 @@
 package com.curax.app
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -85,10 +83,7 @@ private object AdminConnectionsPendingCache {
 /** Pending directory link requests (accept / decline). */
 class AdminConnectionsFragment : Fragment() {
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+    private val http = AdminNetwork.http
 
     private lateinit var prefs: Prefs
     private lateinit var progress: ProgressBar
@@ -97,7 +92,7 @@ class AdminConnectionsFragment : Fragment() {
     private lateinit var tvEmpty: TextView
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var tvConnectionCode: TextView
-    private lateinit var btnCopyCode: AppCompatImageButton
+    private lateinit var btnShareInvite: AppCompatImageButton
 
     private val loadGen = AtomicInteger(0)
     private var receiverRegistered = false
@@ -132,7 +127,7 @@ class AdminConnectionsFragment : Fragment() {
         view.findViewById<NestedScrollView>(R.id.scrollAdminConnections)
             .attachHorizontalScrollNestedHandoff(immediateDisallowOnDown = false)
         tvConnectionCode = view.findViewById(R.id.tvAdminConnectionsConnectionCode)
-        btnCopyCode = view.findViewById(R.id.btnAdminConnectionsCopyCode)
+        btnShareInvite = view.findViewById(R.id.btnAdminConnectionsShareInvite)
 
         adapter = PendingLinkRequestsAdapter(
             onAccept = { row -> postDecision(row, accept = true) },
@@ -142,15 +137,18 @@ class AdminConnectionsFragment : Fragment() {
         recycler.isNestedScrollingEnabled = false
         recycler.adapter = adapter
 
-        btnCopyCode.setOnClickListener {
+        btnShareInvite.setOnClickListener {
             val code = prefs.connectionCode.trim()
             if (code.isEmpty()) {
                 CuraxFeedback.warn(this, getString(R.string.connection_code_not_available), long = true)
                 return@setOnClickListener
             }
-            (requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                .setPrimaryClip(ClipData.newPlainText("", code))
-            CuraxFeedback.success(this, getString(R.string.admin_hub_code_copied))
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name))
+                putExtra(Intent.EXTRA_TEXT, CuraxInviteLink.buildShareMessage(requireContext(), code))
+            }
+            startActivity(Intent.createChooser(send, getString(R.string.invite_link_share)))
         }
         bindConnectionCode()
         loadPending(force = false, fromPullToRefresh = false)
@@ -225,6 +223,26 @@ class AdminConnectionsFragment : Fragment() {
             return
         }
 
+        if (!AdminNetwork.isOnline(requireContext())) {
+            progress.visibility = View.GONE
+            stopConnectionsSwipeRefresh()
+            bindConnectionCode()
+            if (AdminConnectionsPendingCache.hasValidCache()) {
+                AdminConnectionsPendingCache.restoreInto(
+                    adapter = adapter,
+                    tvEmpty = tvEmpty,
+                    recycler = recycler,
+                    emptyRes = getString(R.string.admin_connections_empty),
+                )
+            } else {
+                adapter.submit(emptyList())
+                tvEmpty.visibility = View.VISIBLE
+                tvEmpty.text = getString(R.string.error_network_unreachable)
+                recycler.visibility = View.GONE
+            }
+            return
+        }
+
         val gen = loadGen.incrementAndGet()
         progress.visibility = when {
             fromPullToRefresh -> View.GONE
@@ -277,37 +295,15 @@ class AdminConnectionsFragment : Fragment() {
                         return@runOnUiThread
                     }
 
-                    val showDemo = pendingRows.isEmpty()
-                    val forUi = if (showDemo) {
-                        val c = requireContext()
-                        listOf(
-                            PendingLinkRequestUi(
-                                "demo_preview_1",
-                                "usman.preview@example.com",
-                                c.getString(R.string.admin_demo_name_usman),
-                                "",
-                                isDemo = true,
-                            ),
-                            PendingLinkRequestUi(
-                                "demo_preview_2",
-                                "zara.preview@example.com",
-                                c.getString(R.string.admin_demo_name_zara),
-                                "",
-                                isDemo = true,
-                            ),
-                        )
-                    } else {
-                        pendingRows
-                    }
-                    adapter.submit(forUi)
-                    tvEmpty.visibility = if (pendingRows.isEmpty() && !showDemo) View.VISIBLE else View.GONE
-                    recycler.visibility = if (pendingRows.isNotEmpty() || showDemo) View.VISIBLE else View.GONE
-                    if (pendingRows.isEmpty() && !showDemo) {
+                    adapter.submit(pendingRows)
+                    tvEmpty.visibility = if (pendingRows.isEmpty()) View.VISIBLE else View.GONE
+                    recycler.visibility = if (pendingRows.isNotEmpty()) View.VISIBLE else View.GONE
+                    if (pendingRows.isEmpty()) {
                         tvEmpty.text = getString(R.string.admin_connections_empty)
                     }
                     AdminConnectionsPendingCache.record(
-                        forUi = forUi,
-                        showDemo = showDemo,
+                        forUi = pendingRows,
+                        showDemo = false,
                         realPendingCount = pendingRows.size,
                     )
                 } finally {

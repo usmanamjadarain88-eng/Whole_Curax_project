@@ -39,10 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 class AdminHubFragment : Fragment() {
 
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+    private val http = AdminNetwork.http
 
     private lateinit var prefs: Prefs
     private lateinit var store: LocalUserStore
@@ -74,6 +71,7 @@ class AdminHubFragment : Fragment() {
 
     private val hubMetricsHandler = Handler(Looper.getMainLooper())
     private var hubMetricsRunnable: Runnable? = null
+    private var progressSafetyRunnable: Runnable? = null
     private val silentDoseGen = AtomicInteger(0)
     @Volatile
     private var hubMetricsFetchForced: Boolean = false
@@ -164,6 +162,12 @@ class AdminHubFragment : Fragment() {
         )
         swipeHub.setOnChildScrollUpCallback { _, child -> child?.canScrollVertically(-1) == true }
         swipeHub.setOnRefreshListener {
+            if (!AdminNetwork.isOnline(requireContext())) {
+                swipeHub.isRefreshing = false
+                presentOfflineHub()
+                CuraxFeedback.warn(this@AdminHubFragment, getString(R.string.error_network_unreachable))
+                return@setOnRefreshListener
+            }
             AdminDataBusClient.fetchAdminSnapshotAsync(requireContext()) { _ ->
                 if (!isAdded) return@fetchAdminSnapshotAsync
                 swipeHub.isRefreshing = false
@@ -210,7 +214,58 @@ class AdminHubFragment : Fragment() {
         super.onResume()
         refreshLocalStats()
         applyRosterCountsToUi()
-        scheduleHubMetricsFetchDebounced(force = true)
+        if (!AdminNetwork.isOnline(requireContext())) {
+            presentOfflineHub()
+            return
+        }
+        scheduleHubMetricsFetchDebounced(force = false)
+    }
+
+    private fun presentOfflineHub() {
+        dismissHubLoading()
+        restoreHubSummaryFromCache()
+        refreshLocalStats()
+        refreshPulseStats()
+        showDosePreviewOffline()
+    }
+
+    private fun dismissHubLoading() {
+        progressSafetyRunnable?.let { hubMetricsHandler.removeCallbacks(it) }
+        progressSafetyRunnable = null
+        if (this::progressLoad.isInitialized) {
+            progressLoad.visibility = View.GONE
+        }
+        if (this::swipeHub.isInitialized) {
+            swipeHub.isRefreshing = false
+        }
+    }
+
+    private fun showDosePreviewOffline() {
+        if (!this::cardAdminHubDosePreview.isInitialized) return
+        cardAdminHubDosePreview.visibility = View.VISIBLE
+        containerHubDoseTables.removeAllViews()
+        tvRosterDosePreviewEmpty.text = getString(R.string.admin_hub_dose_preview_offline)
+        tvRosterDosePreviewEmpty.visibility = View.VISIBLE
+    }
+
+    /** Failsafe: never leave the hub spinner running if HTTP stalls (e.g. captive Wi‑Fi). */
+    private fun armProgressSafety(gen: Int) {
+        progressSafetyRunnable?.let { hubMetricsHandler.removeCallbacks(it) }
+        progressSafetyRunnable = Runnable {
+            if (!isAdded || gen != loadGeneration.get()) return@Runnable
+            if (progressLoad.visibility != View.VISIBLE) return@Runnable
+            dismissHubLoading()
+            if (MetricsCache.hasSummary()) {
+                restoreHubSummaryFromCache()
+            } else {
+                tvStatUsers.text = "—"
+                applyDonutPlaceholder()
+            }
+            refreshLocalStats()
+            refreshPulseStats()
+            populateHubDoseTables(loadFailed = true)
+        }
+        hubMetricsHandler.postDelayed(progressSafetyRunnable!!, 12_000L)
     }
 
     /** Same totals as Users tab — no WebSocket required. */
@@ -236,6 +291,8 @@ class AdminHubFragment : Fragment() {
     override fun onDestroyView() {
         hubMetricsRunnable?.let { hubMetricsHandler.removeCallbacks(it) }
         hubMetricsRunnable = null
+        progressSafetyRunnable?.let { hubMetricsHandler.removeCallbacks(it) }
+        progressSafetyRunnable = null
         if (hubReceiverRegistered) {
             try {
                 requireContext().unregisterReceiver(hubReceiver)
@@ -294,11 +351,15 @@ class AdminHubFragment : Fragment() {
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) {
-            progressLoad.visibility = View.GONE
+            dismissHubLoading()
             tvStatUsers.text = "0"
             applyDonutPlaceholder()
             refreshPulseStats()
             cardAdminHubDosePreview.visibility = View.GONE
+            return
+        }
+        if (!AdminNetwork.isOnline(requireContext())) {
+            presentOfflineHub()
             return
         }
         val now = System.currentTimeMillis()
@@ -314,10 +375,12 @@ class AdminHubFragment : Fragment() {
 
         val gen = loadGeneration.incrementAndGet()
         silentDoseGen.incrementAndGet()
-        progressLoad.visibility = when {
-            suppressProgressBar -> View.GONE
-            MetricsCache.hasSummary() -> View.GONE
-            else -> View.VISIBLE
+        val showProgress = !suppressProgressBar && !MetricsCache.hasSummary()
+        if (showProgress) {
+            progressLoad.visibility = View.VISIBLE
+            armProgressSafety(gen)
+        } else {
+            dismissHubLoading()
         }
         val enc = java.net.URLEncoder.encode(accessCode, "UTF-8")
         val urlFast = "$base/admin/linked-users?access_code=$enc"
@@ -334,7 +397,7 @@ class AdminHubFragment : Fragment() {
 
                 activity?.runOnUiThread {
                     if (gen != loadGeneration.get()) return@runOnUiThread
-                    progressLoad.visibility = View.GONE
+                    dismissHubLoading()
                     if (!res1.isSuccessful) {
                         tvStatUsers.text = "—"
                         applyDonutPlaceholder()
@@ -371,9 +434,13 @@ class AdminHubFragment : Fragment() {
             } catch (_: Exception) {
                 activity?.runOnUiThread {
                     if (gen != loadGeneration.get()) return@runOnUiThread
-                    progressLoad.visibility = View.GONE
-                    tvStatUsers.text = "—"
-                    applyDonutPlaceholder()
+                    dismissHubLoading()
+                    if (MetricsCache.hasSummary()) {
+                        restoreHubSummaryFromCache()
+                    } else {
+                        tvStatUsers.text = "—"
+                        applyDonutPlaceholder()
+                    }
                     refreshLocalStats()
                     refreshPulseStats()
                     populateHubDoseTables(loadFailed = true)
@@ -685,6 +752,10 @@ class AdminHubFragment : Fragment() {
     /** One lightweight dose-preview request without clearing counts or showing the hub progress bar. */
     private fun fetchHubDosePreviewSilently() {
         if (!this::containerHubDoseTables.isInitialized) return
+        if (!AdminNetwork.isOnline(requireContext())) {
+            showDosePreviewOffline()
+            return
+        }
         val accessCode = prefs.adminAccessCode.trim()
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
         if (base.isEmpty() || accessCode.isEmpty()) return

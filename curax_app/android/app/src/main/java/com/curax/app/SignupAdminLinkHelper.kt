@@ -45,11 +45,12 @@ object SignupAdminLinkHelper {
 
         prefs.id = botId
         prefs.apiKey = apiKey
-        UserModeSheetPrefs.syncGlobalFlagFromBot(activity, botId)
+        UserModeSheetPrefs.syncGlobalFlagFromAccount(activity, botId, email)
         prefs.connectionCode = codeForPrefs
         prefs.databusAccessCode = databusAccessCode
         prefs.linkedAdminId = adminId
         prefs.linkedAdminName = adminName
+        prefs.pendingInviteConnectionCode = ""
         if (databusAccessCode.isNotEmpty()) {
             UserDataBusClient.reconnectFromPrefs(activity)
         }
@@ -63,22 +64,12 @@ object SignupAdminLinkHelper {
         val fromUsername = jo.optString("user_username", "").trim()
         if (fromUsername.isNotEmpty()) prefs.userHubUsername = fromUsername
 
-        val dm = jo.optString("user_display_mode", "").trim().lowercase()
-        if (!prefs.userInitialAppModeSheetCompleted) {
-            if (dm == "standalone" || dm == "default") {
-                AppModeManager.applyDisplayModeValueFromServer(
-                    activity,
-                    dm == "standalone",
-                    notifyRelaunch = true,
-                )
-            }
-        } else {
-            UserDisplayModeApi.postDisplayModeAsync(activity, prefs.userStandaloneMode)
-        }
-
         store.saveUser(email, password, LocalUserStore.ROLE_USER)
         SignUpFlowState.clear()
         prefs.clearSignupWipLink()
+
+        AppModeManager.restoreSavedAccountMode(activity, email)
+        AppModeManager.applyDisplayModeFromAuthJson(activity, jo, notifyRelaunch = true)
 
         val base = prefs.centralApiUrl.trim().removeSuffix("/")
 
@@ -87,6 +78,7 @@ object SignupAdminLinkHelper {
             base,
             botId,
             apiKey,
+            bootstrapSignIn = true,
             onSuccess = { onUserDataApplied() },
             onAuthRejected = { msg -> onAuthRejected(msg) },
         )

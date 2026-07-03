@@ -60,11 +60,19 @@ object ConnectionManager {
         }
     }
 
-    /** User/admin home resume: full relay connect from saved credentials after first Connect flow. */
+    /** User/admin home resume: restore relay only when not already linked. */
     fun ensureRelayLiveOnAppOpen(context: Context) {
         val prefs = Prefs(context.applicationContext)
         if (!RelayAutoConnect.shouldAutoRestore(prefs)) return
-        requestConnectRelay(context, prefs.serverUrl.trim(), prefs.id.trim(), prefs.apiKey.trim())
+        val url = prefs.serverUrl.trim()
+        val id = prefs.id.trim()
+        val key = prefs.apiKey.trim()
+        if (url.isEmpty() || id.isEmpty() || key.isEmpty()) return
+        if (isRelayConnectedHint()) {
+            requestReconnectRelayNow(context)
+            return
+        }
+        requestConnectRelay(context, url, id, key)
     }
 
     /** Best-effort; prefer service binder [AlertConnectionService.isConnected] in activities. */
